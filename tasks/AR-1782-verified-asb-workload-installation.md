@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "Wait for AR-1793 diagnostic identity repair to merge; then rebase PR #584 a1090297 onto updated main, rerun exact-head CI, and review.",
+  "next_action": "PR #584 updated to signed+DCO head 0c31a205 on AR-1793 main 24f1872c; monitor fresh exact-head CI, independently review, then merge only after all required checks pass.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 1,
   "observed_head": "a1090297dede4412bcf1487d2d7bc00315c69dc5",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 32,
+  "task_revision": 33,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T14:33:35+00:00",
+  "updated_at": "2026-10-11T14:34:05+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -131,3 +131,7 @@ remain mandatory.
 
 - 2026-10-11T14:33:35+00:00: Recorded command exit 8; command argv SHA-256
   78f325bde3962aea10f3844ad0018af88b2cf3e001f1e02858b67193c031b6ae.
+
+- 2026-10-11T14:34:05+00:00: Rebased after AR-1793 merge and pushed generated diagnostic identity
+  repair 0c31a205. Fresh PR checks are running; headers/provenance/AWQ shadow pass, remaining checks
+  pending.

@@ -1246,7 +1246,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement dedicated verified remote external workload installation and lifecycle through asb workload. |
-| Next action | Wait for AR-1793 diagnostic identity repair to merge; then rebase PR #584 a1090297 onto updated main, rerun exact-head CI, and review. |
+| Next action | PR #584 updated to signed+DCO head 0c31a205 on AR-1793 main 24f1872c; monitor fresh exact-head CI, independently review, then merge only after all required checks pass. |
 
 ### AR-1783 — Installed workload selection and execution
 
