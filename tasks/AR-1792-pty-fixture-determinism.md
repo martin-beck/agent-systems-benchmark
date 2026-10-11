@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "Make development broker PTY fixture deterministic",
-  "updated_at": "2026-10-11T00:11:26+00:00",
+  "updated_at": "2026-10-11T00:11:53+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1792-pty-fixture-determinism"
 }
 ---
@@ -41,3 +41,6 @@ serial-only or exclusion-based gate.
 
 - 2026-10-11T00:11:26+00:00: Recorded command exit 101; command argv SHA-256
   15012fee1a2b2a2616214b9f3f662c535c27357a2952e8e9a51b029a13d1c478.
+
+- 2026-10-11T00:11:53+00:00: Recorded command exit 0; command argv SHA-256
+  b5bc845e79f2d8652b19f619d5c22b3d136c5d8e89b91c880d280fe2f10c18c3.
