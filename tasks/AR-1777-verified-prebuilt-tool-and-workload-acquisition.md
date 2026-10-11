@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head 3aa65a51 on protected-main base 14de8bce. Added PID plus monotonic sequence development replay fixture roots, stale-root retry, and concurrent allocator regression. Focused runtime fixture tests pass (3/3), full asb-runtime had 178 passed/1 ignored and one unrelated flaky process-boundary failure.",
-  "task_revision": 135,
+  "task_revision": 136,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:21:18+00:00",
+  "updated_at": "2026-10-11T12:21:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -482,3 +482,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T12:21:18+00:00: Recorded command exit 0; command argv SHA-256
   45dea5913ff6fbbfdf799f3fa77d49c097d36bbea934ff4062adeaf61cdfc143.
+
+- 2026-10-11T12:21:28+00:00: Recorded command exit 0; command argv SHA-256
+  12ece3c2887b1bdb8479569b2f03b8ae781a013749e05992615d2a43a93d54ab.
