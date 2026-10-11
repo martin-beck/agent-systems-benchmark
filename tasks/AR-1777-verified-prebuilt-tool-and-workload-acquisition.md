@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head 67d28a61: local source_ref is stable redacted local:<id>; tar extraction rejects all non-regular members; raw/extracted tools require little-endian ELF with valid type/machine/entrypoint. Focused acquisition 15/15, full serial asb-cli 377/377, clippy green.",
-  "task_revision": 169,
+  "task_revision": 170,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T13:05:49+00:00",
+  "updated_at": "2026-10-11T13:06:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -599,3 +599,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T13:05:49+00:00: Recorded command exit 0; command argv SHA-256
   f4aba864512b38e5fcdc65773df0fdf52e3ca104387221aa8cc32e173d61cbea.
+
+- 2026-10-11T13:06:26+00:00: Recorded command exit 0; command argv SHA-256
+  a1159e9df3670d549d04524532629f5477ceb7deec9b45e47e8c009506ecb2c8.
