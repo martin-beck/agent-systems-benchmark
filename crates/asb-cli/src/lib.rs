@@ -4392,7 +4392,7 @@ fn tool_install_with_progress(
     let path = format!(".asb/tools/{id}/tool");
     let record = ProjectToolRecordV1 {
         kind,
-        source_ref,
+        source_ref: source_ref.clone(),
         version,
         platform: platform_label(),
         path: Some(path.clone()),
@@ -4476,6 +4476,25 @@ fn tool_install_with_progress(
         }
         return Err(error);
     }
+    let receipt = json!({
+        "schema_version": 1,
+        "catalog_id": tool_catalog::CATALOG_ID,
+        "catalog_revision": catalog_entry.as_ref().map(|entry| entry.official_source.revision.as_str()).unwrap_or("fixture"),
+        "source": source_ref,
+        "artifact_digest_sha256": digest,
+        "verifier": verifier,
+        "platform": platform_label(),
+        "entrypoint": entrypoint,
+        "license": catalog_entry.as_ref().map(|entry| entry.license.as_str()).unwrap_or("NOASSERTION"),
+    });
+    let receipt_bytes = serde_json::to_vec_pretty(&receipt)
+        .map_err(|_| CliError::legacy_operation("tool acquisition receipt cannot be encoded"))?;
+    write_atomic_private(
+        &root.join(format!(".asb/tools/{id}/receipt.json")),
+        &receipt_bytes,
+        DirectoryPurpose::Tools,
+        None,
+    )?;
     write_json(
         output,
         &serde_json::json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "tool install", "id": id, "kind": kind, "path": path, "digest_sha256": digest, "dry_run": false}),
