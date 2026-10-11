@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance.",
-  "task_revision": 50,
+  "task_revision": 51,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:34:18+00:00",
+  "updated_at": "2026-10-11T14:34:49+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -185,3 +185,6 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T14:34:18+00:00: Recorded command exit 0; command argv SHA-256
   1c0aef773eff0673ebaab13d1a46d344c82e37e5c708072e8a9846f54ade0ed5.
+
+- 2026-10-11T14:34:49+00:00: Recorded command exit 0; command argv SHA-256
+  8e7ad2e1157441140c544316fb3631277cea7d1b12d36633f955101fe28350c6.
