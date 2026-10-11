@@ -1302,7 +1302,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. |
-| Next action | Monitor PR #563 exact-head required CI at a5e58954 until all required checks are terminal green; then merge through protected workflow and verify exact protected main. |
+| Next action | Continue monitoring PR #563 exact-head required CI at a5e58954; Rust verification, Repository quality, and Emulated aarch64 portability remain in progress, all completed checks are green. Merge only after terminal green. |
 
 ### AR-1787 — Repair control lock lifetime semantics
 

@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1786",
-  "next_action": "Monitor PR #563 exact-head required CI at a5e58954 until all required checks are terminal green; then merge through protected workflow and verify exact protected main.",
+  "next_action": "Continue monitoring PR #563 exact-head required CI at a5e58954; Rust verification, Repository quality, and Emulated aarch64 portability remain in progress, all completed checks are green. Merge only after terminal green.",
   "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
   "observed_head": "7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 132,
+  "task_revision": 133,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T06:52:28+00:00",
+  "updated_at": "2026-10-11T06:52:46+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -439,3 +439,9 @@ gate into a serial-only or exclusion-based check.
 
 - 2026-10-11T06:52:28+00:00: Recorded command exit 0; command argv SHA-256
   525253670a1dbfb32fbf0ed4ef6ba860fa74cb191f112a16073b808554ae2788.
+
+- 2026-10-11T06:52:46+00:00: PR #563 exact-head CI update: Portable protected-main provenance, AWQ
+  shadow, headers, Kani, Loom/state, retained faults, matcher/SLO, hosted platform, credential-free
+  benchmark, TUI journey, and TLC/Alloy are green. Rust verification, Repository quality, and
+  Emulated aarch64 portability remain in progress after about 7 minutes; no failures observed. No
+  merge yet.
