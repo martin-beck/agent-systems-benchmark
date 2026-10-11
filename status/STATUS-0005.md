@@ -153,11 +153,12 @@
 | P0 | [AR-1716](../tasks/AR-1716.md): Cassette provider-profile identity binding | codex-ar1716-recording-fence-luna56 | Bind every recording index insertion to the selected provider profile identity and reject mismatched cassette metadata before mutation. | Add a focused RecordingIndex::insert identity fence and deterministic positive/mismatch tests, then qualify exact human/JSON diagnostics and receipt integrity. |
 | P1 | [AR-1725](../tasks/AR-1725-documentation-quickstart-and-platform-install.md): Document two-agent OpenRouter and TUI quickstarts | ar1725-docs-luna56 | Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation. | PR #565 is publication candidate at exact head 34848868 on docs/ar-1725-documentation-quickstart-platform-install-v2; required checks pending. Monitor to terminal green, merge protected, verify exact main, then accept/release AR-1725. |
 
-### Open (1)
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
+| P0 | [AR-1717](../tasks/AR-1717.md): Comparison exact provider/settings/endpoint identity fences | Unclaimed | Require exact provider, model settings, and endpoint identity equality before comparison admits online/offline results. | Add focused comparison admission fences for provider, model/settings digest, endpoint identity, and generation; qualify symmetric/asymmetric mismatch diagnostics without weakening development setup. |
 
 ### Blocked (85)
 
@@ -249,7 +250,7 @@
 | P2 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md): Provide native openEuler capacity | Unclaimed | Qualify booted openEuler on native x86_64 and applicable QEMU AArch64; keep native ARM64 optional. | Qualify native x86_64 openEuler and required applicable pinned QEMU AArch64 behavior; document genuine native ARM64 as optional future evidence. |
 | P2 | [AR-1444](../tasks/AR-1444-first-class-journey-qualification.md): First-class journey qualification | Unclaimed | Optional cross-repository journey evidence; never an ASB release blocker. | Optional cross-repository qualification only: wait for external asb-tui AR-1327 to provide an exact pinned acceptance revision and credential-free journey transcript; this AR is not an ASB release or first-customer blocker. Do not modify asb-tui from this repository. |
 
-### Planned (93)
+### Planned (92)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -293,7 +294,6 @@
 | P0 | [AR-1693](../tasks/AR-1693.md): Default-dev quickstart qualification | Unclaimed | Prove the smallest selection-driven ASB journey from clone and omitted dev channel through benchmark, recording, offline replay, comparison, and analysis. | The exact paired quickstart receipt is recorded, but AR-1695 complete RunRequest wire-contract/backend qualification and AR-1696 TUI coverage repair remain required; after both, rerun and promote only with final hosted/post-merge evidence. |
 | P0 | [AR-1697](../tasks/AR-1697.md): Channel specification and current-head qualification repair | Unclaimed | Repair the missing authoritative channel specs and requalify ASB/TUI channel propagation, manifest provenance, compatibility, and default-dev quickstart at current main heads. | Complete valid AR-1674/1675-compatible state specifications, then run the current-head channel and quickstart matrix against ASB ad43609b and TUI 1cf4b43d without closing predecessor ARs from stale receipts. |
 | P0 | [AR-1703](../tasks/AR-1703.md): Current-main TUI live-control qualification | Unclaimed | Qualify and repair the exact current asb-tui main PTY/control journey against ASB development live recording without pinning an older frontend or weakening live semantics. | Reproduce the current-main PTY action gap, repair the owning boundary, then run the exact paired live/offline journey with a real OpenRouter key when supplied and credential-free negative checks otherwise. |
-| P0 | [AR-1717](../tasks/AR-1717.md): Comparison exact provider/settings/endpoint identity fences | Unclaimed | Require exact provider, model settings, and endpoint identity equality before comparison admits online/offline results. | Add focused comparison admission fences for provider, model/settings digest, endpoint identity, and generation; qualify symmetric/asymmetric mismatch diagnostics without weakening development setup. |
 | P0 | [AR-1772](../tasks/AR-1772-unified-step-progress-reporter.md): Unified human step-progress reporter | Unclaimed | Provide the sole status/progress reporter for delayed, terminal-safe, ETA-bearing human step output. | Implement the single human step reporter on the mandatory output router after its output, level, status, and quiet contracts are accepted. |
 | P0 | [AR-1773](../tasks/AR-1773-universal-command-step-instrumentation.md): Universal command step instrumentation | Unclaimed | Route every eligible public ASB command step through the shared status/progress reporter with real work updates. | Instrument every eligible public command operation through the shared reporter after the diagnostic gate and reporter are accepted. |
 | P0 | [AR-1774](../tasks/AR-1774-status-progress-completeness-ci.md): Status and progress completeness CI | Unclaimed | Make CI reject missing quiet support, status/progress bypasses, false estimates, and any human output in JSON mode. | Add required CI enforcement and controlled-defect tests for quiet, status, and progress completeness after universal instrumentation lands. |
