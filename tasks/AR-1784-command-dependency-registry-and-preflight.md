@@ -9,8 +9,8 @@
   "id": "AR-1784",
   "next_action": "Await required checks for PR #573 at d1b15fa7; then complete exact-head review, merge, post-merge assurance, and accept/release.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
-  "observed_dirty": 1,
-  "observed_head": "d1b15fa7bb067994675f525462933c4d7d3a16d3",
+  "observed_dirty": 0,
+  "observed_head": "9d729dd610d303b5ab5ba9815fff76bab1b917a7",
   "owner": "coordinator",
   "plan": "../plans/AR-1784-command-dependency-registry-and-preflight.md",
   "priority": "P0",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 208,
+  "task_revision": 209,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:07:32+00:00",
+  "updated_at": "2026-10-11T10:07:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
