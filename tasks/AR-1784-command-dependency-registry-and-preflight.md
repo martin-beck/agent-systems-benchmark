@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T12:04:42+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1776"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 1,
   "observed_head": "e85e6872f055209fb54de3e4e5c3f62353db80f5",
-  "owner": "coordinator",
+  "owner": "",
   "plan": "../plans/AR-1784-command-dependency-registry-and-preflight.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1784.json",
   "spec_revision": 2,
-  "status": "in_progress",
+  "status": "done",
   "summary": "PR #575 merged at signed local merge 14de8bce.",
-  "task_revision": 104,
+  "task_revision": 105,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:43:58+00:00",
+  "updated_at": "2026-10-11T11:44:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -357,3 +357,6 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T11:43:58+00:00: Recorded command exit 0; command argv SHA-256
   b4269758b07783f61eb48e766ffbed9792b63410e1f57f15d2455b63f13e5b36.
+
+- 2026-10-11T11:44:08+00:00: Post-merge verification complete: all exact-main workflows passed at
+  14de8bce, including repository quality.
