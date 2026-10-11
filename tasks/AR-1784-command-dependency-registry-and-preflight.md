@@ -16,20 +16,20 @@
   "priority": "P0",
   "schema_version": 1,
   "spec_acceptance": {
-    "evidence_class": "contract-test",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:e7c553413f7c1d4ed9af151651fc42bf2b2911a514808d9c4c54d67d8248f673",
+    "evidence_ref": "github/pr575/14de8bce/ar1784-closeout",
     "spec_ref": "specs/AR-1784.json",
     "spec_revision": 2,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1784.json",
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "PR #575 merged at signed local merge 14de8bce.",
-  "task_revision": 102,
+  "task_revision": 103,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:43:43+00:00",
+  "updated_at": "2026-10-11T11:43:56+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -351,3 +351,6 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T11:43:43+00:00: Recorded command exit 1; command argv SHA-256
   cc1a4cdbbd266ebdf391db942e3f5a28781861c066d17e50bbdeb112501fbdf0.
+
+- 2026-10-11T11:43:56+00:00: All exact-main workflows passed at 14de8bce, including repository
+  quality.
