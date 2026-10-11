@@ -3,12 +3,6 @@
 This file is generated. Read `README.md`, then use `tools/handoffctl snapshot`.
 Never edit this file directly.
 
-## In Progress
-
-| Priority | Task | Summary | Next action | Owner |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1724](tasks/AR-1724-easy-sweep-default-online.md): Make the easy sweep default to online provider execution | Extend the simple default-online journey to bounded selected/all agent and workload sweeps with explicit mock and replay alternatives. | Promote after AR-1723 and recording/comparison dependencies are current; implement and qualify the bounded online sweep. | codex-ar1724-online-sweep |
-
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |
