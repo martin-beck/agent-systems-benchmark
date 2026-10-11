@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "PR #584 updated to signed+DCO head 0c31a205 on AR-1793 main 24f1872c; monitor fresh exact-head CI, independently review, then merge only after all required checks pass.",
+  "next_action": "PR #584 updated to signed+DCO head 16c9bbd9; diagnostic identity and 379 CLI lib tests pass locally. Monitor fresh exact-head CI, independently review, then merge only after all required checks pass.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 1,
   "observed_head": "a1090297dede4412bcf1487d2d7bc00315c69dc5",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 37,
+  "task_revision": 38,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T14:40:13+00:00",
+  "updated_at": "2026-10-11T14:40:45+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -147,3 +147,7 @@ remain mandatory.
 
 - 2026-10-11T14:40:13+00:00: Recorded command exit 0; command argv SHA-256
   ac3e505f30fd620a7c294d45f78bcf244146c7ac1be401dd8c78fa01c13f8abb.
+
+- 2026-10-11T14:40:45+00:00: Corrected legacy_cli_ar1782_4239 collision: tool_kind callsite is
+  reviewed as legacy_cli_ar1777_0028 with MalformedInput; removed duplicate workload identity.
+  Focused diagnostic tests and all 379 asb-cli lib tests pass.
