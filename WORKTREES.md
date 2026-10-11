@@ -72,8 +72,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog` | `feature/ar-1781-external-workload-acquisition-catalog` | `286cccd6d7c0` | 0 | behind 1, ahead 0 |
 | `agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight` | `feature/ar-1784-command-dependency-registry-and-preflight` | `e85e6872f055` | 1 | behind 0, ahead 11 |
 | changed files | - | - | - | `docs/examples/asb-cli-workflow-v1.provenance.json` |
-| `agent-systems-benchmark-ar-1784-command-dependency-registry-clean` | `feature/ar-1784-command-dependency-registry-clean` | `2b909bea13cc` | 1 | behind 0, ahead 14 |
-| changed files | - | - | - | `crates/asb-cli/src/dependency_registry.rs` |
+| `agent-systems-benchmark-ar-1784-command-dependency-registry-clean` | `feature/ar-1784-command-dependency-registry-clean` | `b8a1d6a14cea` | 0 | behind 0, ahead 15 |
 | `agent-systems-benchmark-ar1710` | `codex/ar1710-provider-model-readiness` | `c059e9a63dbc` | 0 | behind 29, ahead 0 |
 | `agent-systems-benchmark-ar1786-repair-luna56` | `codex/ar-1786-control-state-protected-current` | `a5e589544f6d` | 0 | behind 30, ahead 0 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 576, ahead 326 |
