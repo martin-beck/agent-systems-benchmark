@@ -16,6 +16,7 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. | - |
+| P0 | [AR-1793](tasks/AR-1793-coordinator-v051-adoption.md): Coordinator v0.5.1 adoption | Adopt the released Coordinator v0.5.1 snapshot in ASB state and restore all downstream quality gates without modifying vendored bytes. | Verify the released snapshot, complete ASB-owned compatibility and coverage repairs, then submit the isolated vendor adoption for review. | - |
 
 ## Blocked
 

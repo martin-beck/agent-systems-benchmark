@@ -1388,6 +1388,20 @@
 | Summary | Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage. |
 | Next action | Release AR-1792 as done ownerless after independent review; no source changes. |
 
+### AR-1793 — Coordinator v0.5.1 adoption
+
+| Field | Value |
+| --- | --- |
+| Status | open |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Adopt the released Coordinator v0.5.1 snapshot in ASB state and restore all downstream quality gates without modifying vendored bytes. |
+| Next action | Verify the released snapshot, complete ASB-owned compatibility and coverage repairs, then submit the isolated vendor adoption for review. |
+
 
 ## Dependency graph
 
@@ -2239,6 +2253,7 @@ flowchart LR
         AR_1790["AR-1790 - Done"]:::status_done
         AR_1791["AR-1791 - Done"]:::status_done
         AR_1792["AR-1792 - Done"]:::status_done
+        AR_1793["AR-1793 - Open"]:::status_open
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4127,6 +4142,7 @@ flowchart LR
     AR_1749 --> AR_1753
     AR_1750 --> AR_1748
     AR_1753 --> AR_1756
+    AR_1756 --> AR_1793
     AR_1757 --> AR_1766
     AR_1759 --> AR_1760
     AR_1759 --> AR_1761
@@ -4261,5 +4277,3 @@ flowchart LR
 | [AR-0520](../tasks/AR-0520-interaction-aware-redaction.md) | [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md) | None |
 | [AR-0521](../tasks/AR-0521-openhands-environment-pin.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md) | None |
 | [AR-0601](../tasks/AR-0601-csb-integration.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0104](../tasks/AR-0104-durable-results.md), [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0603](../tasks/AR-0603-csb-execution-assurance.md) | [AR-0405](../tasks/AR-0405-performance-workloads.md), [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md), [AR-0604](../tasks/AR-0604-csb-native-qualification.md), [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
-| [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0202](../tasks/AR-0202-kernel-diagnostics.md), [AR-0601](../tasks/AR-0601-csb-integration.md), [AR-0604](../tasks/AR-0604-csb-native-qualification.md) | [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
-| [AR-0603](../tasks/AR-0603-csb-execution-assurance.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0104](../tasks/AR-0104-durable-results.md) | [AR-0601](../tasks/AR-0601-csb-integration.md) |

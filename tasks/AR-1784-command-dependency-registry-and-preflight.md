@@ -9,7 +9,7 @@
   "id": "AR-1784",
   "next_action": "Independent exact diff review is complete; full asb-cli suite has one pre-existing human diagnostic assertion failure unrelated to AR-1784, while all four new registry tests and public-command inventory test pass. Parent should decide PR publication with this known baseline blocker.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
-  "observed_dirty": 0,
+  "observed_dirty": 6,
   "observed_head": "fe7f1ce8b34d286ae7e0a83d1d64b2211e7302a5",
   "owner": "ar1784_dependency_registry_luna56",
   "plan": "../plans/AR-1784-command-dependency-registry-and-preflight.md",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 41,
+  "task_revision": 43,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T08:29:01+00:00",
+  "updated_at": "2026-10-11T08:47:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---

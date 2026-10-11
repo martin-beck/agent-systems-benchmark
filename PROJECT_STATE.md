@@ -3,7 +3,7 @@
 Generated from local Git and GitHub. Do not edit.
 
 - Product remote main: `4245b4a1046cdb6f0eb82bf8d4742f5049ee1405`
-- Local origin/main: `3031428aab47be95943b75cd753b0b5e3aeb4f6b`
+- Local origin/main: `4245b4a1046cdb6f0eb82bf8d4742f5049ee1405`
 - Primary worktree head: `a9abcf2e63f761e314593e9abc6bf074b7418e5e`
 
 ## Open pull requests
@@ -21,20 +21,22 @@ Generated from local Git and GitHub. Do not edit.
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
+| #568 | `feature/ar-1778-pinned-source-build-and-project-dependencies@1c11b88d2790` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded pinned source builder |
+| #569 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition@eff009eeefb1` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | feat: verified prebuilt tool acquisition |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38123906728 | `4245b4a1046c` | push | Credential-free benchmark path | completed:success |
-| 38123906718 | `4245b4a1046c` | push | Fault assurance | completed:success |
-| 38123906717 | `4245b4a1046c` | push | Hosted portability and native qualification | completed:success |
-| 38123906710 | `4245b4a1046c` | push | Formal assurance | completed:success |
-| 38123906707 | `4245b4a1046c` | push | Huawei MIT source headers | completed:success |
-| 38123906700 | `4245b4a1046c` | push | Rust verification | completed:failure |
-| 38123906697 | `4245b4a1046c` | push | Emulated aarch64 portability | completed:success |
-| 38123906683 | `4245b4a1046c` | push | Cross-repository development broker qualification | completed:success |
-| 38123906675 | `4245b4a1046c` | push | Repository quality | completed:failure |
-| 38123906669 | `4245b4a1046c` | push | Portable protected-main provenance | completed:failure |
-| 38123136581 | `c0e3f8f4393d` | pull_request | Repository quality | completed:success |
-| 38123136531 | `c0e3f8f4393d` | pull_request | Credential-free benchmark path | completed:success |
+| 38126023093 | `eff009eeefb1` | pull_request | Cross-repository development broker qualification | in_progress:- |
+| 38126023091 | `eff009eeefb1` | pull_request | Repository quality | in_progress:- |
+| 38126023088 | `eff009eeefb1` | pull_request | Credential-free benchmark path | in_progress:- |
+| 38126023085 | `eff009eeefb1` | pull_request | Huawei MIT source headers | completed:success |
+| 38126023084 | `eff009eeefb1` | pull_request | Agent Workflow Quality shadow | completed:success |
+| 38126023083 | `eff009eeefb1` | pull_request | Portable protected-main provenance | completed:success |
+| 38126023081 | `eff009eeefb1` | pull_request | Formal assurance | in_progress:- |
+| 38126023078 | `eff009eeefb1` | pull_request | Hosted portability and native qualification | in_progress:- |
+| 38126023077 | `eff009eeefb1` | pull_request | Emulated aarch64 portability | queued:- |
+| 38126023076 | `eff009eeefb1` | pull_request | Rust verification | in_progress:- |
+| 38126023075 | `eff009eeefb1` | pull_request | Fault assurance | in_progress:- |
+| 38125615487 | `b76706944d38` | pull_request | Formal assurance | completed:success |
