@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T11:27:03+00:00",
+  "claim_expires": "2026-10-11T11:48:26+00:00",
   "depends_on": [
     "AR-1776"
   ],
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 197,
+  "task_revision": 198,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T09:28:55+00:00",
+  "updated_at": "2026-10-11T09:48:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -546,3 +546,5 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T09:28:55+00:00: Independent review found three P1 omissions in 85daea11; repair
   delegated before publication.
+
+- 2026-10-11T09:48:26+00:00: Heartbeat by coordinator.
