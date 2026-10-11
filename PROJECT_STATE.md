@@ -36,7 +36,7 @@ Generated from local Git and GitHub. Do not edit.
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
 | 38146604642 | `24f1872cdb33` | push | Emulated aarch64 portability | in_progress:- |
-| 38146604599 | `24f1872cdb33` | push | Cross-repository development broker qualification | in_progress:- |
+| 38146604599 | `24f1872cdb33` | push | Cross-repository development broker qualification | completed:success |
 | 38146604568 | `24f1872cdb33` | push | Rust verification | in_progress:- |
 | 38146604562 | `24f1872cdb33` | push | Huawei MIT source headers | completed:success |
 | 38146604525 | `24f1872cdb33` | push | Hosted portability and native qualification | completed:success |
