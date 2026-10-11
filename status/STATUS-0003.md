@@ -1392,11 +1392,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | codex-ar1793-awc-v051 |
 | Parent | None |
 | Children | None |
 | Summary | Adopt the released Coordinator v0.5.1 snapshot in ASB state and restore all downstream quality gates without modifying vendored bytes. |
@@ -2253,7 +2253,7 @@ flowchart LR
         AR_1790["AR-1790 - Done"]:::status_done
         AR_1791["AR-1791 - Done"]:::status_done
         AR_1792["AR-1792 - Done"]:::status_done
-        AR_1793["AR-1793 - Open"]:::status_open
+        AR_1793["AR-1793 - In progress"]:::status_in_progress
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
