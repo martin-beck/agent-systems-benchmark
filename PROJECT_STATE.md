@@ -27,7 +27,7 @@ Generated from local Git and GitHub. Do not edit.
 | #573 | `feature/ar-1784-command-dependency-registry-and-preflight@e85e6872f055` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add command dependency preflight registry |
 | #574 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2@0a389a2f8aa3` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | AR-1777: verified prebuilt tool acquisition (superseding repair) |
 | #575 | `feature/ar-1784-command-dependency-registry-clean@e5f378aa4a82` | `main` | BLOCKED | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): enforce command dependency preflight before execution |
-| #576 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean@a666bfdab274` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | AR-1777: verified prebuilt tool and workload acquisition (coverage continuation) |
+| #576 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean@a666bfdab274` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS | AR-1777: verified prebuilt tool and workload acquisition (coverage continuation) |
 
 ## Recent workflows
 
@@ -38,7 +38,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38133385609 | `a666bfdab274` | pull_request | Repository quality | in_progress:- |
 | 38133385574 | `a666bfdab274` | pull_request | Huawei MIT source headers | completed:success |
 | 38133385564 | `a666bfdab274` | pull_request | Fault assurance | in_progress:- |
-| 38133385553 | `a666bfdab274` | pull_request | Hosted portability and native qualification | in_progress:- |
+| 38133385553 | `a666bfdab274` | pull_request | Hosted portability and native qualification | completed:success |
 | 38133385551 | `a666bfdab274` | pull_request | Portable protected-main provenance | completed:success |
 | 38133385520 | `a666bfdab274` | pull_request | Credential-free benchmark path | in_progress:- |
 | 38133385512 | `a666bfdab274` | pull_request | Agent Workflow Quality shadow | completed:success |
