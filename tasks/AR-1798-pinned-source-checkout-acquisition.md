@@ -11,7 +11,7 @@
   "next_action": "Monitor PR #585 exact-head CI at 55a78934; request independent re-review after hosted coverage passes.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "observed_dirty": 0,
-  "observed_head": "89ce603c9aa0a44dc10e52a0ab5dd5654682eeeb",
+  "observed_head": "55a789348f6fdc987adc98185db19bf28e21566a",
   "owner": "",
   "plan": "../plans/AR-1798-pinned-source-checkout-acquisition.md",
   "priority": "P0",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "done",
   "summary": "Coverage margin repair pushed at c5303c05.",
-  "task_revision": 134,
+  "task_revision": 135,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T17:23:47+00:00",
+  "updated_at": "2026-10-11T17:23:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---

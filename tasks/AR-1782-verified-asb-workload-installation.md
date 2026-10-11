@@ -10,7 +10,7 @@
   "next_action": "PR #584 exact remote head fdb1e4bc; hostile archive and stale-proof lifecycle matrices pass, workspace line coverage 90.17% locally (99587 lines, 9794 missed). Focused diagnostic/workflow gates pass; poll fresh exact-head CI, do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
-  "observed_head": "12fbe26399975e9114a451ddee632bdadb65b820",
+  "observed_head": "d730f5bb60bb6fa9ce39c0469ad1a17bda722868",
   "owner": "ar1782_workload_install_luna56",
   "plan": "../plans/AR-1782-verified-asb-workload-installation.md",
   "priority": "P0",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 130,
+  "task_revision": 131,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T17:21:13+00:00",
+  "updated_at": "2026-10-11T17:23:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
