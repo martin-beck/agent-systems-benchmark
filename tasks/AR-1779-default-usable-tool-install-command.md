@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 22,
+  "task_revision": 23,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-11T14:09:29+00:00",
+  "updated_at": "2026-10-11T14:09:54+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -112,3 +112,6 @@ the adapter smoke check failed.
 
 - 2026-10-11T14:09:29+00:00: Recorded command exit 0; command argv SHA-256
   f6b6f842c448a90c56fe8c665d4f473b301b67152ad8b1849254c6ae566946c2.
+
+- 2026-10-11T14:09:54+00:00: Recorded command exit 0; command argv SHA-256
+  f18ad62f9c9d9a6760e09d95ece99cc58b831e4016946fa857d41e1688516b8c.
