@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root. |
-| Next action | Inspect exact-head PR #571 policy/coverage and Rust failures for 62951d56; repair any real failure with signed DCO commit, push, and rerun required gates before review/merge handoff. |
+| Summary | Repair pushed at exact head 37fcf269; hosted gates pending |
+| Next action | Monitor exact-head PR #571 hosted gates; investigate any remaining failure before review/merge handoff. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 

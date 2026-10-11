@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Inspect exact-head PR #571 policy/coverage and Rust failures for 62951d56; repair any real failure with signed DCO commit, push, and rerun required gates before review/merge handoff.",
+  "next_action": "Monitor exact-head PR #571 hosted gates; investigate any remaining failure before review/merge handoff.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition",
   "observed_dirty": 0,
   "observed_head": "eff009eeefb1b7c4c95217044ba44de5c4d44853",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root.",
-  "task_revision": 82,
+  "summary": "Repair pushed at exact head 37fcf269; hosted gates pending",
+  "task_revision": 83,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T10:20:44+00:00",
+  "updated_at": "2026-10-11T10:20:48+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -279,3 +279,12 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T10:20:44+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T10:20:48+00:00: Checkpoint 37fcf269: signed DCO repair refreshes 316 exact reviewed
+  diagnostic identities introduced by transactional acquisition changes (catalog closure passes),
+  refreshes workflow provenance digest to
+  8f3101876d6243a9fe51e51757a30cb48c98c77837f99fb3657770cca38f6a48, and aligns stale provider-plan
+  human fixture expectation with emitted public contract. Focused diagnostic/provenance/human tests,
+  cargo fmt, and full asb-cli package tests pass locally. Pushed PR #571 exact head
+  37fcf2697dd8b6d4ed5b92aa9a864dc94bd5afa8; next action monitor exact-head hosted
+  Policy/Rust/AArch64/coverage/supply-chain gates.
