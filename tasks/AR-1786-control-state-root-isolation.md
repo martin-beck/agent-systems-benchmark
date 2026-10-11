@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1786-control-state",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T08:24:37+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
   "observed_head": "7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b",
-  "owner": "",
+  "owner": "codex-ar1786-repair-luna56",
   "plan": "../plans/AR-1786-control-state-root-isolation.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1786.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 65,
+  "task_revision": 66,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T22:43:38+00:00",
+  "updated_at": "2026-10-11T06:24:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -227,3 +227,5 @@ gate into a serial-only or exclusion-based check.
   same-process failed-open/descriptor-close, with a regression showing an external process remains
   rejected after a same-process failed contender. Do not publish, merge, or run full qualification
   until repaired. No GitHub Reviews API approval object is required.
+
+- 2026-10-11T06:24:37+00:00: Claimed by codex-ar1786-repair-luna56.
