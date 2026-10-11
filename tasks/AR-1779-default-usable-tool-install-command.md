@@ -10,9 +10,9 @@
   ],
   "id": "AR-1779",
   "next_action": "Make asb tool install supported-id resolve, acquire/build, validate, and register a usable project-local executable tool by default.",
-  "observed_branch": "",
+  "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
   "observed_dirty": 0,
-  "observed_head": "",
+  "observed_head": "32cb692acebe3a9bd823d17b22cacc397124342b",
   "owner": "luna56-ar1779",
   "plan": "../plans/AR-1779-default-usable-tool-install-command.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 17,
+  "task_revision": 18,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-11T14:04:44+00:00",
+  "updated_at": "2026-10-11T14:05:13+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
