@@ -28,7 +28,7 @@ Generated from local Git and GitHub. Do not edit.
 | #576 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean@ec566dfdcde2` | `main` | DIRTY | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | AR-1777: verified prebuilt tool and workload acquisition (coverage continuation) |
 | #577 | `repair/ar-1794-protected-main-merge-path@198bf86975f6` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | chore: certify AR-1781 merge provenance |
 | #581 | `dependabot/github_actions/taiki-e/install-action-2.87.24@0fd474355762` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | chore(deps): bump taiki-e/install-action from 2.87.14 to 2.87.24 |
-| #583 | `feature/ar-1779-default-usable-tool-install-command@7c08cfb019ee` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:FAILURE, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): default supported tool installation |
+| #583 | `feature/ar-1779-default-usable-tool-install-command@7c08cfb019ee` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): default supported tool installation |
 | #584 | `feature/ar-1782-verified-asb-workload-installation@a1090297dede` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add verified workload lifecycle |
 
 ## Recent workflows
@@ -43,7 +43,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38146604519 | `24f1872cdb33` | push | Portable protected-main provenance | completed:success |
 | 38146604518 | `24f1872cdb33` | push | Credential-free benchmark path | completed:success |
 | 38146604500 | `24f1872cdb33` | push | Formal assurance | in_progress:- |
-| 38146604492 | `24f1872cdb33` | push | Fault assurance | in_progress:- |
+| 38146604492 | `24f1872cdb33` | push | Fault assurance | completed:success |
 | 38146604473 | `24f1872cdb33` | push | Repository quality | in_progress:- |
-| 38146071706 | `7c08cfb019ee` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38146071706 | `7c08cfb019ee` | pull_request | Emulated aarch64 portability | completed:success |
 | 38146071694 | `7c08cfb019ee` | pull_request | Cross-repository development broker qualification | completed:success |
