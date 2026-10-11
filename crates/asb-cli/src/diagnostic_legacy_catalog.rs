@@ -109,7 +109,7 @@ const LEGACY_CLI_CATALOG: &[(&str, u32, &str, Cause)] = &[
     ("crates/asb-cli/src/control.rs", 2687, "legacy_cli_0105", Cause::Cancellation),
     ("crates/asb-cli/src/control.rs", 3202, "legacy_cli_0106", Cause::UnavailableCapability),
     ("crates/asb-cli/src/control.rs", 3207, "legacy_cli_0107", Cause::ReconciliationRequired),
-    ("crates/asb-cli/src/control.rs", 9767, "legacy_cli_0108", Cause::ReconciliationRequired),
+    ("crates/asb-cli/src/control.rs", 9768, "legacy_cli_0108", Cause::ReconciliationRequired),
     ("crates/asb-cli/src/human.rs", 3503, "legacy_cli_0109", Cause::MissingInput),
     ("crates/asb-cli/src/human.rs", 3529, "legacy_cli_0110", Cause::ReconciliationRequired),
     ("crates/asb-cli/src/human.rs", 3544, "legacy_cli_0111", Cause::ReconciliationRequired),
@@ -714,10 +714,10 @@ const LEGACY_CLI_CATALOG: &[(&str, u32, &str, Cause)] = &[
     ("crates/asb-cli/src/lib.rs", 7611, "legacy_cli_0711", Cause::MalformedInput),
     ("crates/asb-cli/src/lib.rs", 7614, "legacy_cli_0712", Cause::IncompatibleInput),
     ("crates/asb-cli/src/lib.rs", 7623, "legacy_cli_0713", Cause::MalformedInput),
-    ("crates/asb-cli/src/control.rs", 11374, "legacy_cli_0714", Cause::ReconciliationRequired),
-    ("crates/asb-cli/src/control.rs", 11379, "legacy_cli_0715", Cause::ReconciliationRequired),
-    ("crates/asb-cli/src/control.rs", 11381, "legacy_cli_0716", Cause::ReconciliationRequired),
-    ("crates/asb-cli/src/control.rs", 11398, "legacy_cli_0717", Cause::ReconciliationRequired),
+    ("crates/asb-cli/src/control.rs", 11387, "legacy_cli_0714", Cause::ReconciliationRequired),
+    ("crates/asb-cli/src/control.rs", 11392, "legacy_cli_0715", Cause::ReconciliationRequired),
+    ("crates/asb-cli/src/control.rs", 11394, "legacy_cli_0716", Cause::ReconciliationRequired),
+    ("crates/asb-cli/src/control.rs", 11409, "legacy_cli_0717", Cause::ReconciliationRequired),
 ];
 
 fn legacy_cli_catalog(file: &str, line: u32) -> Option<(&str, Cause)> {
