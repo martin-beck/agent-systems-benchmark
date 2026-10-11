@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix.",
-  "task_revision": 32,
+  "task_revision": 33,
   "title": "Pinned source builds and project dependencies",
-  "updated_at": "2026-10-11T08:46:34+00:00",
+  "updated_at": "2026-10-11T08:51:00+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies"
 }
 ---
@@ -121,3 +121,6 @@ limit are distinct actionable outcomes.
 - 2026-10-11T08:46:34+00:00: Independent exact-diff review completed on 1c11b88d: source entrypoint
   traversal fenced, offline package recipes constrained, provenance digest refreshed and workflow
   transcript 3/3 green. No merge until remaining required CI and review decision pass.
+
+- 2026-10-11T08:51:00+00:00: Recorded command exit 1; command argv SHA-256
+  56da2adb7697ad56a60a96e6e420d11687503f3fec9cb37f457a98eefb1b9795.
