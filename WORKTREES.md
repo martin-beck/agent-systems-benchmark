@@ -66,8 +66,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1754-merge` | `DETACHED` | `8e4dc926d4b8` | 0 | behind 50, ahead 0 |
 | `agent-systems-benchmark-ar-1754-online` | `codex/ar-1754-online-integration` | `0dcd147261d4` | 0 | behind 51, ahead 0 |
 | `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `2521df12cc31` | 0 | behind 48, ahead 0 |
-| `agent-systems-benchmark-ar-1777-current` | `feature/ar-1777-verified-tool-current` | `e69449f5391e` | 1 | behind 0, ahead 5 |
-| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog.rs` |
+| `agent-systems-benchmark-ar-1777-current` | `feature/ar-1777-verified-tool-current` | `7019409f45a7` | 0 | behind 0, ahead 16 |
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2` | `0a389a2f8aa3` | 0 | behind 16, ahead 15 |
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `ec566dfdcde2` | 0 | behind 16, ahead 18 |
 | `agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies` | `feature/ar-1778-pinned-source-build-and-project-dependencies` | `1c11b88d2790` | 0 | behind 24, ahead 0 |
@@ -259,7 +258,9 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `ar1652-asb` | `ar-1652-record-replay` | `edd9ee0d19b4` | 0 | behind 462, ahead 1 |
 | `ar1653-asb` | `ar-1653-dev-channel` | `b7be789fdf51` | 0 | behind 461, ahead 0 |
 | `ar1689-asb-fix` | `repair/ar-1678-tui-host-preflight` | `a186357977ad` | 0 | behind 421, ahead 0 |
+| `ar1777-review-0efe01f7` | `DETACHED` | `0efe01f79342` | 0 | behind 0, ahead 15 |
 | `ar1781-review-198bf869` | `DETACHED` | `198bf86975f6` | 0 | behind 16, ahead 1 |
+| `ar1781-review-323aa8c2` | `DETACHED` | `323aa8c26374` | 0 | behind 0, ahead 1 |
 | `ar442-review` | `DETACHED` | `1f86b19fb9a1` | 0 | behind 475, ahead 0 |
 | `ar442-review2` | `DETACHED` | `e1dc1b2862e2` | 0 | behind 474, ahead 0 |
 | `ar442-review3` | `DETACHED` | `d1b462e86242` | 0 | behind 473, ahead 0 |
