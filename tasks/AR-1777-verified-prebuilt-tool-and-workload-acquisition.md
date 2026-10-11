@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head 2fc8b428 fixes replay fixture isolation and passes full CLI/runtime validation plus independent review. Hosted Credential-free and AArch64 pass, but Policy coverage is 89.98% lines with all tests green, so a legitimate coverage repair remains before merge.",
-  "task_revision": 157,
+  "task_revision": 158,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:48:47+00:00",
+  "updated_at": "2026-10-11T12:48:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -557,3 +557,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T12:48:47+00:00: Recorded command exit 0; command argv SHA-256
   b420b8a53c888422624c61a4c6c13115b4c2aded446627d41ec48fdd381272d6.
+
+- 2026-10-11T12:48:55+00:00: Recorded command exit 0; command argv SHA-256
+  15ba3a41c837c91311303c22c83caea2bb631caad71ee2ce32f5d07adb9f5e8b.
