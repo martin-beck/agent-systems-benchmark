@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Coverage margin repair pushed at c5303c05.",
-  "task_revision": 132,
+  "task_revision": 133,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T17:23:32+00:00",
+  "updated_at": "2026-10-11T17:23:44+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -425,3 +425,6 @@ protected merge, and post-merge evidence path.
 - 2026-10-11T17:23:32+00:00: Post-merge exact origin/main 24cb72d verified at 24cb72d. Receipt
   records focused 26/26 and one-time hosted metrics failure followed by repeated green focused
   passes. No product changes after merge.
+
+- 2026-10-11T17:23:44+00:00: Recorded command exit 0; command argv SHA-256
+  799f74d71d967752e3df0bac11a28c267923f2eaf63486e615941bbc203dce83.
