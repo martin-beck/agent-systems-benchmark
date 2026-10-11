@@ -69,8 +69,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair` | `60486e095e04` | 0 | behind 0, ahead 8 |
 | `agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies` | `feature/ar-1778-pinned-source-build-and-project-dependencies` | `1c11b88d2790` | 0 | behind 1, ahead 0 |
 | `agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog` | `feature/ar-1781-external-workload-acquisition-catalog` | `0db5831b7e6d` | 0 | behind 0, ahead 1 |
-| `agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight` | `feature/ar-1784-command-dependency-registry-and-preflight` | `a8ebcbb5579e` | 7 | behind 0, ahead 1 |
-| changed files | - | - | - | `crates/asb-cli/fixtures/human/public-family-output-v1.tsv`, `crates/asb-cli/src/dependency_registry.rs`, `crates/asb-cli/src/human.rs`, `crates/asb-cli/src/lib.rs`, `crates/asb-cli/tests/diagnostic_journey.rs`, `crates/asb-cli/tests/human_cli.rs`, `docs/DEPENDENCY_REGISTRY.md` |
+| `agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight` | `feature/ar-1784-command-dependency-registry-and-preflight` | `85daea11134c` | 0 | behind 0, ahead 2 |
 | `agent-systems-benchmark-ar1710` | `codex/ar1710-provider-model-readiness` | `c059e9a63dbc` | 0 | behind 22, ahead 0 |
 | `agent-systems-benchmark-ar1786-repair-luna56` | `codex/ar-1786-control-state-protected-current` | `a5e589544f6d` | 0 | behind 23, ahead 0 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 569, ahead 326 |

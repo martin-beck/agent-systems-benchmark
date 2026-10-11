@@ -31,7 +31,7 @@ Generated from local Git and GitHub. Do not edit.
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
 | 38127982624 | `60486e095e04` | pull_request | Portable protected-main provenance | completed:success |
-| 38127982600 | `60486e095e04` | pull_request | Formal assurance | in_progress:- |
+| 38127982600 | `60486e095e04` | pull_request | Formal assurance | completed:success |
 | 38127982597 | `60486e095e04` | pull_request | Fault assurance | completed:success |
 | 38127982596 | `60486e095e04` | pull_request | Repository quality | in_progress:- |
 | 38127982594 | `60486e095e04` | pull_request | Rust verification | in_progress:- |
