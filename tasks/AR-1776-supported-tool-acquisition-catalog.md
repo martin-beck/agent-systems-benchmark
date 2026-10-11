@@ -3,7 +3,10 @@
   "branch": "feature/ar-1776-supported-tool-acquisition-catalog",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1761", "AR-1762"],
+  "depends_on": [
+    "AR-1761",
+    "AR-1762"
+  ],
   "id": "AR-1776",
   "next_action": "Define the authoritative supported executable-tool acquisition catalog, official primary sources, binary/source alternatives, verification identities, and build recipes.",
   "observed_branch": "",
@@ -13,14 +16,21 @@
   "plan": "../plans/AR-1776-supported-tool-acquisition-catalog.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "contract-test", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1776.json", "spec_revision": 2, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "contract-test",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1776.json",
+    "spec_revision": 2,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1776.json",
   "spec_revision": 2,
-  "status": "planned",
+  "status": "open",
   "summary": "Define pinned official acquisition and build recipes for every ASB-supported executable tool.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Supported-tool acquisition catalog",
-  "updated_at": "2026-10-10T09:49:36+00:00",
+  "updated_at": "2026-10-11T06:25:21+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1776-supported-tool-acquisition-catalog"
 }
 ---
@@ -52,3 +62,5 @@ installable executables. Runtime host capabilities such as Linux, cgroup v2,
 user systemd delegation, and Bubblewrap are declared by the companion command
 dependency/preflight catalog rather than falsely represented as downloadable
 tools.
+
+- 2026-10-11T06:25:21+00:00: dependencies verified
