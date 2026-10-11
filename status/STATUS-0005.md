@@ -161,7 +161,7 @@
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](../tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 | PR #576 exact head ec566dfd; fail-closed source/archive repair pushed; focused/full tests and 90.28&#37; workspace coverage pass | Monitor PR #576 hosted checks at exact head ec566dfd to terminal result; repair only concrete failures. |
-| P0 | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | coordinator | Host-runtime dependency repair reviewed and full local coverage passes. | Await all required exact-head hosted checks for PR #575 at b8a1d6a1; independent review passes. After every required check is green, merge only through signed local merge-integrity and verify exact-main workflows. |
+| P0 | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | coordinator | PR #575 merged at signed local merge 14de8bce. | Wait for all exact-main workflows at 14de8bce to finish green, then perform post-merge verification and close AR-1784 with durable evidence. |
 
 ### Open (4)
 

@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Await all required exact-head hosted checks for PR #575 at b8a1d6a1; independent review passes. After every required check is green, merge only through signed local merge-integrity and verify exact-main workflows.",
+  "next_action": "Wait for all exact-main workflows at 14de8bce to finish green, then perform post-merge verification and close AR-1784 with durable evidence.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 1,
   "observed_head": "e85e6872f055209fb54de3e4e5c3f62353db80f5",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1784.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "Host-runtime dependency repair reviewed and full local coverage passes.",
-  "task_revision": 95,
+  "summary": "PR #575 merged at signed local merge 14de8bce.",
+  "task_revision": 96,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:19:45+00:00",
+  "updated_at": "2026-10-11T11:31:03+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -330,3 +330,7 @@ and end-to-end development-run tests in the same change.
   focused PTY and tool-discovery reruns passed. No merge until hosted gates are green.
 
 - 2026-10-11T11:19:45+00:00: Heartbeat by coordinator.
+
+- 2026-10-11T11:31:03+00:00: Independent review passed repaired head b8a1d6a1; all PR checks were
+  green. Signed local merge-integrity produced two-parent merge 14de8bce with base af75cd06, head
+  b8a1d6a1, tree b4ca9f20, and published it with force-with-lease.

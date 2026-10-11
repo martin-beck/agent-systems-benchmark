@@ -1273,8 +1273,8 @@
 | Owner | coordinator |
 | Parent | None |
 | Children | None |
-| Summary | Host-runtime dependency repair reviewed and full local coverage passes. |
-| Next action | Await all required exact-head hosted checks for PR #575 at b8a1d6a1; independent review passes. After every required check is green, merge only through signed local merge-integrity and verify exact-main workflows. |
+| Summary | PR #575 merged at signed local merge 14de8bce. |
+| Next action | Wait for all exact-main workflows at 14de8bce to finish green, then perform post-merge verification and close AR-1784 with durable evidence. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 
