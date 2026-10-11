@@ -70,7 +70,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs`, `crates/asb-cli/src/tool_acquisition.rs` |
 | `agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies` | `feature/ar-1778-pinned-source-build-and-project-dependencies` | `3031428aab47` | 4 | behind 0, ahead 0 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs`, `crates/asb-cli/src/tool_catalog.rs`, `docs/PROJECT_TOOLS.md`, `crates/asb-cli/src/source_builder.rs` |
-| `agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight` | `feature/ar-1784-command-dependency-registry-and-preflight` | `c152ce98917a` | 0 | behind 0, ahead 1 |
+| `agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight` | `feature/ar-1784-command-dependency-registry-and-preflight` | `c152ce98917a` | 1 | behind 0, ahead 1 |
+| changed files | - | - | - | `crates/asb-cli/src/dependency_registry.rs` |
 | `agent-systems-benchmark-ar1710` | `codex/ar1710-provider-model-readiness` | `c059e9a63dbc` | 0 | behind 8, ahead 0 |
 | `agent-systems-benchmark-ar1786-repair-luna56` | `codex/ar-1786-control-state-protected-current` | `a5e589544f6d` | 0 | behind 9, ahead 0 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 555, ahead 326 |
