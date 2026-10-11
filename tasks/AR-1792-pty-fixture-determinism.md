@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1792-pty-fixture-determinism",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T00:47:53+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1770",
     "AR-1791"
@@ -12,7 +12,7 @@
   "observed_branch": "codex/ar-1792-pty-fixture-determinism",
   "observed_dirty": 0,
   "observed_head": "16d8512debab5515068d285fd820e1be0751c51b",
-  "owner": "codex-ar1792-pty-repair",
+  "owner": "",
   "plan": "../plans/AR-1792-pty-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
@@ -26,11 +26,11 @@
   },
   "spec_ref": "specs/AR-1792.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage.",
-  "task_revision": 22,
+  "task_revision": 23,
   "title": "Make development broker PTY fixture deterministic",
-  "updated_at": "2026-10-11T00:29:29+00:00",
+  "updated_at": "2026-10-11T00:29:38+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1792-pty-fixture-determinism"
 }
 ---
@@ -113,3 +113,7 @@ serial-only or exclusion-based gate.
   38096884595 passed full coverage and remaining policy gates; original failure classified transient
   hosted PTY flake. Local six focused repetitions and 341/341 coverage-equivalent tests passed. PR
   #555 merged as daae06e. No AR-1792 source changes.
+
+- 2026-10-11T00:29:38+00:00: Release ownerlessly after hosted exact-head rerun 38096884595 passed
+  full coverage and policy gates; original PTY failure was transient. PR #555 merged as daae06e. No
+  AR-1792 product changes.
