@@ -289,8 +289,7 @@ mod tests {
             Err(AcquisitionError::UnsafeArtifact)
         );
         assert_eq!(
-            extract_tar_entry(&tar_member(b"tool", b"payload", 0), "tool")
-                .unwrap(),
+            extract_tar_entry(&tar_member(b"tool", b"payload", 0), "tool").unwrap(),
             b"payload"
         );
     }
