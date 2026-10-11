@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T03:03:30+00:00",
+  "claim_expires": "2026-10-11T03:06:46+00:00",
   "depends_on": [
     "AR-1699",
     "AR-1700",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
-  "task_revision": 44,
+  "task_revision": 45,
   "title": "Make online execution the default across ASB workflows",
-  "updated_at": "2026-10-11T02:33:33+00:00",
+  "updated_at": "2026-10-11T02:36:46+00:00",
   "worktree_key": ""
 }
 ---
@@ -169,3 +169,5 @@ production authority checks.
 - 2026-10-11T02:33:33+00:00: Added default-online direct/easy record-live with explicit --local-mock
   override; cargo fmt and focused asb-cli tests pass 342/342. PR #558 was force-with-lease updated
   to c943c276; exact-head CI restarted.
+
+- 2026-10-11T02:36:46+00:00: Heartbeat by codex-ar1754-online-integration.
