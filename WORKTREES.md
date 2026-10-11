@@ -59,7 +59,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1723` | `codex/ar-1723-easy-online` | `5739f6674cc5` | 0 | behind 24, ahead 0 |
 | `agent-systems-benchmark-ar-1724-easy-sweep` | `codex/ar-1724-easy-sweep-online` | `70f20a9f1f5d` | 0 | behind 20, ahead 0 |
 | `agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install` | `docs/ar-1725-quickstart-platform-install` | `695f1335c4ed` | 0 | behind 4, ahead 2 |
-| `agent-systems-benchmark-ar-1725-v2` | `docs/ar-1725-quickstart-platform-install-v2` | `348488689ff0` | 0 | behind 2, ahead 1 |
+| `agent-systems-benchmark-ar-1725-v2` | `docs/ar-1725-quickstart-platform-install-v2` | `8028fd66f26d` | 0 | behind 0, ahead 1 |
 | `agent-systems-benchmark-ar-1736-backend-model-catalog` | `codex/ar-1736-backend-model-catalog` | `fa1940c0b9b1` | 0 | behind 1, ahead 0 |
 | `agent-systems-benchmark-ar-1736-integration` | `DETACHED` | `4cb87998c133` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar-1754-merge` | `DETACHED` | `8e4dc926d4b8` | 0 | behind 7, ahead 0 |
