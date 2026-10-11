@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 88,
+  "task_revision": 89,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T06:35:57+00:00",
+  "updated_at": "2026-10-11T06:36:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -303,3 +303,6 @@ gate into a serial-only or exclusion-based check.
   child-inheritance, and 16-way parallel isolation tests pass; cargo fmt --check, clippy --workspace
   --all-targets -D warnings, and two ordinary cargo test --workspace --locked runs pass. Candidate
   tree is clean. Ready for PR publication and exact-head hosted CI; no merge claimed.
+
+- 2026-10-11T06:36:11+00:00: Recorded command exit 128; command argv SHA-256
+  512253d2d413596c55ff86b6b4919deacbc247243ed350cf03e92a024faec28e.
