@@ -7,7 +7,6 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1716](tasks/AR-1716.md): Cassette provider-profile identity binding | Bind every recording index insertion to the selected provider profile identity and reject mismatched cassette metadata before mutation. | PR #566 rebased onto protected main 7e795589 at exact head 58a445a5; await fresh required checks green, then protected merge and exact-main verification. | codex-ar1716-recording-fence-luna56 |
 | P0 | [AR-1717](tasks/AR-1717.md): Comparison exact provider/settings/endpoint identity fences | Require exact provider, model settings, and endpoint identity equality before comparison admits online/offline results. | Monitor PR #567 exact head c0e3f8f4 for fresh required CI; independent review, protected merge, postmerge verify, then accept/release. | codex-ar1717-comparison |
 
 ## Open

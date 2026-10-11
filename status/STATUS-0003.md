@@ -314,11 +314,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1716-recording-fence-luna56 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Bind every recording index insertion to the selected provider profile identity and reject mismatched cassette metadata before mutation. |
@@ -2162,7 +2162,7 @@ flowchart LR
         AR_1711["AR-1711 - Done"]:::status_done
         AR_1712["AR-1712 - Done"]:::status_done
         AR_1715["AR-1715 - Done"]:::status_done
-        AR_1716["AR-1716 - In progress"]:::status_in_progress
+        AR_1716["AR-1716 - Done"]:::status_done
         AR_1717["AR-1717 - In progress"]:::status_in_progress
         AR_1718["AR-1718 - Done"]:::status_done
         AR_1719["AR-1719 - Done"]:::status_done
