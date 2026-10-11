@@ -22,20 +22,21 @@ Generated from local Git and GitHub. Do not edit.
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #560 | `codex/ar-1736-backend-model-catalog@0b6e2ed1f92d` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | Bind backend model selections to catalog identity |
 | #561 | `codex/ar-1786-control-state-review-luna56@378787cdd6e4` | `main` | DIRTY | - | fix(control): repair state-root isolation lock ownership |
+| #562 | `codex/ar-1786-control-state-current@ee8fd37bc05f` | `main` | BEHIND | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, QUEUED:, IN_PROGRESS:, QUEUED:, IN_PROGRESS: | fix(control): use descriptor-scoped state locks |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
+| 38118959379 | `ee8fd37bc05f` | pull_request | Cross-repository development broker qualification | queued:- |
+| 38118959373 | `ee8fd37bc05f` | pull_request | Rust verification | queued:- |
+| 38118959357 | `ee8fd37bc05f` | pull_request | Formal assurance | queued:- |
+| 38118959354 | `ee8fd37bc05f` | pull_request | Repository quality | queued:- |
+| 38118959347 | `ee8fd37bc05f` | pull_request | Huawei MIT source headers | queued:- |
+| 38118959342 | `ee8fd37bc05f` | pull_request | Hosted portability and native qualification | queued:- |
+| 38118959340 | `ee8fd37bc05f` | pull_request | Emulated aarch64 portability | queued:- |
+| 38118959328 | `ee8fd37bc05f` | pull_request | Fault assurance | queued:- |
+| 38118959324 | `ee8fd37bc05f` | pull_request | Portable protected-main provenance | queued:- |
+| 38118959322 | `ee8fd37bc05f` | pull_request | Credential-free benchmark path | queued:- |
+| 38118959318 | `ee8fd37bc05f` | pull_request | Agent Workflow Quality shadow | queued:- |
 | 38118935335 | `fa9e0c6c9e71` | push | Formal assurance | in_progress:- |
-| 38118935327 | `fa9e0c6c9e71` | push | Cross-repository development broker qualification | in_progress:- |
-| 38118935303 | `fa9e0c6c9e71` | push | Fault assurance | in_progress:- |
-| 38118935298 | `fa9e0c6c9e71` | push | Portable protected-main provenance | completed:failure |
-| 38118935280 | `fa9e0c6c9e71` | push | Huawei MIT source headers | completed:success |
-| 38118935269 | `fa9e0c6c9e71` | push | Repository quality | in_progress:- |
-| 38118935262 | `fa9e0c6c9e71` | push | Emulated aarch64 portability | in_progress:- |
-| 38118935253 | `fa9e0c6c9e71` | push | Hosted portability and native qualification | in_progress:- |
-| 38118935248 | `fa9e0c6c9e71` | push | Credential-free benchmark path | in_progress:- |
-| 38118935242 | `fa9e0c6c9e71` | push | Rust verification | in_progress:- |
-| 38118375679 | `0b6e2ed1f92d` | pull_request | Huawei MIT source headers | completed:success |
-| 38118375676 | `0b6e2ed1f92d` | pull_request | Hosted portability and native qualification | completed:success |
