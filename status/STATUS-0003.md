@@ -448,7 +448,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation. |
-| Next action | Implementation commit d77230ae is clean on declared branch docs/ar-1725-quickstart-platform-install; focused tutorial tests and guide_examples pass. Platform validator baseline fails independently on stale Ubuntu native report ancestry/tree; record evidence and proceed to independent review/publication. |
+| Next action | Focused tutorial tests, guide_examples, link audit, and diff review pass. Full workspace cargo test has one unrelated mini_swe cancellation failure because handoffctl runs from state root and the temp product path overlaps the detected repository; rerun from product-bound wrapper or record as environment blocker. Platform validator independently fails baseline stale native report ancestry/tree. |
 
 ### AR-1726 — Allow user-owned group-writable rustup shim in development
 

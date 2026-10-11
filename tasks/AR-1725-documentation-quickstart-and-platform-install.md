@@ -12,7 +12,7 @@
     "AR-1724"
   ],
   "id": "AR-1725",
-  "next_action": "Implementation commit d77230ae is clean on declared branch docs/ar-1725-quickstart-platform-install; focused tutorial tests and guide_examples pass. Platform validator baseline fails independently on stale Ubuntu native report ancestry/tree; record evidence and proceed to independent review/publication.",
+  "next_action": "Focused tutorial tests, guide_examples, link audit, and diff review pass. Full workspace cargo test has one unrelated mini_swe cancellation failure because handoffctl runs from state root and the temp product path overlaps the detected repository; rerun from product-bound wrapper or record as environment blocker. Platform validator independently fails baseline stale native report ancestry/tree.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 12,
+  "task_revision": 13,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T06:53:07+00:00",
+  "updated_at": "2026-10-11T06:53:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
@@ -85,3 +85,7 @@ gates, independent review, and exact-head hosted CI.
 
 - 2026-10-11T06:53:07+00:00: Recorded command exit 101; command argv SHA-256
   50ae99437335f68b1a359bca86cdd88eb1a713a77ce847602ccf0fc639fc13b7.
+
+- 2026-10-11T06:53:26+00:00: Full workspace gate attempted through handoffctl: 221 passed, 1
+  ignored, 1 pre-existing environment failure in
+  mini_swe::cancellation_leaves_no_runnable_owned_descendant; no product files changed.
