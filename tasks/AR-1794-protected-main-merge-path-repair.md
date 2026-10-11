@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "Protected-main merge-path repair",
-  "updated_at": "2026-10-11T13:27:15+00:00",
+  "updated_at": "2026-10-11T13:39:00+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1794-protected-main-merge-path"
 }
 ---
@@ -44,3 +44,6 @@ inputs, not disposable evidence.
   b2d8d5f1ec56115998d10c70517515e222a8edcd04d514cea0b9a4af8d1021d4.
 
 - 2026-10-11T13:27:15+00:00: Heartbeat by ar1794-protected-merge-repair-luna56.
+
+- 2026-10-11T13:39:00+00:00: Recorded command exit 1; command argv SHA-256
+  dc048d5ae1376edccb69d0edfa2e08017a6edcc7434452c85918d74ea1c1a5fa.
