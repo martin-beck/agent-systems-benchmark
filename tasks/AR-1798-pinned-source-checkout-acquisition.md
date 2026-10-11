@@ -11,7 +11,7 @@
   "next_action": "Monitor fresh exact-head CI for 89ce603c and obtain independent re-review; do not merge.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "observed_dirty": 0,
-  "observed_head": "b0917d440e9ab7ef6d92428c6fe30b519b475743",
+  "observed_head": "89ce603c9aa0a44dc10e52a0ab5dd5654682eeeb",
   "owner": "ar1798-source-checkout-luna56",
   "plan": "../plans/AR-1798-pinned-source-checkout-acquisition.md",
   "priority": "P0",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Formatting repair pushed at 89ce603c after CI gate failure.",
-  "task_revision": 86,
+  "task_revision": 87,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:44:07+00:00",
+  "updated_at": "2026-10-11T15:44:13+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
