@@ -300,11 +300,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | codex-ar1715-qualification |
 | Parent | None |
 | Children | None |
 | Summary | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. |
@@ -2161,7 +2161,7 @@ flowchart LR
         AR_1710["AR-1710 - Planned"]:::status_planned
         AR_1711["AR-1711 - Done"]:::status_done
         AR_1712["AR-1712 - Planned"]:::status_planned
-        AR_1715["AR-1715 - Open"]:::status_open
+        AR_1715["AR-1715 - In progress"]:::status_in_progress
         AR_1716["AR-1716 - Planned"]:::status_planned
         AR_1717["AR-1717 - Planned"]:::status_planned
         AR_1718["AR-1718 - Done"]:::status_done

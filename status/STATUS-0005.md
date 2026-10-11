@@ -146,12 +146,17 @@
 
 ## Complete AR inventory
 
-### Open (3)
+### In progress (1)
+
+| Priority | AR | Owner | Summary | Next action |
+| --- | --- | --- | --- | --- |
+| P0 | [AR-1715](../tasks/AR-1715.md): Credential-backed development OpenRouter qualification | codex-ar1715-qualification | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | Create a product-bound repair AR for the disposable config-path inconsistency: setup persisted a valid OpenRouter selection under the supplied XDG_CONFIG_HOME, but provider-plan --use-config reported configuration absent. After exact-head repair, regenerate one config-bound selection and rerun benchmark-live selected/all human and JSON plus the credential/no-fallback negative matrix. |
+
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
-| P0 | [AR-1715](../tasks/AR-1715.md): Credential-backed development OpenRouter qualification | Unclaimed | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | Create a product-bound repair AR for the disposable config-path inconsistency: setup persisted a valid OpenRouter selection under the supplied XDG_CONFIG_HOME, but provider-plan --use-config reported configuration absent. After exact-head repair, regenerate one config-bound selection and rerun benchmark-live selected/all human and JSON plus the credential/no-fallback negative matrix. |
 | P0 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Unclaimed | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. |
 
 ### Blocked (86)
