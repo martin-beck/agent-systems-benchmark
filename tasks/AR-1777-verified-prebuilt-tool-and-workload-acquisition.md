@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Run independent review and monitor fresh hosted checks at exact f299ef1c; merge only after clippy, coverage, Rust, AArch64, and all required checks are green.",
+  "next_action": "Repair remaining full asb-cli/credential-free failure at exact f299ef1c: opencode_opendesk_matrix_exercises_public_cli_routes reports development replay authority unavailable under full parallel test execution. Isolate the shared runtime/replay state, add regression coverage, then rerun exact hosted gates and review.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #579 exact head f299ef1c: PID plus monotonic sequence fixture roots, bounded 64-attempt stale-root retry, and allocator concurrency/stale-root tests. Prior review failure on 1cac935c was repaired; fresh review and hosted checks are pending.",
-  "task_revision": 143,
+  "summary": "PR #579 exact head f299ef1c passes focused allocator tests and runtime clippy, but independent full-review and hosted Credential-free benchmark both fail the same CLI replay-authority test (375 passed, 1 failed). No merge until this shared-state failure is repaired.",
+  "task_revision": 144,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:24:24+00:00",
+  "updated_at": "2026-10-11T12:26:45+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -510,3 +510,7 @@ reporting contract when available while keeping machine-mode output safe.
 - 2026-10-11T12:24:24+00:00: Independent review found unbounded retry and redundant closure on
   1cac935c; worker committed signed/DCO f299ef1c with both fixes. State replica reconciled with
   upstream before heartbeat. No merge authorized until exact-head evidence.
+
+- 2026-10-11T12:26:45+00:00: Fresh exact-head independent review FAIL: full cargo test --locked -p
+  asb-cli reproduces development replay authority unavailable in openai/opencode matrix; hosted
+  Credential-free path failed identically. Repair worker assigned; no floor weakening or merge.

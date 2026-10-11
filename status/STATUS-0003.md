@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #579 exact head f299ef1c: PID plus monotonic sequence fixture roots, bounded 64-attempt stale-root retry, and allocator concurrency/stale-root tests. Prior review failure on 1cac935c was repaired; fresh review and hosted checks are pending. |
-| Next action | Run independent review and monitor fresh hosted checks at exact f299ef1c; merge only after clippy, coverage, Rust, AArch64, and all required checks are green. |
+| Summary | PR #579 exact head f299ef1c passes focused allocator tests and runtime clippy, but independent full-review and hosted Credential-free benchmark both fail the same CLI replay-authority test (375 passed, 1 failed). No merge until this shared-state failure is repaired. |
+| Next action | Repair remaining full asb-cli/credential-free failure at exact f299ef1c: opencode_opendesk_matrix_exercises_public_cli_routes reports development replay authority unavailable under full parallel test execution. Isolate the shared runtime/replay state, add regression coverage, then rerun exact hosted gates and review. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
@@ -4336,4 +4336,3 @@ flowchart LR
 | [AR-0512](../tasks/AR-0512-replay-goose.md) | [AR-0307](../tasks/AR-0307-agent-goose.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0513](../tasks/AR-0513-replay-miniswe.md) | [AR-0308](../tasks/AR-0308-agent-mini-swe.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0514](../tasks/AR-0514-replay-openhands.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
-| [AR-0515](../tasks/AR-0515-replay-matrix.md) | [AR-0506](../tasks/AR-0506-replay-opencode.md), [AR-0507](../tasks/AR-0507-replay-opendesk.md), [AR-0508](../tasks/AR-0508-replay-aider.md), [AR-0509](../tasks/AR-0509-replay-codex.md), [AR-0510](../tasks/AR-0510-replay-gemini.md), [AR-0511](../tasks/AR-0511-replay-qwen.md), [AR-0512](../tasks/AR-0512-replay-goose.md), [AR-0513](../tasks/AR-0513-replay-miniswe.md), [AR-0514](../tasks/AR-0514-replay-openhands.md) | None |
