@@ -846,11 +846,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1754-online-integration |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives. |
@@ -2200,7 +2200,7 @@ flowchart LR
         AR_1751["AR-1751 - Done"]:::status_done
         AR_1752["AR-1752 - Done"]:::status_done
         AR_1753["AR-1753 - Done"]:::status_done
-        AR_1754["AR-1754 - In progress"]:::status_in_progress
+        AR_1754["AR-1754 - Done"]:::status_done
         AR_1755["AR-1755 - Done"]:::status_done
         AR_1756["AR-1756 - Done"]:::status_done
         AR_1757["AR-1757 - Done"]:::status_done

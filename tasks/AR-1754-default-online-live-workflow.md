@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T04:04:12+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1699",
     "AR-1700",
@@ -12,7 +12,7 @@
   ],
   "id": "AR-1754",
   "next_action": "PR #558 now points to exact signed head 0dcd1472. The hosted Rust failure was a stale workflow provenance digest; it is repaired and the focused workflow-transcript gate passes locally. Independently review the complete diff, then wait for all 15 exact-head checks to reach terminal success. No GitHub Reviews API approval object is required; merge only through the documented signed protected-main procedure.",
-  "owner": "codex-ar1754-online-integration",
+  "owner": "",
   "plan": "../plans/AR-1754-default-online-live-workflow.md",
   "priority": "P0",
   "schema_version": 1,
@@ -26,11 +26,11 @@
   },
   "spec_ref": "specs/AR-1754.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
-  "task_revision": 110,
+  "task_revision": 111,
   "title": "Make online execution the default across ASB workflows",
-  "updated_at": "2026-10-11T03:39:30+00:00",
+  "updated_at": "2026-10-11T03:39:35+00:00",
   "worktree_key": ""
 }
 ---
@@ -366,3 +366,8 @@ production authority checks.
   succeeded, protected-main provenance rerun succeeded after merged-PR association propagation, and
   fresh exact-main policy plus workflow-transcript, diagnostic, guide, and 342-test library
   verification passed. No GitHub Reviews API approval object required.
+
+- 2026-10-11T03:39:35+00:00: Released AR-1754 after accepted post-merge receipt for merge 8e4dc926;
+  exact-main workflows and fresh local verification are terminal-success. The only transient
+  provenance failure was rerun successfully after GitHub association propagation. No GitHub Reviews
+  API approval object was required.
