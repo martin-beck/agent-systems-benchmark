@@ -21,7 +21,7 @@ Generated from local Git and GitHub. Do not edit.
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #559 | `feature/ar-1776-supported-tool-acquisition-catalog@2521df12cc31` | `main` | BLOCKED | IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat: add supported tool acquisition catalog |
-| #560 | `codex/ar-1736-backend-model-catalog@0b6e2ed1f92d` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | Bind backend model selections to catalog identity |
+| #560 | `codex/ar-1736-backend-model-catalog@0b6e2ed1f92d` | `main` | BLOCKED | IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | Bind backend model selections to catalog identity |
 | #561 | `codex/ar-1786-control-state-review-luna56@378787cdd6e4` | `main` | DIRTY | - | fix(control): repair state-root isolation lock ownership |
 
 ## Recent workflows
@@ -31,7 +31,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38118375679 | `0b6e2ed1f92d` | pull_request | Huawei MIT source headers | completed:success |
 | 38118375676 | `0b6e2ed1f92d` | pull_request | Hosted portability and native qualification | completed:success |
 | 38118375668 | `0b6e2ed1f92d` | pull_request | Portable protected-main provenance | completed:success |
-| 38118375665 | `0b6e2ed1f92d` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38118375665 | `0b6e2ed1f92d` | pull_request | Emulated aarch64 portability | completed:success |
 | 38118375664 | `0b6e2ed1f92d` | pull_request | Rust verification | in_progress:- |
 | 38118375663 | `0b6e2ed1f92d` | pull_request | Cross-repository development broker qualification | completed:success |
 | 38118375662 | `0b6e2ed1f92d` | pull_request | Credential-free benchmark path | completed:success |
