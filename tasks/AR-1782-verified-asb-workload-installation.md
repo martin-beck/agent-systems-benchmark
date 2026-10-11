@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 75,
+  "task_revision": 76,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T15:41:21+00:00",
+  "updated_at": "2026-10-11T15:42:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -238,3 +238,6 @@ remain mandatory.
   lifecycle/archive branches without changing thresholds.
 
 - 2026-10-11T15:28:46+00:00: Heartbeat by ar1782_workload_install_luna56.
+
+- 2026-10-11T15:42:28+00:00: Recorded command exit 0; command argv SHA-256
+  522eda7c168ca7a6c603a7ae6df4310ac3a3a5b64a26e26063a09057d30ada95.
