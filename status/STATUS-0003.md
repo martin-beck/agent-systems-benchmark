@@ -1406,11 +1406,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1794-protected-merge-repair-luna56 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity. |
@@ -2310,7 +2310,7 @@ flowchart LR
         AR_1791["AR-1791 - Done"]:::status_done
         AR_1792["AR-1792 - Done"]:::status_done
         AR_1793["AR-1793 - Planned"]:::status_planned
-        AR_1794["AR-1794 - In progress"]:::status_in_progress
+        AR_1794["AR-1794 - Done"]:::status_done
         AR_1795["AR-1795 - Done"]:::status_done
         AR_1796["AR-1796 - In progress"]:::status_in_progress
         AR_1797["AR-1797 - Planned"]:::status_planned

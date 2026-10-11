@@ -2,7 +2,7 @@
 {
   "branch": "repair/ar-1794-protected-main-merge-path",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T15:27:15+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1781"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "repair/ar-1794-protected-main-merge-path",
   "observed_dirty": 0,
   "observed_head": "198bf86975f64450440e0a30332f732a2233e92e",
-  "owner": "ar1794-protected-merge-repair-luna56",
+  "owner": "",
   "plan": "../plans/AR-1794-protected-main-merge-path-repair.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1794.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity.",
-  "task_revision": 9,
+  "task_revision": 10,
   "title": "Protected-main merge-path repair",
-  "updated_at": "2026-10-11T13:51:18+00:00",
+  "updated_at": "2026-10-11T13:51:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1794-protected-main-merge-path"
 }
 ---
@@ -56,3 +56,7 @@ inputs, not disposable evidence.
 
 - 2026-10-11T13:51:18+00:00: Exact-main workflows all passed for signed local merge a89dd44e;
   parents 06514c06/f20f7bf2, reviewed tree 7a5efc6b, SSH signature and DCO verified.
+
+- 2026-10-11T13:51:25+00:00: Closed after PR #580 exact-head review PASS, all required PR checks
+  green, signed local merge a89dd44e with exact parents/tree/signature/DCO, and all exact-main
+  post-merge workflows green.
