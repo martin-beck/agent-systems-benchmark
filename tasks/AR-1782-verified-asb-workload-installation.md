@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "PR #584 exact remote head 8371090f; signed+DCO diagnostic catalog refresh repairs hosted Rust producer identity failure. Local exact diagnostic identity and all 9 diagnostic contract tests pass; lifecycle/extraction and PTY repairs remain. Fresh exact-head CI is running; do not merge.",
+  "next_action": "PR #584 exact remote head c5154b12; signed+DCO refreshes workflow provenance fixture to current reviewed lib.rs digest e1b7a729. Local workflow_transcript 3 tests and clippy pass. Poll fresh exact-head Rust/policy CI; do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
   "observed_head": "12fbe26399975e9114a451ddee632bdadb65b820",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 91,
+  "task_revision": 92,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T16:01:00+00:00",
+  "updated_at": "2026-10-11T16:01:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -280,3 +280,6 @@ remain mandatory.
 
 - 2026-10-11T16:01:00+00:00: Recorded command exit 0; command argv SHA-256
   293c2148a179cf191174557f643f16f9891d390fd73eaa6feadfba1fcb474444.
+
+- 2026-10-11T16:01:37+00:00: Repaired exact provenance fixture digest after hosted Rust failure;
+  pushed c5154b12.
