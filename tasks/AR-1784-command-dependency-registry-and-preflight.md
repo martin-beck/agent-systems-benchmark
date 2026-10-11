@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T11:43:47+00:00",
+  "claim_expires": "2026-10-11T11:45:40+00:00",
   "depends_on": [
     "AR-1776"
   ],
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Host-runtime dependency contract repaired on PR #575.",
-  "task_revision": 87,
+  "task_revision": 88,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:15:35+00:00",
+  "updated_at": "2026-10-11T11:15:40+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -307,3 +307,5 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T11:15:35+00:00: Independent review found live run/sweep/benchmark-live scopes omitted
   Linux/cgroup-v2/user-systemd/bubblewrap host dependencies. Added mandatory host IDs and
   non-vacuous tests; focused dependency_registry 13 passed; signed/DCO repair b8a1d6a1 pushed.
+
+- 2026-10-11T11:15:40+00:00: Heartbeat by coordinator.
