@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 96,
+  "task_revision": 97,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T08:53:58+00:00",
+  "updated_at": "2026-10-11T08:54:03+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -306,3 +306,6 @@ and end-to-end development-run tests in the same change.
   ef19043205064ea87bec66574bfe246191c9311bc8c404cd8e347d08fbdc44f0.
 
 - 2026-10-11T08:53:58+00:00: Heartbeat by ar1784_dependency_registry_luna56.
+
+- 2026-10-11T08:54:03+00:00: Recorded command exit 0; command argv SHA-256
+  ade040510d1222bd0fe9a11d3d4a7c372987d7358bf030954fcceff31ef5c104.
