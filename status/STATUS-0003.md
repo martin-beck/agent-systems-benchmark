@@ -1469,8 +1469,8 @@
 | Owner | ar1798-source-checkout-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Coverage repair pushed at bb9bde85 with checkout limit ceiling tests. |
-| Next action | Monitor fresh exact-head CI for bb9bde85 and obtain independent re-review; do not merge. |
+| Summary | Coverage repair pushed at b0917d44 with checkout spawn-failure test. |
+| Next action | Monitor fresh exact-head CI for b0917d44 and obtain independent re-review; do not merge. |
 
 
 ## Dependency graph
