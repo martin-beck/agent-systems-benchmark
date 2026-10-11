@@ -20,21 +20,21 @@ Generated from local Git and GitHub. Do not edit.
 | #494 | `repair/ar-protected-provenance@26bdd021b0d3` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | repair: restore protected-main signed provenance |
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
-| #558 | `codex/ar-1754-online-integration@fffa180a1f1d` | `main` | BLOCKED | - | feat(cli): make configured benchmark execution online by default |
+| #558 | `codex/ar-1754-online-integration@fffa180a1f1d` | `main` | BLOCKED | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): make configured benchmark execution online by default |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38107163408 | `9dae832b8e04` | pull_request | Emulated aarch64 portability | in_progress:- |
-| 38107163405 | `9dae832b8e04` | pull_request | Formal assurance | completed:success |
-| 38107163393 | `9dae832b8e04` | pull_request | Portable protected-main provenance | completed:success |
-| 38107163388 | `9dae832b8e04` | pull_request | Fault assurance | completed:success |
-| 38107163375 | `9dae832b8e04` | pull_request | Credential-free benchmark path | completed:success |
-| 38107163373 | `9dae832b8e04` | pull_request | Rust verification | completed:failure |
-| 38107163372 | `9dae832b8e04` | pull_request | Cross-repository development broker qualification | completed:success |
-| 38107163370 | `9dae832b8e04` | pull_request | Hosted portability and native qualification | completed:success |
-| 38107163366 | `9dae832b8e04` | pull_request | Agent Workflow Quality shadow | completed:success |
-| 38107163361 | `9dae832b8e04` | pull_request | Repository quality | in_progress:- |
-| 38107163358 | `9dae832b8e04` | pull_request | Huawei MIT source headers | completed:success |
-| 38106822267 | `e91ce9e14f44` | pull_request | Fault assurance | completed:success |
+| 38107395882 | `fffa180a1f1d` | pull_request | Agent Workflow Quality shadow | completed:success |
+| 38107395881 | `fffa180a1f1d` | pull_request | Hosted portability and native qualification | completed:success |
+| 38107395866 | `fffa180a1f1d` | pull_request | Portable protected-main provenance | completed:success |
+| 38107395857 | `fffa180a1f1d` | pull_request | Credential-free benchmark path | completed:success |
+| 38107395851 | `fffa180a1f1d` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38107395849 | `fffa180a1f1d` | pull_request | Repository quality | in_progress:- |
+| 38107395847 | `fffa180a1f1d` | pull_request | Formal assurance | completed:success |
+| 38107395843 | `fffa180a1f1d` | pull_request | Fault assurance | completed:success |
+| 38107395842 | `fffa180a1f1d` | pull_request | Cross-repository development broker qualification | completed:success |
+| 38107395840 | `fffa180a1f1d` | pull_request | Rust verification | completed:failure |
+| 38107395839 | `fffa180a1f1d` | pull_request | Huawei MIT source headers | completed:success |
+| 38107163408 | `9dae832b8e04` | pull_request | Emulated aarch64 portability | completed:cancelled |
