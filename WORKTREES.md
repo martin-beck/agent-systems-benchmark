@@ -83,7 +83,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1793-human-diagnostic-output-parent-v2` | `feature/ar-1793-human-diagnostic-output-parent-v2` | `6d948a486527` | 0 | behind 0, ahead 2 |
 | `agent-systems-benchmark-ar-1794-forward-merge` | `DETACHED` | `06514c0622c4` | 0 | behind 2, ahead 0 |
 | `agent-systems-benchmark-ar-1794-protected-main-merge-path` | `repair/ar-1794-protected-main-merge-path` | `198bf86975f6` | 0 | behind 47, ahead 1 |
-| `agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition` | `feature/ar-1798-pinned-source-checkout-acquisition` | `a89dd44ea978` | 0 | behind 0, ahead 0 |
+| `agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition` | `feature/ar-1798-pinned-source-checkout-acquisition` | `a89dd44ea978` | 3 | behind 0, ahead 0 |
+| changed files | - | - | - | `crates/asb-cli/src/lib.rs`, `crates/asb-cli/src/source_builder.rs`, `crates/asb-cli/src/source_checkout.rs` |
 | `agent-systems-benchmark-ar1710` | `codex/ar1710-provider-model-readiness` | `c059e9a63dbc` | 0 | behind 76, ahead 0 |
 | `agent-systems-benchmark-ar1786-repair-luna56` | `codex/ar-1786-control-state-protected-current` | `a5e589544f6d` | 0 | behind 77, ahead 0 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 623, ahead 326 |
