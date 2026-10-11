@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #576 exact head ec566dfd; fail-closed source/archive repair pushed; focused and full asb-cli tests pass",
-  "task_revision": 110,
+  "task_revision": 111,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:25:43+00:00",
+  "updated_at": "2026-10-11T11:25:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -393,3 +393,6 @@ reporting contract when available while keeping machine-mode output safe.
   rejects source-only alternatives; verify_bytes rejects gzip/xz compressed archives before
   digest/execution. Focused acquisition 13/13 and full asb-cli lib 362+1 tests pass; cargo fmt
   passes.
+
+- 2026-10-11T11:25:47+00:00: Recorded command exit 0; command argv SHA-256
+  4c01cd291136d9f617724980f48525c5b9a2f531e929973bfe0189a1e1890d75.
