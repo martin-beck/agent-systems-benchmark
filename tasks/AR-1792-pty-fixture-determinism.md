@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1792-pty-fixture-determinism",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T00:42:25+00:00",
+  "claim_expires": "2026-10-11T02:13:30+00:00",
   "depends_on": [
     "AR-1770",
     "AR-1791"
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage.",
-  "task_revision": 10,
+  "task_revision": 11,
   "title": "Make development broker PTY fixture deterministic",
-  "updated_at": "2026-10-11T00:13:04+00:00",
+  "updated_at": "2026-10-11T00:13:30+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1792-pty-fixture-determinism"
 }
 ---
@@ -58,3 +58,5 @@ serial-only or exclusion-based gate.
 
 - 2026-10-11T00:13:04+00:00: Recorded command exit 0; command argv SHA-256
   cc92e466e950b55d332d599d301e74557bf7350fb03464ad8d1fe03dbde46fcf.
+
+- 2026-10-11T00:13:30+00:00: Heartbeat by codex-ar1792-pty-repair.
