@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T11:45:40+00:00",
+  "claim_expires": "2026-10-11T11:49:45+00:00",
   "depends_on": [
     "AR-1776"
   ],
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Host-runtime dependency repair reviewed and full local coverage passes.",
-  "task_revision": 94,
+  "task_revision": 95,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:19:37+00:00",
+  "updated_at": "2026-10-11T11:19:45+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -328,3 +328,5 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T11:19:37+00:00: Fresh independent review PASS: host IDs present in
   run/sweep/benchmark-live and tests non-vacuous. Full workspace cargo llvm-cov passed at 90.29%;
   focused PTY and tool-discovery reruns passed. No merge until hosted gates are green.
+
+- 2026-10-11T11:19:45+00:00: Heartbeat by coordinator.
