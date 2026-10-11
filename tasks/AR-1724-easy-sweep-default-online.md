@@ -9,6 +9,9 @@
   ],
   "id": "AR-1724",
   "next_action": "Promote after AR-1723 and recording/comparison dependencies are current; implement and qualify the bounded online sweep.",
+  "observed_branch": "codex/ar-1724-easy-sweep-online",
+  "observed_dirty": 0,
+  "observed_head": "f090de56710db16e3751df180ee4183ca87d952e",
   "owner": "codex-ar1724-online-sweep",
   "plan": "../plans/AR-1724-easy-sweep-default-online.md",
   "priority": "P0",
@@ -17,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Extend the simple default-online journey to bounded selected/all agent and workload sweeps with explicit mock and replay alternatives.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "Make the easy sweep default to online provider execution",
-  "updated_at": "2026-10-11T01:39:13+00:00",
+  "updated_at": "2026-10-11T01:39:17+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1724-easy-sweep"
 }
 ---
