@@ -1061,7 +1061,7 @@ const LEGACY_CLI_CATALOG: &[(&str, u32, &str, Cause)] = &[
     ("crates/asb-cli/src/lib.rs", 9882, "legacy_cli_9314", Cause::UnexpectedProductFailure),
     ("crates/asb-cli/src/lib.rs", 10581, "legacy_cli_9315", Cause::UnexpectedProductFailure),
     ("crates/asb-cli/src/lib.rs", 10586, "legacy_cli_9316", Cause::UnexpectedProductFailure),
-    ("crates/asb-cli/src/lib.rs", 17046, "legacy_cli_9317", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 17083, "legacy_cli_9317", Cause::UnexpectedProductFailure),
 ];
 
 fn legacy_cli_catalog(file: &str, line: u32) -> Option<(&str, Cause)> {
