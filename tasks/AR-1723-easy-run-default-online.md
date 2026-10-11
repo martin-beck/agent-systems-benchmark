@@ -1,14 +1,14 @@
 ---
 {
-  "branch": "",
-  "checkpoint_commit": "",
+  "branch": "codex/ar-1723-easy-online",
+  "checkpoint_commit": "daae06efa2d78b11acd6902c5ac6958091bfe546",
   "claim_expires": "2026-10-11T01:55:40+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1715"
   ],
   "id": "AR-1723",
-  "next_action": "Promote after the live runner and provider qualification dependencies are current; implement and qualify the default-online easy run.",
+  "next_action": "Implement easy run default-online on the bound worktree; keep --local-mock explicit, add human/JSON positive and no-fallback negative coverage, then run focused/full gates and publish a reviewed PR.",
   "owner": "codex-ar1723-online-default",
   "plan": "../plans/AR-1723-easy-run-default-online.md",
   "priority": "P0",
@@ -20,7 +20,7 @@
   "task_revision": 4,
   "title": "Make the easy run default to online provider execution",
   "updated_at": "2026-10-11T00:55:54+00:00",
-  "worktree_key": ""
+  "worktree_key": "agent-systems-benchmark-ar-1723"
 }
 ---
 
