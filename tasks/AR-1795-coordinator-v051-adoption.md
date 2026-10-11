@@ -2,13 +2,13 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T13:53:54+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1756"
   ],
   "id": "AR-1795",
   "next_action": "Retry canonical publication-tier formal verification after the occupied shared admission lane clears; then independently review the exact state and release only with all required evidence.",
-  "owner": "codex-ar1795-v051-coverage",
+  "owner": "",
   "plan": "../plans/AR-1795-coordinator-v051-adoption.md",
   "priority": "P0",
   "schema_version": 1,
@@ -22,11 +22,11 @@
   },
   "spec_ref": "specs/AR-1795.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Adopt v0.5.1 with strict coverage repair.",
-  "task_revision": 8,
+  "task_revision": 9,
   "title": "Coordinator v0.5.1 adoption",
-  "updated_at": "2026-10-11T12:24:21+00:00",
+  "updated_at": "2026-10-11T12:24:46+00:00",
   "worktree_key": ""
 }
 ---
@@ -63,3 +63,7 @@ weakened.
 - 2026-10-11T12:24:21+00:00: Hosted pr-publication formal workflow 38137857759 passed; full ASB
   suite passed 1627 tests at 95.0098 percent branch coverage. Vendor, schema, generated views,
   doctor, and independent reviews passed.
+
+- 2026-10-11T12:24:46+00:00: v0.5.1 vendor adoption accepted after trusted pr-publication formal
+  workflow 38137857759, 95.0098 percent coverage, vendor/schema/doctor checks, independent review,
+  and exact-main contract-repair verification.

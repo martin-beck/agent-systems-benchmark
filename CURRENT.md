@@ -8,7 +8,6 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #579 exact head f299ef1c: PID plus monotonic sequence fixture roots, bounded 64-attempt stale-root retry, and allocator concurrency/stale-root tests. Prior review failure on 1cac935c was repaired; fresh review and hosted checks are pending. | Run independent review and monitor fresh hosted checks at exact f299ef1c; merge only after clippy, coverage, Rust, AArch64, and all required checks are green. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
-| P0 | [AR-1795](tasks/AR-1795-coordinator-v051-adoption.md): Coordinator v0.5.1 adoption | Adopt v0.5.1 with strict coverage repair. | Retry canonical publication-tier formal verification after the occupied shared admission lane clears; then independently review the exact state and release only with all required evidence. | codex-ar1795-v051-coverage |
 
 ## Open
 
