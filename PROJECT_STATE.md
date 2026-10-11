@@ -20,7 +20,7 @@ Generated from local Git and GitHub. Do not edit.
 | #494 | `repair/ar-protected-provenance@26bdd021b0d3` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | repair: restore protected-main signed provenance |
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
-| #559 | `feature/ar-1776-supported-tool-acquisition-catalog@2521df12cc31` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED: | feat: add supported tool acquisition catalog |
+| #559 | `feature/ar-1776-supported-tool-acquisition-catalog@2521df12cc31` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | feat: add supported tool acquisition catalog |
 
 ## Recent workflows
 
@@ -29,12 +29,12 @@ Generated from local Git and GitHub. Do not edit.
 | 38118327909 | `2521df12cc31` | pull_request | Rust verification | pending:- |
 | 38118327907 | `2521df12cc31` | pull_request | Credential-free benchmark path | pending:- |
 | 38118327901 | `2521df12cc31` | pull_request | Cross-repository development broker qualification | pending:- |
-| 38118327896 | `2521df12cc31` | pull_request | Repository quality | queued:- |
+| 38118327896 | `2521df12cc31` | pull_request | Repository quality | in_progress:- |
 | 38118327886 | `2521df12cc31` | pull_request | Hosted portability and native qualification | pending:- |
 | 38118327867 | `2521df12cc31` | pull_request | Fault assurance | pending:- |
-| 38118327836 | `2521df12cc31` | pull_request | Huawei MIT source headers | queued:- |
+| 38118327836 | `2521df12cc31` | pull_request | Huawei MIT source headers | in_progress:- |
 | 38118327827 | `2521df12cc31` | pull_request | Emulated aarch64 portability | pending:- |
-| 38118327813 | `2521df12cc31` | pull_request | Agent Workflow Quality shadow | queued:- |
-| 38118327812 | `2521df12cc31` | pull_request | Portable protected-main provenance | queued:- |
+| 38118327813 | `2521df12cc31` | pull_request | Agent Workflow Quality shadow | in_progress:- |
+| 38118327812 | `2521df12cc31` | pull_request | Portable protected-main provenance | in_progress:- |
 | 38118327809 | `2521df12cc31` | pull_request | Formal assurance | pending:- |
 | 38118278284 | `5c042090e08d` | pull_request | Rust verification | in_progress:- |
