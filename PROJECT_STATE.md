@@ -28,21 +28,21 @@ Generated from local Git and GitHub. Do not edit.
 | #574 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2@0a389a2f8aa3` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | AR-1777: verified prebuilt tool acquisition (superseding repair) |
 | #576 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean@ec566dfdcde2` | `main` | DIRTY | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | AR-1777: verified prebuilt tool and workload acquisition (coverage continuation) |
 | #577 | `repair/ar-1794-protected-main-merge-path@198bf86975f6` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | chore: certify AR-1781 merge provenance |
-| #579 | `feature/ar-1777-verified-tool-current@b8cf6cb3534e` | `main` | BEHIND | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | fix(cli): verified tool acquisition fail-closed archives |
+| #579 | `feature/ar-1777-verified-tool-current@b8cf6cb3534e` | `main` | BEHIND | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | fix(cli): verified tool acquisition fail-closed archives |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38140704850 | `b8cf6cb3534e` | pull_request | Formal assurance | queued:- |
-| 38140704812 | `b8cf6cb3534e` | pull_request | Credential-free benchmark path | queued:- |
-| 38140704809 | `b8cf6cb3534e` | pull_request | Portable protected-main provenance | queued:- |
-| 38140704801 | `b8cf6cb3534e` | pull_request | Emulated aarch64 portability | queued:- |
-| 38140704799 | `b8cf6cb3534e` | pull_request | Repository quality | queued:- |
-| 38140704794 | `b8cf6cb3534e` | pull_request | Agent Workflow Quality shadow | queued:- |
-| 38140704776 | `b8cf6cb3534e` | pull_request | Huawei MIT source headers | queued:- |
-| 38140704774 | `b8cf6cb3534e` | pull_request | Rust verification | queued:- |
-| 38140704771 | `b8cf6cb3534e` | pull_request | Fault assurance | queued:- |
-| 38140704769 | `b8cf6cb3534e` | pull_request | Hosted portability and native qualification | queued:- |
-| 38140704765 | `b8cf6cb3534e` | pull_request | Cross-repository development broker qualification | queued:- |
+| 38140704850 | `b8cf6cb3534e` | pull_request | Formal assurance | in_progress:- |
+| 38140704812 | `b8cf6cb3534e` | pull_request | Credential-free benchmark path | in_progress:- |
+| 38140704809 | `b8cf6cb3534e` | pull_request | Portable protected-main provenance | in_progress:- |
+| 38140704801 | `b8cf6cb3534e` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38140704799 | `b8cf6cb3534e` | pull_request | Repository quality | in_progress:- |
+| 38140704794 | `b8cf6cb3534e` | pull_request | Agent Workflow Quality shadow | completed:success |
+| 38140704776 | `b8cf6cb3534e` | pull_request | Huawei MIT source headers | completed:success |
+| 38140704774 | `b8cf6cb3534e` | pull_request | Rust verification | in_progress:- |
+| 38140704771 | `b8cf6cb3534e` | pull_request | Fault assurance | in_progress:- |
+| 38140704769 | `b8cf6cb3534e` | pull_request | Hosted portability and native qualification | in_progress:- |
+| 38140704765 | `b8cf6cb3534e` | pull_request | Cross-repository development broker qualification | in_progress:- |
 | 38139674258 | `2fc8b428bfbc` | pull_request | Credential-free benchmark path | completed:success |
