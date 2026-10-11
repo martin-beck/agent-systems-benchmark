@@ -72,14 +72,14 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2` | `0a389a2f8aa3` | 0 | behind 47, ahead 15 |
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `ec566dfdcde2` | 0 | behind 47, ahead 18 |
 | `agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies` | `feature/ar-1778-pinned-source-build-and-project-dependencies` | `1c11b88d2790` | 0 | behind 55, ahead 0 |
-| `agent-systems-benchmark-ar-1779-default-usable-tool-install-command` | `feature/ar-1779-default-usable-tool-install-command` | `32cb692acebe` | 0 | behind 0, ahead 2 |
+| `agent-systems-benchmark-ar-1779-default-usable-tool-install-command` | `feature/ar-1779-default-usable-tool-install-command` | `7c08cfb019ee` | 0 | behind 0, ahead 3 |
 | `agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog` | `feature/ar-1781-external-workload-acquisition-catalog` | `286cccd6d7c0` | 0 | behind 48, ahead 0 |
 | `agent-systems-benchmark-ar-1782-verified-asb-workload-installation` | `feature/ar-1782-verified-asb-workload-installation` | `a1090297dede` | 0 | behind 0, ahead 1 |
 | `agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight` | `feature/ar-1784-command-dependency-registry-and-preflight` | `e85e6872f055` | 1 | behind 47, ahead 11 |
 | changed files | - | - | - | `docs/examples/asb-cli-workflow-v1.provenance.json` |
 | `agent-systems-benchmark-ar-1784-command-dependency-registry-clean` | `feature/ar-1784-command-dependency-registry-clean` | `b8a1d6a14cea` | 0 | behind 32, ahead 0 |
 | `agent-systems-benchmark-ar-1793-human-diagnostic-output-parent` | `feature/ar-1793-human-diagnostic-output-parent` | `e85e6872f055` | 0 | behind 47, ahead 11 |
-| `agent-systems-benchmark-ar-1793-human-diagnostic-output-parent-v2` | `feature/ar-1793-human-diagnostic-output-parent-v2` | `c7ab99e76fca` | 0 | behind 0, ahead 1 |
+| `agent-systems-benchmark-ar-1793-human-diagnostic-output-parent-v2` | `feature/ar-1793-human-diagnostic-output-parent-v2` | `6d948a486527` | 0 | behind 0, ahead 2 |
 | `agent-systems-benchmark-ar-1794-forward-merge` | `DETACHED` | `06514c0622c4` | 0 | behind 2, ahead 0 |
 | `agent-systems-benchmark-ar-1794-protected-main-merge-path` | `repair/ar-1794-protected-main-merge-path` | `198bf86975f6` | 0 | behind 47, ahead 1 |
 | `agent-systems-benchmark-ar1710` | `codex/ar1710-provider-model-readiness` | `c059e9a63dbc` | 0 | behind 76, ahead 0 |
