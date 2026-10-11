@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 125,
+  "task_revision": 126,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T06:47:25+00:00",
+  "updated_at": "2026-10-11T06:47:32+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -418,3 +418,6 @@ gate into a serial-only or exclusion-based check.
   publications. Current PR #563 is based on protected main fa9e0c6c at exact head
   a5e589544f6d865c0e195780ec728e0b4d5cfff6. Portable protected-main provenance is green; remaining
   required workflows are running or queued. No merge claimed.
+
+- 2026-10-11T06:47:32+00:00: Recorded command exit 8; command argv SHA-256
+  779f8595063f9f52402e3fcaf9d37632586e0ed1cbdd0bf102a715eda0b152d2.
