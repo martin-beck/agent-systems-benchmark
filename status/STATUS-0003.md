@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root. |
-| Next action | Await required checks for PR #574 at 0a389a2f (coverage repaired to 90.28&#37;); then obtain independent exact-head review, merge only through signed local merge-integrity, and verify exact-main workflows. |
+| Summary | PR #576 exact head 817de0ed; local workspace coverage 90.28&#37; |
+| Next action | Monitor new PR #576 hosted checks at exact head 817de0ed to terminal result; preserve no-force policy. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
@@ -1266,15 +1266,15 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | open |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | coordinator |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
-| Summary | Command dependency registry implemented; PR #575 coverage repair pushed. |
-| Next action | Obtain independent exact-head review and green required checks for PR #575 at 2b909bea, then merge only through signed local merge-integrity and verify exact-main workflows. |
+| Summary | PR #575 coverage repair pushed at exact head e5f378aa |
+| Next action | Monitor PR #575 exact-head hosted checks; if coverage passes, independently review and handoff. Preserve PR #573 as superseded. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 
@@ -1388,19 +1388,19 @@
 | Summary | Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage. |
 | Next action | Release AR-1792 as done ownerless after independent review; no source changes. |
 
-### AR-1793 — Repair human diagnostic output-parent contract
+### AR-1793 — Coordinator v0.5.1 adoption
 
 | Field | Value |
 | --- | --- |
-| Status | planned |
-| Priority | P1 |
+| Status | in_progress |
+| Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | codex-ar1793-awc-v051 |
 | Parent | None |
 | Children | None |
-| Summary | Repair the legacy human diagnostic output-parent wording contract exposed by the full ASB CLI suite. |
-| Next action | Repair the legacy human diagnostic output-parent wording contract and add focused positive/negative coverage; do not publish AR-1784 until green. |
+| Summary | Adopt v0.5.1 with strict coverage repair. |
+| Next action | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. |
 
 ### AR-1794 — Protected-main merge-path repair
 
@@ -1415,6 +1415,20 @@
 | Children | None |
 | Summary | Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity. |
 | Next action | Keep open pending a clean signed local merge and green exact-main provenance receipt; do not use GitHub web merge. |
+
+### AR-1795 — Repair human diagnostic output-parent contract
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P1 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Repair the legacy human diagnostic output-parent wording contract exposed by the full ASB CLI suite. |
+| Next action | Repair the legacy human diagnostic output-parent wording contract and add focused positive/negative coverage; do not publish AR-1784 until green. |
 
 
 ## Dependency graph
@@ -2258,7 +2272,7 @@ flowchart LR
         AR_1781["AR-1781 - In progress"]:::status_in_progress
         AR_1782["AR-1782 - Planned"]:::status_planned
         AR_1783["AR-1783 - Planned"]:::status_planned
-        AR_1784["AR-1784 - In progress"]:::status_in_progress
+        AR_1784["AR-1784 - Open"]:::status_open
         AR_1785["AR-1785 - Done"]:::status_done
         AR_1786["AR-1786 - Done"]:::status_done
         AR_1787["AR-1787 - Done"]:::status_done
@@ -2267,8 +2281,9 @@ flowchart LR
         AR_1790["AR-1790 - Done"]:::status_done
         AR_1791["AR-1791 - Done"]:::status_done
         AR_1792["AR-1792 - Done"]:::status_done
-        AR_1793["AR-1793 - Planned"]:::status_planned
+        AR_1793["AR-1793 - In progress"]:::status_in_progress
         AR_1794["AR-1794 - Open"]:::status_open
+        AR_1795["AR-1795 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4157,6 +4172,7 @@ flowchart LR
     AR_1749 --> AR_1753
     AR_1750 --> AR_1748
     AR_1753 --> AR_1756
+    AR_1756 --> AR_1793
     AR_1757 --> AR_1766
     AR_1759 --> AR_1760
     AR_1759 --> AR_1761
@@ -4208,7 +4224,7 @@ flowchart LR
     AR_1782 --> AR_1783
     AR_1783 --> AR_1780
     AR_1784 --> AR_1779
-    AR_1784 --> AR_1793
+    AR_1784 --> AR_1795
     AR_1787 --> AR_1785
     AR_1788 --> AR_1785
     AR_1788 --> AR_1791

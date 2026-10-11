@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T12:43:53+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1776"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 6,
   "observed_head": "fe7f1ce8b34d286ae7e0a83d1d64b2211e7302a5",
-  "owner": "ar1784_dependency_registry_luna56",
+  "owner": "",
   "plan": "../plans/AR-1784-command-dependency-registry-and-preflight.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1784.json",
   "spec_revision": 2,
-  "status": "in_progress",
+  "status": "open",
   "summary": "PR #575 coverage repair pushed at exact head e5f378aa",
-  "task_revision": 78,
+  "task_revision": 79,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:44:07+00:00",
+  "updated_at": "2026-10-11T11:13:38+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -284,3 +284,5 @@ and end-to-end development-run tests in the same change.
   fail-closed handling. Focused dependency_registry tests and cargo fmt pass locally. Signed DCO
   commit e5f378aa4a82c058abb76c8476d6a1a5a10a75dc pushed to PR #575; awaiting exact-head hosted
   checks.
+
+- 2026-10-11T11:13:38+00:00: Independent review complete; coordinator resumes repair.
