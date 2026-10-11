@@ -1176,7 +1176,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root. |
-| Next action | Monitor hosted CI for exact head 62951d56; inspect and repair only exact-head failures, then perform independent review and handoff for merge. |
+| Next action | Inspect exact-head PR #571 policy/coverage and Rust failures for 62951d56; repair any real failure with signed DCO commit, push, and rerun required gates before review/merge handoff. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
