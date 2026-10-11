@@ -7,7 +7,7 @@
     "AR-1760"
   ],
   "id": "AR-1781",
-  "next_action": "Await exact-head CI for repair commit 72abf364, then merge and post-merge verify before accept/release.",
+  "next_action": "Continue monitoring exact-head checks for 72abf364; merge only after Rust, AArch64, and policy/supply-chain checks pass, then post-merge verify and accept/release.",
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "observed_dirty": 0,
   "observed_head": "0db5831b7e6d87bf0993fcfd38889abc19595b6f",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini.",
-  "task_revision": 14,
+  "task_revision": 15,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T09:34:52+00:00",
+  "updated_at": "2026-10-11T09:34:57+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -82,3 +82,7 @@ labelled.
   PR #572.
 
 - 2026-10-11T09:34:52+00:00: Heartbeat by ar1781-luna56.
+
+- 2026-10-11T09:34:57+00:00: Repair 72abf364 is pushed and exact-head CI has no failures. Green:
+  AWQ, fuzz, credential-free, headers, Kani, Loom, TLC/Alloy, retained faults, platform, provenance,
+  matcher/SLO, TUI. Pending: Rust, emulated AArch64, policy/coverage/supply-chain.
