@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Coverage margin repair pushed at c5303c05.",
-  "task_revision": 127,
+  "task_revision": 128,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T17:01:24+00:00",
+  "updated_at": "2026-10-11T17:10:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -410,3 +410,6 @@ protected merge, and post-merge evidence path.
   8e7ad2e1157441140c544316fb3631277cea7d1b12d36633f955101fe28350c6.
 
 - 2026-10-11T17:01:24+00:00: Heartbeat by ar1798-source-checkout-luna56.
+
+- 2026-10-11T17:10:37+00:00: Recorded command exit 1; command argv SHA-256
+  b4dc6ca920d2e5993ed5859095363cd6528ed061da4fc9ff3b42bbd338442805.
