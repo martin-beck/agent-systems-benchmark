@@ -80,7 +80,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | changed files | - | - | - | `docs/examples/asb-cli-workflow-v1.provenance.json` |
 | `agent-systems-benchmark-ar-1784-command-dependency-registry-clean` | `feature/ar-1784-command-dependency-registry-clean` | `b8a1d6a14cea` | 0 | behind 32, ahead 0 |
 | `agent-systems-benchmark-ar-1793-human-diagnostic-output-parent` | `feature/ar-1793-human-diagnostic-output-parent` | `e85e6872f055` | 0 | behind 47, ahead 11 |
-| `agent-systems-benchmark-ar-1793-human-diagnostic-output-parent-v2` | `feature/ar-1793-human-diagnostic-output-parent-v2` | `6d948a486527` | 0 | behind 0, ahead 2 |
+| `agent-systems-benchmark-ar-1793-human-diagnostic-output-parent-v2` | `DETACHED` | `a89dd44ea978` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar-1794-forward-merge` | `DETACHED` | `06514c0622c4` | 0 | behind 2, ahead 0 |
 | `agent-systems-benchmark-ar-1794-protected-main-merge-path` | `repair/ar-1794-protected-main-merge-path` | `198bf86975f6` | 0 | behind 47, ahead 1 |
 | `agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition` | `feature/ar-1798-pinned-source-checkout-acquisition` | `a89dd44ea978` | 3 | behind 0, ahead 0 |
