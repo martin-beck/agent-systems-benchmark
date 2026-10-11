@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair pushed at e25983f6; regenerated 270 reviewed legacy diagnostic callsite identities and passed diagnostic contract.",
-  "task_revision": 57,
+  "task_revision": 58,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:52:35+00:00",
+  "updated_at": "2026-10-11T14:52:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -204,3 +204,6 @@ protected merge, and post-merge evidence path.
   2776d7d2255edbb9290f03d5e56b59789cc7e21d74c0c1bb498390d1e64400c4.
 
 - 2026-10-11T14:52:35+00:00: Heartbeat by ar1798-source-checkout-luna56.
+
+- 2026-10-11T14:52:37+00:00: Recorded command exit 0; command argv SHA-256
+  2776d7d2255edbb9290f03d5e56b59789cc7e21d74c0c1bb498390d1e64400c4.
