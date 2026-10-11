@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Repair pushed at exact head 37fcf269; hosted gates pending |
-| Next action | Monitor exact-head PR #571 hosted gates; investigate any remaining failure before review/merge handoff. |
+| Summary | Signed repair 37fcf269 pushed; PR #571 conflicts with advanced main and has no new hosted checks |
+| Next action | Reconcile through documented clean topic/superseding PR workflow against current protected main, then rerun exact-head hosted gates. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 

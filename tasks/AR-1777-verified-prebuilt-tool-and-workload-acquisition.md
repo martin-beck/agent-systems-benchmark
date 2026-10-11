@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Monitor exact-head PR #571 hosted gates; investigate any remaining failure before review/merge handoff.",
+  "next_action": "Reconcile through documented clean topic/superseding PR workflow against current protected main, then rerun exact-head hosted gates.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition",
   "observed_dirty": 0,
   "observed_head": "eff009eeefb1b7c4c95217044ba44de5c4d44853",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "Repair pushed at exact head 37fcf269; hosted gates pending",
-  "task_revision": 83,
+  "summary": "Signed repair 37fcf269 pushed; PR #571 conflicts with advanced main and has no new hosted checks",
+  "task_revision": 84,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T10:20:48+00:00",
+  "updated_at": "2026-10-11T10:21:03+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -288,3 +288,9 @@ reporting contract when available while keeping machine-mode output safe.
   cargo fmt, and full asb-cli package tests pass locally. Pushed PR #571 exact head
   37fcf2697dd8b6d4ed5b92aa9a864dc94bd5afa8; next action monitor exact-head hosted
   Policy/Rust/AArch64/coverage/supply-chain gates.
+
+- 2026-10-11T10:21:03+00:00: Exact repair head 37fcf2697dd8b6d4ed5b92aa9a864dc94bd5afa8 is
+  signed/DCO and pushed. Local focused diagnostic_contract, workflow_transcript provenance, human
+  diagnostic matrix, cargo fmt, and full asb-cli package tests pass. GitHub PR #571 is CONFLICTING
+  after protected main advanced and reports no checks for 37fcf269; prior checks are only for
+  62951d56. No force-push or merge performed.
