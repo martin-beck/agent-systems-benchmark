@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Coverage repair pushed at b0917d44 with checkout spawn-failure test.",
-  "task_revision": 82,
+  "task_revision": 83,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:41:26+00:00",
+  "updated_at": "2026-10-11T15:41:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -270,3 +270,6 @@ protected merge, and post-merge evidence path.
   1c438e4086b45b1997db160664394095896daf4a62bf2557f976cc3a08ad570f.
 
 - 2026-10-11T15:41:26+00:00: Heartbeat by ar1798-source-checkout-luna56.
+
+- 2026-10-11T15:41:28+00:00: Recorded command exit 0; command argv SHA-256
+  58686f2f8f4c11db7f4cb55686c91b7ab2e652e8ef60c966321e3a4fc1596c77.
