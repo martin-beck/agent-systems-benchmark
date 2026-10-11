@@ -1,5 +1,6 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1620](../tasks/AR-1620.md) | [AR-1614](../tasks/AR-1614.md), [AR-1619](../tasks/AR-1619.md) | [AR-1615](../tasks/AR-1615.md), [AR-1621](../tasks/AR-1621.md), [AR-1623](../tasks/AR-1623.md), [AR-1646](../tasks/AR-1646.md) |
 | [AR-1621](../tasks/AR-1621.md) | [AR-1619](../tasks/AR-1619.md), [AR-1620](../tasks/AR-1620.md) | [AR-1615](../tasks/AR-1615.md), [AR-1622](../tasks/AR-1622.md), [AR-1642](../tasks/AR-1642.md) |
 | [AR-1622](../tasks/AR-1622.md) | [AR-1613](../tasks/AR-1613.md), [AR-1615](../tasks/AR-1615.md), [AR-1621](../tasks/AR-1621.md), [AR-1641](../tasks/AR-1641.md), [AR-1642](../tasks/AR-1642.md) | [AR-1623](../tasks/AR-1623.md), [AR-1632](../tasks/AR-1632.md) |
 | [AR-1623](../tasks/AR-1623.md) | [AR-1614](../tasks/AR-1614.md), [AR-1620](../tasks/AR-1620.md), [AR-1622](../tasks/AR-1622.md), [AR-1632](../tasks/AR-1632.md) | [AR-1624](../tasks/AR-1624.md), [AR-1653](../tasks/AR-1653.md), [AR-1655](../tasks/AR-1655.md) |
@@ -170,21 +171,21 @@
 
 ## Complete AR inventory
 
-### In progress (4)
+### In progress (5)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | luna56-ar1779 | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Independent review and exact-head CI for PR #583 at 7c08cfb0; source-only fallback remains to be resolved before merge. |
 | P0 | [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md): Verified asb workload installation | ar1782_workload_install_luna56 | Implement dedicated verified remote external workload installation and lifecycle through asb workload. | Wait for AR-1793 diagnostic identity repair to merge; then rebase PR #584 a1090297 onto updated main, rerun exact-head CI, and review. |
 | P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | codex-ar1796-release-path | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. |
+| P0 | [AR-1798](../tasks/AR-1798-pinned-source-checkout-acquisition.md): Pinned source-checkout acquisition | ar1798-source-checkout-luna56 | Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance. | Implement the bounded immutable source-checkout provider required by AR-1778 and consume it from AR-1779. |
 | P1 | [AR-1793](../tasks/AR-1793-human-diagnostic-output-parent.md): Repair human diagnostic output-parent contract | codex-ar1793-diagnostic-repair-luna56 | Repair the legacy human diagnostic output-parent wording contract exposed by the full ASB CLI suite. | Repair the legacy human diagnostic output-parent wording contract and add focused positive/negative coverage; do not publish AR-1784 until green. |
 
-### Open (2)
+### Open (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
-| P0 | [AR-1798](../tasks/AR-1798-pinned-source-checkout-acquisition.md): Pinned source-checkout acquisition | Unclaimed | Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance. | Implement the bounded immutable source-checkout provider required by AR-1778 and consume it from AR-1779. |
 
 ### Blocked (85)
 

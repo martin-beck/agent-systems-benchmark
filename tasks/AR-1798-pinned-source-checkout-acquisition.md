@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T16:13:59+00:00",
   "depends_on": [
     "AR-1776",
     "AR-1778"
@@ -12,7 +12,7 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "ar1798-source-checkout-luna56",
   "plan": "../plans/AR-1798-pinned-source-checkout-acquisition.md",
   "priority": "P0",
   "schema_version": 1,
@@ -26,11 +26,11 @@
   },
   "spec_ref": "specs/AR-1798.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:12:04+00:00",
+  "updated_at": "2026-10-11T14:13:59+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -58,3 +58,5 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T14:12:04+00:00: Promote source-checkout repair after AR-1776 and AR-1778 exact-main
   completion; it unblocks AR-1779 source-only fallback.
+
+- 2026-10-11T14:13:59+00:00: Claimed by ar1798-source-checkout-luna56.
