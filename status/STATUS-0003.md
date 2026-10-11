@@ -1274,7 +1274,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. |
-| Next action | Derive a complete command-to-tool/host-capability dependency registry and fail-fast preflight from all ASB command paths, adapters, monitors, and build recipes. |
+| Next action | Repair the human command taxonomy compile error (stale CommandKind::Preflight arm), then run focused preflight tests; prior focused checks failed only on non-exhaustive human.rs matches. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 
