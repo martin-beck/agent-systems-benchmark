@@ -1428,7 +1428,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Adopt v0.5.1 with strict coverage repair. |
-| Next action | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. |
+| Next action | Retry canonical publication-tier formal verification after the occupied shared admission lane clears; then independently review the exact state and release only with all required evidence. |
 
 ### AR-1796 — Concurrent integration liveness
 

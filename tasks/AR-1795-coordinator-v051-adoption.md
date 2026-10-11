@@ -7,16 +7,16 @@
     "AR-1756"
   ],
   "id": "AR-1795",
-  "next_action": "Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate.",
+  "next_action": "Retry canonical publication-tier formal verification after the occupied shared admission lane clears; then independently review the exact state and release only with all required evidence.",
   "owner": "codex-ar1795-v051-coverage",
   "plan": "../plans/AR-1795-coordinator-v051-adoption.md",
   "priority": "P0",
   "schema_version": 1,
   "status": "in_progress",
   "summary": "Adopt v0.5.1 with strict coverage repair.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "Coordinator v0.5.1 adoption",
-  "updated_at": "2026-10-11T11:53:54+00:00",
+  "updated_at": "2026-10-11T12:00:19+00:00",
   "worktree_key": ""
 }
 ---
@@ -44,3 +44,8 @@ weakened.
   explicit reassignment.
 
 - 2026-10-11T11:53:54+00:00: Claimed by codex-ar1795-v051-coverage.
+
+- 2026-10-11T12:00:19+00:00: Fresh full branch coverage at state 70d7f9b: 95.0098 percent
+  (15007/15628 statements; 5270/5714 branches). Vendor v0.5.1, schema, generated-view, and
+  whitespace checks passed. Canonical formal verifier did not run because another process owns its
+  shared admission queue.

@@ -8,7 +8,7 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #579 exact head 56ca12a7 on protected-main base 14de8bce; source-only archive rejection and bounded archive validation preserved; obsolete generated diagnostic catalog removed; focused diagnostic contract 9/9 and clean local workspace coverage 90.26% (148126 lines, 9574 missed); hosted checks must rerun at new head. | Monitor fresh exact-head PR #579 Policy/Rust/AArch64 and required checks; inspect any failure, then independent review before merge. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
-| P0 | [AR-1795](tasks/AR-1795-coordinator-v051-adoption.md): Coordinator v0.5.1 adoption | Adopt v0.5.1 with strict coverage repair. | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. | codex-ar1795-v051-coverage |
+| P0 | [AR-1795](tasks/AR-1795-coordinator-v051-adoption.md): Coordinator v0.5.1 adoption | Adopt v0.5.1 with strict coverage repair. | Retry canonical publication-tier formal verification after the occupied shared admission lane clears; then independently review the exact state and release only with all required evidence. | codex-ar1795-v051-coverage |
 
 ## Open
 
