@@ -347,6 +347,22 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
+    fn local_acquisition_rejects_directories_and_symlinks() {
+        let directory = tempfile::tempdir().unwrap();
+        assert!(matches!(
+            read_local("codex", directory.path()),
+            Err(AcquisitionError::UnsafeArtifact)
+        ));
+        let temporary = tempfile::NamedTempFile::new().unwrap();
+        std::os::unix::fs::symlink(temporary.path(), directory.path().join("link")).unwrap();
+        assert!(matches!(
+            read_local("codex", &directory.path().join("link")),
+            Err(AcquisitionError::UnsafeArtifact)
+        ));
+    }
+
+    #[test]
+    #[cfg(unix)]
     fn local_catalog_mismatch_preserves_typed_error() {
         let temporary = tempfile::NamedTempFile::new().unwrap();
         fs::write(temporary.path(), b"not-the-pinned-artifact").unwrap();
