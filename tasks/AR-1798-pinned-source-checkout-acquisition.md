@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Formatting repair pushed at 89ce603c after CI gate failure.",
-  "task_revision": 85,
+  "task_revision": 86,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:44:05+00:00",
+  "updated_at": "2026-10-11T15:44:07+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -282,3 +282,6 @@ protected merge, and post-merge evidence path.
   asb-cli --all-targets -D warnings and git diff --check passed. Hosted-equivalent locked workspace
   llvm-cov --fail-under-lines 90 passed: TOTAL lines 90.23%, regions 88.70%, exit 0. No threshold
   changes.
+
+- 2026-10-11T15:44:07+00:00: Recorded command exit 0; command argv SHA-256
+  40f22e526b755659e7f33df7f4ead6e75ee9362fed734ad6ebdf6a26c5b63dab.
