@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #576 exact head 817de0ed; source-only fallback and compressed archive validation gaps under repair",
-  "task_revision": 105,
+  "task_revision": 106,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:24:16+00:00",
+  "updated_at": "2026-10-11T11:24:23+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -376,3 +376,6 @@ reporting contract when available while keeping machine-mode output safe.
 - 2026-10-11T11:24:16+00:00: 2026-10-11T11:31Z repair in progress: resolve no longer falls back to
   source alternatives; verify_bytes rejects gzip/xz archive magic before digest/executable handling;
   focused 13-test suite passes.
+
+- 2026-10-11T11:24:23+00:00: Recorded command exit 0; command argv SHA-256
+  1c3d2763c3499f80d050233874b0955d6eaafba590c1b5c4772143343adcfa38.
