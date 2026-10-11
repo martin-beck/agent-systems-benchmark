@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Create fresh clean topic from protected main, cherry-pick signed AR-1784 product/repair commits, refresh diagnostics/provenance, publish replacement PR without force-push.",
+  "next_action": "Monitor PR #575 exact-head hosted checks; independently review and handoff after all required gates pass. Preserve PR #573 as superseded.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 6,
   "observed_head": "fe7f1ce8b34d286ae7e0a83d1d64b2211e7302a5",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1784.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "e85e6872 pushed; hosted provenance rejects non-tip sync merge topology",
-  "task_revision": 75,
+  "summary": "Clean superseding PR #575 published at exact head 5cabf776",
+  "task_revision": 76,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:31:58+00:00",
+  "updated_at": "2026-10-11T10:32:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -268,3 +268,9 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T10:31:58+00:00: Recorded command exit 0; command argv SHA-256
   776b65925810e8eb462189cd2abf9fb0a8246af2db7700172159b339b3f138ea.
+
+- 2026-10-11T10:32:26+00:00: Fresh clean branch feature/ar-1784-command-dependency-registry-clean
+  starts at protected main af75cd06 and linearly replays signed AR-1784 commits, ending exact head
+  5cabf776ce5218c25ebebc4650937f15eddac87a. No merge commits were introduced in the PR range. Local
+  cargo fmt, focused diagnostic/provenance tests, and full asb-cli package tests pass. Published
+  replacement PR #575 through handoffctl; stale PR #573 remains preserved and unmodified.
