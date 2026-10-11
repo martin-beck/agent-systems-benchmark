@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head 56ca12a7 on protected-main base 14de8bce; source-only archive rejection and bounded archive validation preserved; obsolete generated diagnostic catalog removed; focused diagnostic contract 9/9 and clean local workspace coverage 90.26% (148126 lines, 9574 missed); hosted checks must rerun at new head.",
-  "task_revision": 122,
+  "task_revision": 123,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:59:25+00:00",
+  "updated_at": "2026-10-11T11:59:35+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -437,3 +437,6 @@ reporting contract when available while keeping machine-mode output safe.
   workflow provenance 3/3, fmt clean; clean coverage run workspace 98289 lines/9574 missed = 90.26%;
   one earlier full-run PTY failure reproduced as transient and focused PTY passed. Hosted checks at
   7019409f were coverage-red; fresh run required at 56ca12a7.
+
+- 2026-10-11T11:59:35+00:00: Recorded command exit 0; command argv SHA-256
+  422de929f35a13a7206d8a95352061502a93f1785f7694e5184458196cd08b15.
