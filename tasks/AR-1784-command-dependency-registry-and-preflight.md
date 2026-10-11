@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Run focused dependency and human contract tests after adding the preflight golden row; then rerun the complete asb-cli suite and review the exact signed diff.",
+  "next_action": "Independent exact diff review is complete; full asb-cli suite has one pre-existing human diagnostic assertion failure unrelated to AR-1784, while all four new registry tests and public-command inventory test pass. Parent should decide PR publication with this known baseline blocker.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 0,
   "observed_head": "fe7f1ce8b34d286ae7e0a83d1d64b2211e7302a5",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 39,
+  "task_revision": 40,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T08:27:39+00:00",
+  "updated_at": "2026-10-11T08:27:57+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -152,3 +152,11 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T08:27:39+00:00: Recorded command exit 101; command argv SHA-256
   770ef66e05618edaf585abd6d89f8f4b9cea6dae022116745e9147ef57d01a1d.
+
+- 2026-10-11T08:27:57+00:00: Full asb-cli rerun is deterministic for AR-1784 changes: 348/349
+  passed; only existing
+  human::tests::error_presentations_name_cause_state_and_recovery_without_private_text fails on
+  legacy output-parent-unavailable wording (expected state-change phrase absent; output says
+  requested input/configuration needs correction and no successful state change). New
+  dependency_registry tests all pass, and preflight public-command golden/inventory test passes. Do
+  not mask or weaken unrelated diagnostic gate.
