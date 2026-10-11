@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "PR #575 coverage repair pushed at exact head e5f378aa",
-  "task_revision": 85,
+  "task_revision": 86,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:15:10+00:00",
+  "updated_at": "2026-10-11T11:15:23+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -300,3 +300,6 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T11:15:10+00:00: Recorded command exit 0; command argv SHA-256
   a34464c250ce2ca18df6aca5106817468471f520c0f3eee00b47a3200240001f.
+
+- 2026-10-11T11:15:23+00:00: Recorded command exit 0; command argv SHA-256
+  f430faa65ec173e7dff0287c21397e56a01e3c81a7a2216762898d71d594b307.
