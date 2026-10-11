@@ -23,7 +23,7 @@ Generated from local Git and GitHub. Do not edit.
 | #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
 | #565 | `docs/ar-1725-quickstart-platform-install-v2@8028fd66f26d` | `main` | BLOCKED | IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
 | #566 | `codex/ar-1716-recording-fence@436f49cf5954` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(replay): fence recording provider identity diagnostics |
-| #567 | `codex/ar-1717-comparison-product@7de3c1c5a7b9` | `main` | BLOCKED | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat: fence comparison provider identities |
+| #567 | `codex/ar-1717-comparison-product@7de3c1c5a7b9` | `main` | BLOCKED | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat: fence comparison provider identities |
 
 ## Recent workflows
 
@@ -38,6 +38,6 @@ Generated from local Git and GitHub. Do not edit.
 | 38121738551 | `7de3c1c5a7b9` | pull_request | Portable protected-main provenance | completed:success |
 | 38121738550 | `7de3c1c5a7b9` | pull_request | Emulated aarch64 portability | in_progress:- |
 | 38121738547 | `7de3c1c5a7b9` | pull_request | Rust verification | completed:failure |
-| 38121738542 | `7de3c1c5a7b9` | pull_request | Formal assurance | in_progress:- |
+| 38121738542 | `7de3c1c5a7b9` | pull_request | Formal assurance | completed:success |
 | 38121738541 | `7de3c1c5a7b9` | pull_request | Credential-free benchmark path | completed:success |
 | 38121549862 | `0a10d7bd4098` | pull_request | Fault assurance | completed:cancelled |
