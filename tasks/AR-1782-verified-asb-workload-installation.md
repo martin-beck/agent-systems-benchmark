@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "PR #584 exact remote head 55d0f1dd; expanded workload repair-proof matrix raises hosted-equivalent workspace coverage to 90.11% (149945 lines, 9839 missed). Local clippy, workflow provenance, diagnostic closure, lifecycle/archive/repair tests pass. Poll fresh exact-head CI; do not merge.",
+  "next_action": "PR #584 exact remote head fdb1e4bc; hostile archive and stale-proof lifecycle matrices pass, workspace line coverage 90.17% locally (99587 lines, 9794 missed). Focused diagnostic/workflow gates pass; poll fresh exact-head CI, do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
   "observed_head": "12fbe26399975e9114a451ddee632bdadb65b820",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 121,
+  "task_revision": 122,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T17:10:09+00:00",
+  "updated_at": "2026-10-11T17:10:39+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -368,3 +368,7 @@ remain mandatory.
 
 - 2026-10-11T17:10:09+00:00: Recorded command exit 0; command argv SHA-256
   293c2148a179cf191174557f643f16f9891d390fd73eaa6feadfba1fcb474444.
+
+- 2026-10-11T17:10:39+00:00: Pushed signed+DCO fdb1e4bc with verified-workload source-shape,
+  archive-safety, and repair-proof coverage tests; local full quality gate passed at 90.17%
+  workspace lines after PTY rerun.
