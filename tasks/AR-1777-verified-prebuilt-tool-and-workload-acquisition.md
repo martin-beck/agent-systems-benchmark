@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "Clean superseding PR #576 published at exact head 28673883 after coverage repair",
-  "task_revision": 90,
+  "summary": "PR #576 coverage continuation pushed at exact head a666bfda",
+  "task_revision": 91,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T10:50:22+00:00",
+  "updated_at": "2026-10-11T10:50:56+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -316,3 +316,11 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T10:50:22+00:00: Recorded command exit 0; command argv SHA-256
   f1c18bab21f1a61a43ca4ad6d36127ec88e8a7a37840ef5c447a8e565b1301c6.
+
+- 2026-10-11T10:50:56+00:00: PR #576 exact head advanced from 28673883 to
+  a666bfdab274fb31fa043ce5ee27d1f8aeb38cb1 via signed DCO commit test(cli): cover local acquisition
+  boundaries. Added meaningful negative coverage for directory and symlink local sources; focused
+  tool_acquisition suite now 11/11 and cargo fmt passes. This is the clean linear continuation
+  branch at
+  /srv/data/projects/agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean.
+  Hosted PR #574 policy remained 89.99%; do not weaken the floor.

@@ -1175,7 +1175,7 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Clean superseding PR #576 published at exact head 28673883 after coverage repair |
+| Summary | PR #576 coverage continuation pushed at exact head a666bfda |
 | Next action | Monitor PR #576 exact-head hosted checks; independently review and supersede stale PR #574 only after replacement checks are green. Preserve original PR #574 evidence. |
 
 ### AR-1778 — Pinned source builds and project dependencies
