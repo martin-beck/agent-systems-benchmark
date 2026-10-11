@@ -1470,7 +1470,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance. |
-| Next action | Implement the bounded immutable source-checkout provider required by AR-1778 and consume it from AR-1779. |
+| Next action | PR #585 at b305ff82: independent review and exact-head CI; focused checkout/build tests passed, do not merge until all required checks are green. |
 
 
 ## Dependency graph
