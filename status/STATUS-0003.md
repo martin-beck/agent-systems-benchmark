@@ -1273,8 +1273,8 @@
 | Owner | coordinator |
 | Parent | None |
 | Children | None |
-| Summary | PR #575 coverage repair pushed at exact head e5f378aa |
-| Next action | Monitor PR #575 exact-head hosted checks; if coverage passes, independently review and handoff. Preserve PR #573 as superseded. |
+| Summary | Host-runtime dependency contract repaired on PR #575. |
+| Next action | Run full local coverage and await all exact-head hosted checks for PR #575 at b8a1d6a1; obtain a new independent review, then merge only through signed local merge-integrity and verify exact-main workflows. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 

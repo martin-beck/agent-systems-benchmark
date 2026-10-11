@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Monitor PR #575 exact-head hosted checks; if coverage passes, independently review and handoff. Preserve PR #573 as superseded.",
+  "next_action": "Run full local coverage and await all exact-head hosted checks for PR #575 at b8a1d6a1; obtain a new independent review, then merge only through signed local merge-integrity and verify exact-main workflows.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 1,
   "observed_head": "e85e6872f055209fb54de3e4e5c3f62353db80f5",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1784.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "PR #575 coverage repair pushed at exact head e5f378aa",
-  "task_revision": 86,
+  "summary": "Host-runtime dependency contract repaired on PR #575.",
+  "task_revision": 87,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:15:23+00:00",
+  "updated_at": "2026-10-11T11:15:35+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -303,3 +303,7 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T11:15:23+00:00: Recorded command exit 0; command argv SHA-256
   f430faa65ec173e7dff0287c21397e56a01e3c81a7a2216762898d71d594b307.
+
+- 2026-10-11T11:15:35+00:00: Independent review found live run/sweep/benchmark-live scopes omitted
+  Linux/cgroup-v2/user-systemd/bubblewrap host dependencies. Added mandatory host IDs and
+  non-vacuous tests; focused dependency_registry 13 passed; signed/DCO repair b8a1d6a1 pushed.

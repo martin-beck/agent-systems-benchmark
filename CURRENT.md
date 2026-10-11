@@ -9,7 +9,7 @@ Never edit this file directly.
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #576 exact head 817de0ed; local workspace coverage 90.28% | Monitor new PR #576 hosted checks at exact head 817de0ed to terminal result; preserve no-force policy. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | P0 | [AR-1781](tasks/AR-1781-external-workload-acquisition-catalog.md): External workload acquisition catalog | Post-merge provenance repair PR #577 open at signed DCO head 198bf869; historical af75cd06 preserved. | Obtain independent review and green exact-head checks for PR #577, then publish its signed two-parent merge with tools/integration/merge_pr.py and verify exact-main workflows. | ar1781-luna56 |
-| P0 | [AR-1784](tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | PR #575 coverage repair pushed at exact head e5f378aa | Monitor PR #575 exact-head hosted checks; if coverage passes, independently review and handoff. Preserve PR #573 as superseded. | coordinator |
+| P0 | [AR-1784](tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | Host-runtime dependency contract repaired on PR #575. | Run full local coverage and await all exact-head hosted checks for PR #575 at b8a1d6a1; obtain a new independent review, then merge only through signed local merge-integrity and verify exact-main workflows. | coordinator |
 
 ## Open
 
