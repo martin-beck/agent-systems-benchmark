@@ -61,8 +61,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1736-backend-model-catalog` | `codex/ar-1736-backend-model-catalog` | `8e4dc926d4b8` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar-1754-merge` | `DETACHED` | `8e4dc926d4b8` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar-1754-online` | `codex/ar-1754-online-integration` | `0dcd147261d4` | 0 | behind 1, ahead 0 |
-| `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `8e4dc926d4b8` | 3 | behind 0, ahead 0 |
-| changed files | - | - | - | `crates/asb-cli/src/lib.rs`, `crates/asb-cli/fixtures/v1/tool-acquisition-catalog.json`, `crates/asb-cli/src/tool_catalog.rs` |
+| `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `8e4dc926d4b8` | 4 | behind 0, ahead 0 |
+| changed files | - | - | - | `crates/asb-cli/src/lib.rs`, `docs/PROJECT_TOOLS.md`, `crates/asb-cli/fixtures/v1/tool-acquisition-catalog.json`, `crates/asb-cli/src/tool_catalog.rs` |
 | `agent-systems-benchmark-ar1786-repair-luna56` | `DETACHED` | `db3dfad83c51` | 0 | behind 38, ahead 2 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 542, ahead 326 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
