@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "PR #578 merged at signed local merge 4a8f0925.",
-  "task_revision": 38,
+  "task_revision": 39,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T11:45:28+00:00",
+  "updated_at": "2026-10-11T11:45:31+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -157,3 +157,6 @@ labelled.
 
 - 2026-10-11T11:45:28+00:00: PR #578 exact head 323aa8c2 passed all hosted checks and independent
   review; merged with base 14de8bce and unchanged tree b4ca9f20.
+
+- 2026-10-11T11:45:31+00:00: Recorded command exit 0; command argv SHA-256
+  b91449aa47d635e78e9d59f098f49c726db46333b92a91ba4b6953a5304842f4.
