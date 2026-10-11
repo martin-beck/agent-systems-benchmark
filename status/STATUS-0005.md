@@ -146,12 +146,17 @@
 
 ## Complete AR inventory
 
-### Open (3)
+### In progress (1)
+
+| Priority | AR | Owner | Summary | Next action |
+| --- | --- | --- | --- | --- |
+| P0 | [AR-1701](../tasks/AR-1701.md): Development live recording and comparison qualification | codex-ar1701-recording | Record live OpenRouter responses for selected or all agents, seal a replayable cassette, and make the next run offline with comparison and analysis against the live baseline. | Add live-run capture selection, redaction and cassette sealing, then qualify strict offline replay, comparison, and analysis from the same benchmark manifest. |
+
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
-| P0 | [AR-1701](../tasks/AR-1701.md): Development live recording and comparison qualification | Unclaimed | Record live OpenRouter responses for selected or all agents, seal a replayable cassette, and make the next run offline with comparison and analysis against the live baseline. | Add live-run capture selection, redaction and cassette sealing, then qualify strict offline replay, comparison, and analysis from the same benchmark manifest. |
 | P0 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Unclaimed | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. |
 
 ### Blocked (85)

@@ -188,11 +188,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | codex-ar1701-recording |
 | Parent | None |
 | Children | None |
 | Summary | Record live OpenRouter responses for selected or all agents, seal a replayable cassette, and make the next run offline with comparison and analysis against the live baseline. |
@@ -2153,7 +2153,7 @@ flowchart LR
     subgraph series_17["17 - Additional work"]
         direction TB
         AR_1700["AR-1700 - Done"]:::status_done
-        AR_1701["AR-1701 - Open"]:::status_open
+        AR_1701["AR-1701 - In progress"]:::status_in_progress
         AR_1702["AR-1702 - Blocked"]:::status_blocked
         AR_1703["AR-1703 - Planned"]:::status_planned
         AR_1704["AR-1704 - Done"]:::status_done
