@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1786-control-state",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T07:13:47+00:00",
+  "claim_expires": "2026-10-11T07:14:52+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 73,
+  "task_revision": 74,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T06:29:36+00:00",
+  "updated_at": "2026-10-11T06:29:52+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -253,3 +253,5 @@ gate into a serial-only or exclusion-based check.
   uncatalogued legacy control.rs producers at lines 9768, 11387, 11392, 11394, and 11409 after line
   shifts. Candidate signature/DCO and diff-check passed. No PR, CI, or merge authorized until
   catalog identities are repaired.
+
+- 2026-10-11T06:29:52+00:00: Heartbeat by codex-ar1786-review-merge-luna56.
