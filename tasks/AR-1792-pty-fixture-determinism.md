@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1792-pty-fixture-determinism",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T00:39:41+00:00",
   "depends_on": [
     "AR-1770",
     "AR-1791"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "codex-ar1792-pty-repair",
   "plan": "../plans/AR-1792-pty-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1792.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Make development broker PTY fixture deterministic",
-  "updated_at": "2026-10-11T00:09:38+00:00",
+  "updated_at": "2026-10-11T00:09:41+00:00",
   "worktree_key": ""
 }
 ---
@@ -34,3 +34,5 @@ serial-only or exclusion-based gate.
 
 - 2026-10-11T00:09:38+00:00: Promoted for deterministic PTY fixture repair; no GitHub Reviews API
   approval object is required.
+
+- 2026-10-11T00:09:41+00:00: Claimed by codex-ar1792-pty-repair.
