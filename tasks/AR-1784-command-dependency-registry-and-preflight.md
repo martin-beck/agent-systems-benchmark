@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T11:48:26+00:00",
+  "claim_expires": "2026-10-11T11:55:05+00:00",
   "depends_on": [
     "AR-1776"
   ],
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 200,
+  "task_revision": 201,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T09:50:48+00:00",
+  "updated_at": "2026-10-11T09:55:05+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -554,3 +554,5 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T09:50:48+00:00: Hosted Rust/policy exposed ar1769 human diagnostic matrix mismatch at
   4580f5c8; worker is repairing the reviewed output contract.
+
+- 2026-10-11T09:55:05+00:00: Heartbeat by coordinator.
