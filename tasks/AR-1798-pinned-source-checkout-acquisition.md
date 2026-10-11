@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Coverage repair pushed at 23c7d6a7 with focused source-checkout failure-branch tests.",
-  "task_revision": 65,
+  "task_revision": 66,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:07:29+00:00",
+  "updated_at": "2026-10-11T15:07:32+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -228,3 +228,6 @@ protected merge, and post-merge evidence path.
   tests 9 passed; source_checkout coverage 92.66% lines / 95.13% line execution; cargo clippy
   asb-cli all targets offline passed; git diff --check passed. Locked workspace coverage measured
   88.68% (baseline workspace deficit remains below 90% floor); no threshold weakening.
+
+- 2026-10-11T15:07:32+00:00: Recorded command exit 0; command argv SHA-256
+  c1819ac8c7e93322f21e89bd4690764345a79402deed079640e01ca15d81da55.
