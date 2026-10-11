@@ -55,6 +55,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-all-agents-provider` | `feature/all-agents-provider` | `03962f28571e` | 0 | behind 526, ahead 136 |
 | `agent-systems-benchmark-ar-1698-current-head` | `codex/ar-1698-current-head` | `f090de56710d` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar-1701-recording` | `codex/ar-1701-recording` | `f090de56710d` | 0 | behind 0, ahead 0 |
+| `agent-systems-benchmark-ar-1712-handoff` | `codex/ar-1712-handoff` | `f090de56710d` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar-1723` | `codex/ar-1723-easy-online` | `5739f6674cc5` | 0 | behind 1, ahead 0 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 526, ahead 326 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
