@@ -31,8 +31,8 @@ Generated from local Git and GitHub. Do not edit.
 | 38123906717 | `4245b4a1046c` | push | Hosted portability and native qualification | completed:success |
 | 38123906710 | `4245b4a1046c` | push | Formal assurance | completed:success |
 | 38123906707 | `4245b4a1046c` | push | Huawei MIT source headers | completed:success |
-| 38123906700 | `4245b4a1046c` | push | Rust verification | in_progress:- |
-| 38123906697 | `4245b4a1046c` | push | Emulated aarch64 portability | in_progress:- |
+| 38123906700 | `4245b4a1046c` | push | Rust verification | completed:failure |
+| 38123906697 | `4245b4a1046c` | push | Emulated aarch64 portability | completed:success |
 | 38123906683 | `4245b4a1046c` | push | Cross-repository development broker qualification | completed:success |
 | 38123906675 | `4245b4a1046c` | push | Repository quality | completed:failure |
 | 38123906669 | `4245b4a1046c` | push | Portable protected-main provenance | completed:failure |

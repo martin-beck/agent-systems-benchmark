@@ -9,8 +9,8 @@
   "id": "AR-1784",
   "next_action": "Repair the human command taxonomy compile error (stale CommandKind::Preflight arm), then run focused preflight tests; prior focused checks failed only on non-exhaustive human.rs matches.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
-  "observed_dirty": 3,
-  "observed_head": "3031428aab47be95943b75cd753b0b5e3aeb4f6b",
+  "observed_dirty": 0,
+  "observed_head": "c152ce98917ad9f3f4f40f339900979b5f30e6c2",
   "owner": "ar1784_dependency_registry_luna56",
   "plan": "../plans/AR-1784-command-dependency-registry-and-preflight.md",
   "priority": "P0",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 26,
+  "task_revision": 27,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T08:21:15+00:00",
+  "updated_at": "2026-10-11T08:21:20+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
