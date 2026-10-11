@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "PR #578 merged at signed local merge 4a8f0925.",
-  "task_revision": 40,
+  "task_revision": 41,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T11:54:49+00:00",
+  "updated_at": "2026-10-11T11:54:52+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -162,3 +162,6 @@ labelled.
   b91449aa47d635e78e9d59f098f49c726db46333b92a91ba4b6953a5304842f4.
 
 - 2026-10-11T11:54:49+00:00: All exact-main workflows passed at 4a8f0925 after signed merge PR #578.
+
+- 2026-10-11T11:54:52+00:00: Recorded command exit 0; command argv SHA-256
+  042079d0f402f52718ba78df47fa3d504e23ba09020e642893521014ec1b682c.
