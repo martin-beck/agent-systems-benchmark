@@ -1246,7 +1246,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement dedicated verified remote external workload installation and lifecycle through asb workload. |
-| Next action | PR #584 exact remote head 4b79404a; signed+DCO completes workload lifecycle boundaries: bounded acquisition helper, human default/JSON opt-in output, distinct install/update/repair preconditions, offline repair and stale detection, focused hostile/lifecycle coverage, regenerated diagnostic catalog and provenance. Local lifecycle, 9 diagnostic, workflow transcript, clippy checks pass. Poll fresh exact-head policy/Rust CI; do not merge. |
+| Next action | PR #584 exact remote head 4b79404a; fresh exact-head policy/Rust/TUI/credential-free checks are pending after lifecycle/output repair. Local focused lifecycle, diagnostic contract, workflow transcript, clippy pass; inspect hosted results and repair only genuine failures. Do not merge. |
 
 ### AR-1783 — Installed workload selection and execution
 

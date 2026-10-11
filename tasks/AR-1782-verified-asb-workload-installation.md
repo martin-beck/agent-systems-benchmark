@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "PR #584 exact remote head 4b79404a; signed+DCO completes workload lifecycle boundaries: bounded acquisition helper, human default/JSON opt-in output, distinct install/update/repair preconditions, offline repair and stale detection, focused hostile/lifecycle coverage, regenerated diagnostic catalog and provenance. Local lifecycle, 9 diagnostic, workflow transcript, clippy checks pass. Poll fresh exact-head policy/Rust CI; do not merge.",
+  "next_action": "PR #584 exact remote head 4b79404a; fresh exact-head policy/Rust/TUI/credential-free checks are pending after lifecycle/output repair. Local focused lifecycle, diagnostic contract, workflow transcript, clippy pass; inspect hosted results and repair only genuine failures. Do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
   "observed_head": "12fbe26399975e9114a451ddee632bdadb65b820",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 99,
+  "task_revision": 100,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T16:12:52+00:00",
+  "updated_at": "2026-10-11T16:14:04+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -301,3 +301,8 @@ remain mandatory.
   failure; lease renewal required.
 
 - 2026-10-11T16:12:52+00:00: Heartbeat by ar1782_workload_install_luna56.
+
+- 2026-10-11T16:14:04+00:00: Reconciled durable task to signed+DCO product head 4b79404a. Repair
+  implements bounded acquisition helper, human default/JSON opt-in, distinct install/update/repair
+  preconditions, offline repair/stale detection, and focused lifecycle coverage; pending hosted
+  gates.
