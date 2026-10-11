@@ -16,9 +16,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution.",
-  "task_revision": 21,
+  "task_revision": 22,
   "title": "Require model catalogs and execution parity for every backend",
-  "updated_at": "2026-10-11T06:58:54+00:00",
+  "updated_at": "2026-10-11T06:59:09+00:00",
   "worktree_key": ""
 }
 ---
@@ -91,3 +91,6 @@ key services must not block this development AR.
 
 - 2026-10-11T06:58:54+00:00: Recorded command exit 1; command argv SHA-256
   2b9053ae5a4ec35349a2057abcb4749b1e980e2f96006edf62ed616a36a9d653.
+
+- 2026-10-11T06:59:09+00:00: Recorded command exit 1; command argv SHA-256
+  88c353991e671a2d8c3fb7442674a44db5d7749bb9e71e44592347fa7e8eb77e.
