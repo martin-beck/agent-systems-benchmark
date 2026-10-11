@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T12:13:08+00:00",
+  "claim_expires": "2026-10-11T11:26:53+00:00",
   "depends_on": [
     "AR-1760"
   ],
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini.",
-  "task_revision": 7,
+  "task_revision": 8,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T09:18:10+00:00",
+  "updated_at": "2026-10-11T09:26:53+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -62,3 +62,5 @@ labelled.
 
 - 2026-10-11T09:17:53+00:00: Recorded command exit 0; command argv SHA-256
   379d22b10394143332e165d35aef5072d33bcfe42a074b67c37a24320167a0ea.
+
+- 2026-10-11T09:26:53+00:00: Heartbeat by ar1781-luna56.
