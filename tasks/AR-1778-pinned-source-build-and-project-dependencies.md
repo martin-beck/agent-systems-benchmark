@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1778",
-  "next_action": "Await remaining exact-head AArch64, Rust, and policy checks plus independent review decision for PR #568; then protected merge and postmerge verification.",
+  "next_action": "Accept AR-1778 with exact-main postmerge evidence at d64ac90a; then release done after durable acceptance.",
   "observed_branch": "feature/ar-1778-pinned-source-build-and-project-dependencies",
   "observed_dirty": 0,
   "observed_head": "1c11b88d2790447c6d277342c8233fdf245ba391",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix.",
-  "task_revision": 35,
+  "task_revision": 36,
   "title": "Pinned source builds and project dependencies",
-  "updated_at": "2026-10-11T08:52:39+00:00",
+  "updated_at": "2026-10-11T08:55:03+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies"
 }
 ---
@@ -130,3 +130,8 @@ limit are distinct actionable outcomes.
 
 - 2026-10-11T08:52:39+00:00: Recorded command exit 0; command argv SHA-256
   350f94e9e0ba1970ca86b4e6dad1d1796ad9d7d72c916aca3a2faf80de780190.
+
+- 2026-10-11T08:55:03+00:00: Protected merge complete: PR #568 merged as
+  d64ac90ad96a0941ddf6acb2d60ffe7b2ab5f948 with reviewed tree
+  3d60069e79c6bf725de3dac489acc27cdf320fc2. Exact-main worktree clean; asb-cli lib 235/235 passed,
+  source-builder 3/3 passed, workflow transcript 3/3 passed; merge commit SSH signature verified.
