@@ -772,6 +772,7 @@ fn run_local_mock_entry_result(
         stdout,
         stderr,
         presentation_context,
+        None,
     )
 }
 
@@ -2284,7 +2285,7 @@ fn guided_local_at(
         "sweep" => true,
         _ => return Err(CliError::legacy_usage("easy requires run or sweep")),
     };
-    execute_inner_from_source(
+    execute_inner_from_source_with_root(
         Path::new(&args[1]),
         SelectionSource::Config(store),
         sweep,
@@ -2294,6 +2295,7 @@ fn guided_local_at(
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -7533,6 +7535,7 @@ fn execute(
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -7557,6 +7560,7 @@ fn execute_project(
         output,
         progress,
         presentation_context,
+        Some(project.root()),
     )
 }
 
@@ -7578,6 +7582,7 @@ fn execute_with_selection(
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -7598,6 +7603,7 @@ fn execute_with_selection_local_mock(
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -7611,7 +7617,7 @@ fn execute_with_config(
 ) -> Result<u8, CliError> {
     let store = ConfigStore::from_environment()
         .map_err(|_| CliError::legacy_operation("ASB configuration location is unavailable"))?;
-    execute_inner_from_source(
+    execute_inner_from_source_with_root(
         path,
         SelectionSource::Config(&store),
         sweep,
@@ -7621,6 +7627,7 @@ fn execute_with_config(
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -7666,6 +7673,7 @@ fn execute_with_selection_live_provider(
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -7854,6 +7862,14 @@ fn execute_live_benchmark_matrix(
     let mut cancelled = false;
     let mut provider_launch_sha256 = None;
     for entry in plans {
+        ensure_execution_dependencies(
+            "benchmark-live",
+            &entry,
+            Some(&selection),
+            false,
+            true,
+            None,
+        )?;
         let mut entry_output = Vec::new();
         let code = execute_loaded_plan(
             entry,
@@ -7865,6 +7881,7 @@ fn execute_live_benchmark_matrix(
             None,
             &mut entry_output,
             progress,
+            None,
             None,
         )?;
         let receipt: Value = serde_json::from_slice(&entry_output)
@@ -7949,8 +7966,9 @@ fn execute_inner(
     output: &mut dyn Write,
     progress: &mut dyn Write,
     presentation_context: Option<&mut human::PresentationContext>,
+    project_root: Option<&Path>,
 ) -> Result<u8, CliError> {
-    execute_inner_from_source(
+    execute_inner_from_source_with_root(
         path,
         SelectionSource::Path(selection_path),
         sweep,
@@ -7960,12 +7978,41 @@ fn execute_inner(
         output,
         progress,
         presentation_context,
+        project_root,
     )
 }
 
 enum SelectionSource<'a> {
     Path(Option<&'a Path>),
     Config(&'a ConfigStore),
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_inner_from_source_with_root(
+    path: &Path,
+    source: SelectionSource<'_>,
+    sweep: bool,
+    live_provider: bool,
+    live_factory: Option<LiveProviderAttemptFactory>,
+    local_mock: bool,
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
+    project_root: Option<&Path>,
+) -> Result<u8, CliError> {
+    execute_inner_from_source_with_owner(
+        path,
+        source,
+        sweep,
+        live_provider,
+        live_factory,
+        local_mock,
+        None,
+        output,
+        progress,
+        presentation_context,
+        project_root,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -7980,17 +8027,17 @@ fn execute_inner_from_source(
     progress: &mut dyn Write,
     presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
-    execute_inner_from_source_with_owner(
+    execute_inner_from_source_with_root(
         path,
         source,
         sweep,
         live_provider,
         live_factory,
         local_mock,
-        None,
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -8006,6 +8053,7 @@ fn execute_inner_from_source_with_owner(
     output: &mut dyn Write,
     progress: &mut dyn Write,
     presentation_context: Option<&mut human::PresentationContext>,
+    project_root: Option<&Path>,
 ) -> Result<u8, CliError> {
     execute_inner_from_source_with_owner_project(
         path,
@@ -8019,6 +8067,7 @@ fn execute_inner_from_source_with_owner(
         output,
         progress,
         presentation_context,
+        project_root,
     )
 }
 
@@ -8035,6 +8084,7 @@ fn execute_inner_from_source_with_owner_project(
     output: &mut dyn Write,
     progress: &mut dyn Write,
     presentation_context: Option<&mut human::PresentationContext>,
+    project_root: Option<&Path>,
 ) -> Result<u8, CliError> {
     let (plan, selection) = match source {
         SelectionSource::Path(selection_path) => load_plan_and_selection(path, selection_path)?,
@@ -8061,7 +8111,42 @@ fn execute_inner_from_source_with_owner_project(
         output,
         progress,
         presentation_context,
+        project_root,
     )
+}
+
+fn ensure_execution_dependencies(
+    command: &str,
+    plan: &PlanFile,
+    selection: Option<&ProviderPlanOutput>,
+    local_mock: bool,
+    live_provider: bool,
+    project_root: Option<&Path>,
+) -> Result<(), CliError> {
+    if local_mock || selection.is_none() {
+        return Ok(());
+    }
+    let root = project_root.unwrap_or_else(|| Path::new("."));
+    // Standalone plans do not claim a project-local tool inventory.  Explicit
+    // projects do, and must pass the same selected-scope readiness gate before
+    // any result/work roots or provider effects are prepared.
+    if project_root.is_none() && !root.join(PROJECT_INIT_CONFIG).is_file() {
+        return Ok(());
+    }
+    let agent = plan.experiment.agent.implementation.as_str();
+    let runtime = if live_provider { "host" } else { "local" };
+    let view =
+        dependency_registry::preflight_for_selected(command, root, Some(agent), Some(runtime))
+            .map_err(|_| {
+                CliError::legacy_validation("dependency preflight could not be evaluated")
+            })?;
+    if view.ready {
+        return Ok(());
+    }
+    let _ = command;
+    Err(CliError::legacy_validation(
+        "dependency preflight is not ready; run `asb preflight` for remediation",
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -8076,7 +8161,16 @@ fn execute_loaded_plan(
     output: &mut dyn Write,
     progress: &mut dyn Write,
     presentation_context: Option<&mut human::PresentationContext>,
+    project_root: Option<&Path>,
 ) -> Result<u8, CliError> {
+    ensure_execution_dependencies(
+        if sweep { "sweep" } else { "run" },
+        &plan,
+        selection.as_ref(),
+        local_mock,
+        live_provider,
+        project_root,
+    )?;
     if live_provider && selection.is_none() {
         return Err(CliError::legacy_validation(
             "--live-provider requires an explicit provider selection",
