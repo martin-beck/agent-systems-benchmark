@@ -1023,6 +1023,7 @@ fn dispatch(
                 .map_err(|_| CliError::legacy_operation("preflight could not be evaluated"))?;
             write_json(stdout, &view).map(|()| 0)
         }
+        [command, rest @ ..] if command == "preflight" => preflight_cli(rest, stdout),
         [command, project_flag, project] if command == "setup" && project_flag == "--project" => {
             project_run::ProjectExecution::validate_setup_project(Path::new(project))?;
             setup_with_progress(&[], stdout, stderr, presentation_context.is_some()).map(|()| 0)
@@ -17008,3 +17009,42 @@ fn recording_selection_error(error: asb_replay::SourceSelectionError) -> CliErro
 pub mod dependency_registry;
 pub mod source_builder;
 pub mod tool_catalog;
+
+fn preflight_cli(args: &[String], output: &mut dyn Write) -> Result<u8, CliError> {
+    let mut project = ".";
+    let mut agent = None;
+    let mut runtime = None;
+    let mut index = 0;
+    while index < args.len() {
+        let flag = args[index].as_str();
+        let value = args.get(index + 1).ok_or_else(|| {
+            CliError::legacy_usage(
+                "preflight accepts --project PATH, --agent ID, and --runtime host|local",
+            )
+        })?;
+        if value.is_empty() || value.len() > MAX_ID_BYTES {
+            return Err(CliError::legacy_validation(
+                "preflight selector is empty or too long",
+            ));
+        }
+        match flag {
+            "--project" if project == "." => project = value,
+            "--agent" if agent.is_none() => agent = Some(value.as_str()),
+            "--runtime" if runtime.is_none() => runtime = Some(value.as_str()),
+            _ => {
+                return Err(CliError::legacy_usage(
+                    "preflight accepts --project PATH, --agent ID, and --runtime host|local",
+                ));
+            }
+        }
+        index += 2;
+    }
+    let view = dependency_registry::preflight_for_selected(
+        "preflight",
+        Path::new(project),
+        agent,
+        runtime,
+    )
+    .map_err(|_| CliError::legacy_operation("preflight could not be evaluated"))?;
+    write_json(output, &view).map(|()| 0)
+}

@@ -851,3 +851,38 @@ fn plan_create_new_options_are_discoverable_and_fail_closed() {
     assert_eq!(zero_sweep.status.code(), Some(3));
     assert!(!zero_sweep_path.exists());
 }
+
+#[test]
+fn preflight_has_human_default_and_selected_json_scope() {
+    let scratch = Scratch::new();
+    let human = isolated_asb(&scratch.0)
+        .args(["preflight", "--agent", "codex", "--runtime", "local"])
+        .output()
+        .unwrap();
+    assert!(human.status.success());
+    let text = assert_private_human_output(&human);
+    assert!(text.contains("ASB preflight"));
+    assert!(text.contains("codex"));
+
+    let json = isolated_asb(&scratch.0)
+        .args([
+            "preflight",
+            "--agent",
+            "codex",
+            "--runtime",
+            "local",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(json.status.success());
+    let value: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
+    assert_eq!(value["dependencies"].as_array().unwrap().len(), 1);
+    assert_eq!(value["dependencies"][0]["id"], "codex");
+
+    let invalid = isolated_asb(&scratch.0)
+        .args(["preflight", "--agent", "not-a-command-agent"])
+        .output()
+        .unwrap();
+    assert_eq!(invalid.status.code(), Some(4));
+}

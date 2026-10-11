@@ -241,10 +241,23 @@ pub struct Check<'a> {
 }
 
 pub fn preflight(project: &Path) -> Result<ResultView<'static>, String> {
-    preflight_for("preflight", project)
+    preflight_for_selected("preflight", project, None, None)
 }
 
 pub fn preflight_for(command: &str, project: &Path) -> Result<ResultView<'static>, String> {
+    preflight_for_selected(command, project, None, None)
+}
+
+/// Evaluate only the selected agent/runtime dependency paths.  An omitted
+/// selector retains the complete command scope for compatibility; callers
+/// which have a concrete execution selection must pass it so unrelated agent
+/// IDs cannot make the readiness result fail.
+pub fn preflight_for_selected(
+    command: &str,
+    project: &Path,
+    agent: Option<&str>,
+    runtime: Option<&str>,
+) -> Result<ResultView<'static>, String> {
     let scope = DEPENDENCY_SCOPES
         .iter()
         .find(|(name, _)| *name == command)
@@ -263,9 +276,28 @@ pub fn preflight_for(command: &str, project: &Path) -> Result<ResultView<'static
     } else {
         None
     };
+    if let Some(agent) = agent
+        && !scope.contains(&agent)
+    {
+        return Err("selected agent is not declared for this command".to_owned());
+    }
+    if let Some(runtime) = runtime
+        && !matches!(runtime, "host" | "local")
+    {
+        return Err("selected runtime is not supported".to_owned());
+    }
     let checks = DEPENDENCIES
         .iter()
         .filter(|d| scope.contains(&d.id))
+        .filter(|d| agent.is_none_or(|selected| d.kind != DependencyKind::Tool || d.id == selected))
+        .filter(|d| {
+            runtime.is_none_or(|selected| {
+                selected == "host"
+                    && (d.kind == DependencyKind::Host
+                        || agent.is_some_and(|selected_agent| d.id == selected_agent))
+                    || selected == "local" && d.kind != DependencyKind::Host
+            })
+        })
         .map(|d| {
             let available = match d.kind {
                 DependencyKind::Tool => {
@@ -399,5 +431,38 @@ mod tests {
         let result = preflight_for("run", Path::new("/nonexistent")).unwrap();
         assert!(result.dependencies.iter().all(|d| d.id != "linux"));
         assert!(result.dependencies.iter().any(|d| d.id == "aider"));
+    }
+
+    #[test]
+    fn selected_agent_and_runtime_do_not_inherit_unselected_scope() {
+        let result = preflight_for_selected(
+            "run",
+            Path::new("/nonexistent"),
+            Some("codex"),
+            Some("local"),
+        )
+        .unwrap();
+        assert_eq!(result.dependencies.len(), 1);
+        assert_eq!(result.dependencies[0].id, "codex");
+        let host = preflight_for_selected(
+            "run",
+            Path::new("/nonexistent"),
+            Some("codex"),
+            Some("host"),
+        )
+        .unwrap();
+        assert!(host.dependencies.iter().any(|d| d.id == "codex"));
+        assert!(
+            host.dependencies
+                .iter()
+                .all(|d| d.id == "codex" || d.kind == DependencyKind::Host)
+        );
+        assert!(
+            preflight_for_selected("run", Path::new("/nonexistent"), Some("aider"), None,).is_ok()
+        );
+        assert!(
+            preflight_for_selected("run", Path::new("/nonexistent"), Some("not-an-agent"), None,)
+                .is_err()
+        );
     }
 }
