@@ -1386,7 +1386,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage. |
-| Next action | Obtain the hosted coverage failure artifact or independent reproduction before changing the PTY fixture; current-main candidate remains unchanged and clean. |
+| Next action | Release AR-1792 as done ownerless after independent review; no source changes. |
 
 
 ## Dependency graph

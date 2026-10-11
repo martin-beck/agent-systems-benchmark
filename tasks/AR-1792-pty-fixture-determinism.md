@@ -8,7 +8,7 @@
     "AR-1791"
   ],
   "id": "AR-1792",
-  "next_action": "Obtain the hosted coverage failure artifact or independent reproduction before changing the PTY fixture; current-main candidate remains unchanged and clean.",
+  "next_action": "Release AR-1792 as done ownerless after independent review; no source changes.",
   "observed_branch": "codex/ar-1792-pty-fixture-determinism",
   "observed_dirty": 0,
   "observed_head": "16d8512debab5515068d285fd820e1be0751c51b",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage.",
-  "task_revision": 20,
+  "task_revision": 21,
   "title": "Make development broker PTY fixture deterministic",
-  "updated_at": "2026-10-11T00:17:53+00:00",
+  "updated_at": "2026-10-11T00:29:17+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1792-pty-fixture-determinism"
 }
 ---
@@ -92,3 +92,11 @@ serial-only or exclusion-based gate.
   728f86e56a09a1acb150aad9ac35ffb4d5280243509c11089864f4092a97c7e0.
 
 - 2026-10-11T00:17:53+00:00: Heartbeat by codex-ar1792-pty-repair.
+
+- 2026-10-11T00:29:17+00:00: Hosted coverage run 38096884595 was rerun at exact head and completed
+  SUCCESS: full coverage step including
+  development_broker_foregrounds_interactive_child_and_restores_terminal passed, and all remaining
+  policy steps were green. The original failure was a transient hosted PTY fixture flake: only that
+  test failed with exit status 101 after 340/341 tests, without child stderr. Local focused six-pass
+  and 341/341 coverage-equivalent runs passed. PR #555 subsequently merged as daae06e. No product
+  changes were made for AR-1792.
