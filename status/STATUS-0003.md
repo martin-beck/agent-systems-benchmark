@@ -448,7 +448,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation. |
-| Next action | PR #565 rebased and re-signed onto protected main 4cb87998; exact candidate head is 8028fd66. Required checks rerunning with no failures; monitor to terminal green, then protected merge and post-merge release. |
+| Next action | Post-merge exact main verified at 7e795589fd4dbefecf17a7d4457623e1de33d2b4: tutorial freshness passes and broken link audit reports 0. Accept and release with protected merge evidence. |
 
 ### AR-1726 — Allow user-owned group-writable rustup shim in development
 

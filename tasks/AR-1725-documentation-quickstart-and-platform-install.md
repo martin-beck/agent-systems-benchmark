@@ -12,7 +12,7 @@
     "AR-1724"
   ],
   "id": "AR-1725",
-  "next_action": "PR #565 rebased and re-signed onto protected main 4cb87998; exact candidate head is 8028fd66. Required checks rerunning with no failures; monitor to terminal green, then protected merge and post-merge release.",
+  "next_action": "Post-merge exact main verified at 7e795589fd4dbefecf17a7d4457623e1de33d2b4: tutorial freshness passes and broken link audit reports 0. Accept and release with protected merge evidence.",
   "observed_branch": "docs/ar-1725-quickstart-platform-install",
   "observed_dirty": 0,
   "observed_head": "695f1335c4ede05b174cb6f369c4415ec1556fcf",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 33,
+  "task_revision": 34,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T07:38:40+00:00",
+  "updated_at": "2026-10-11T07:39:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
@@ -144,3 +144,6 @@ gates, independent review, and exact-head hosted CI.
 
 - 2026-10-11T07:38:40+00:00: Recorded command exit 0; command argv SHA-256
   52282ab33b5122139111868a58e512f0b82fc911c1b37a993e99a0f73defda02.
+
+- 2026-10-11T07:39:28+00:00: PR #565 merged through protected main. Exact merged tree contains six
+  validated tutorial contracts and all local Markdown links resolve.
