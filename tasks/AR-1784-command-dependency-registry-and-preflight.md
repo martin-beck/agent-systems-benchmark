@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T10:10:11+00:00",
+  "claim_expires": "2026-10-11T10:10:16+00:00",
   "depends_on": [
     "AR-1776"
   ],
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T08:10:11+00:00",
+  "updated_at": "2026-10-11T08:10:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -61,3 +61,5 @@ and end-to-end development-run tests in the same change.
   dependency-ready AR-1784 for implementation.
 
 - 2026-10-11T08:10:11+00:00: Claimed by ar1784_dependency_registry_luna56.
+
+- 2026-10-11T08:10:16+00:00: Heartbeat by ar1784_dependency_registry_luna56.
