@@ -1007,7 +1007,15 @@ fn dispatch(
                 .map(|()| 0)
                 .map_err(output_error)
         }
-        [command] if command == "doctor" => doctor(stdout).map(|()| 0),
+        [command] if command == "doctor" || command == "preflight" => {
+            if command == "doctor" {
+                doctor(stdout).map(|()| 0)
+            } else {
+                let view = dependency_registry::preflight(Path::new("."))
+                    .map_err(|_| CliError::legacy_operation("preflight could not be evaluated"))?;
+                write_json(stdout, &view).map(|()| 0)
+            }
+        }
         [command, project_flag, project] if command == "setup" && project_flag == "--project" => {
             project_run::ProjectExecution::validate_setup_project(Path::new(project))?;
             setup_with_progress(&[], stdout, stderr, presentation_context.is_some()).map(|()| 0)
@@ -2522,7 +2530,7 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config [--local-mock]\n  asb capabilities [--json|--format json]\n  asb project init [PATH]\n  asb catalog generate|list|show ID|select ID --kind KIND --digest-sha256 SHA256 [--project PATH]\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run|sweep EXPERIMENT.toml [--provider-selection selection.json|--use-config] [--local-mock]\n  asb benchmark-live EXPERIMENT.toml --provider-selection selection.json [--online] [--agents selected|all] [--workloads selected|all] [--sweep]\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Add --details for bounded diagnostic identifiers in human output. Progress is written to stderr."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb preflight [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config [--local-mock]\n  asb capabilities [--json|--format json]\n  asb project init [PATH]\n  asb catalog generate|list|show ID|select ID --kind KIND --digest-sha256 SHA256 [--project PATH]\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run|sweep EXPERIMENT.toml [--provider-selection selection.json|--use-config] [--local-mock]\n  asb benchmark-live EXPERIMENT.toml --provider-selection selection.json [--online] [--agents selected|all] [--workloads selected|all] [--sweep]\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Add --details for bounded diagnostic identifiers in human output. Progress is written to stderr."
     )
     .map_err(output_error)?;
     writeln!(
@@ -16941,4 +16949,5 @@ fn recording_selection_error(error: asb_replay::SourceSelectionError) -> CliErro
     }
 }
 
+pub mod dependency_registry;
 pub mod tool_catalog;
