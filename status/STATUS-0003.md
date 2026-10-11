@@ -1274,7 +1274,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. |
-| Next action | Repair PR #573 beyond e8e3b9e7: integrate mandatory fail-fast dependency preflight into run/sweep/benchmark-live, add tests, sync current main af75cd06, refresh identities/provenance, then rerun CI and review. |
+| Next action | Create clean superseding PR for AR-1784 from current main af75cd06, replay the reviewed topic linearly including b4ae226c fail-fast integration, refresh identities/provenance, then obtain green exact-head CI and independent review. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 
