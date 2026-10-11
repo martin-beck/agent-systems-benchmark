@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 65,
+  "task_revision": 66,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T08:43:52+00:00",
+  "updated_at": "2026-10-11T08:43:58+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -231,3 +231,6 @@ and end-to-end development-run tests in the same change.
   reported. Repair was within AR-1784: preserve lib.rs line positions and add reviewed catalog
   identity at lib.rs:1010. AR-1793 is created and committed/pushed as narrowly scoped dependent
   repair for the legacy wording contract, with AR-1784 dependency.
+
+- 2026-10-11T08:43:58+00:00: Recorded command exit 0; command argv SHA-256
+  b26915d9a59ecd48b63a5b2ead4566d46def4559b2ec965d6146fbc0392fd8c3.
