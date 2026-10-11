@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T03:37:41+00:00",
+  "claim_expires": "2026-10-11T03:41:15+00:00",
   "depends_on": [
     "AR-1699",
     "AR-1700",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
-  "task_revision": 87,
+  "task_revision": 88,
   "title": "Make online execution the default across ASB workflows",
-  "updated_at": "2026-10-11T03:08:10+00:00",
+  "updated_at": "2026-10-11T03:11:15+00:00",
   "worktree_key": ""
 }
 ---
@@ -295,3 +295,5 @@ production authority checks.
 - 2026-10-11T03:08:10+00:00: Repaired diagnostic catalog for the configured local-mock error
   producer; focused diagnostic, guide, and 342 asb-cli library tests pass locally. Force-with-lease
   pushed exact signed DCO head fffa180a.
+
+- 2026-10-11T03:11:15+00:00: Heartbeat by codex-ar1754-online-integration.
