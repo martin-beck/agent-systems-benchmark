@@ -3,12 +3,6 @@
 This file is generated. Read `README.md`, then use `tools/handoffctl snapshot`.
 Never edit this file directly.
 
-## In Progress
-
-| Priority | Task | Summary | Next action | Owner |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1715](tasks/AR-1715.md): Credential-backed development OpenRouter qualification | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | Run the post-AR-1785 CLI live qualification matrix on exact main: regenerate config-bound selection, exercise selected/all human and JSON, then complete credential-free typed negative cases without retaining the runtime key. | codex-ar1715-qualification |
-
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |
