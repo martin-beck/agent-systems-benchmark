@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #576 exact head 817de0ed; source-only fallback and compressed archive validation gaps under repair",
-  "task_revision": 107,
+  "task_revision": 108,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:24:48+00:00",
+  "updated_at": "2026-10-11T11:25:09+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -382,3 +382,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T11:24:48+00:00: Recorded command exit 0; command argv SHA-256
   df6fce7a14d3000248e6d643b98fe4bfe5aa1948013e3d4a6e320b49958cc017.
+
+- 2026-10-11T11:25:09+00:00: Recorded command exit 0; command argv SHA-256
+  f1c18bab21f1a61a43ca4ad6d36127ec88e8a7a37840ef5c447a8e565b1301c6.
