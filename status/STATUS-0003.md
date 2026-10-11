@@ -1231,8 +1231,8 @@
 | Owner | ar1781-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini. |
-| Next action | Continue monitoring exact-head checks for 72abf364; merge only after Rust, AArch64, and policy/supply-chain checks pass, then post-merge verify and accept/release. |
+| Summary | Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests. |
+| Next action | Monitor PR #572 exact-head checks for c4cd8ea6; do not merge from this worker. |
 
 ### AR-1782 — Verified asb workload installation
 

@@ -7,7 +7,7 @@
     "AR-1760"
   ],
   "id": "AR-1781",
-  "next_action": "Continue monitoring exact-head checks for 72abf364; merge only after Rust, AArch64, and policy/supply-chain checks pass, then post-merge verify and accept/release.",
+  "next_action": "Monitor PR #572 exact-head checks for c4cd8ea6; do not merge from this worker.",
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "observed_dirty": 0,
   "observed_head": "0db5831b7e6d87bf0993fcfd38889abc19595b6f",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1781.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini.",
-  "task_revision": 18,
+  "summary": "Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests.",
+  "task_revision": 19,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T09:46:46+00:00",
+  "updated_at": "2026-10-11T09:46:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -92,3 +92,10 @@ labelled.
 - 2026-10-11T09:46:40+00:00: Heartbeat by ar1781-luna56.
 
 - 2026-10-11T09:46:46+00:00: Checkpointed source commit cefc884dfbbb43aa9679821154d5d04892670a39.
+
+- 2026-10-11T09:46:51+00:00: Independent-review repair complete on product head c4cd8ea6 (signed
+  DCO). Added SWE-mini to docs inventory/parity, corrected fixture-boundary wording, and expanded
+  Rust/Python/CLI positive dispatch and bounded local-evaluation coverage for agentops,
+  ai-agents-that-matter, helm, inspect-ai, harbor, hal, and swe-mini. Local gates: pytest 40 passed;
+  cargo test --locked -p asb-workloads passed 43 unit + 4 integration + 5 validity + 2 doctests;
+  cargo test --locked -p asb-cli passed 348. PR #572 remains open; parent must merge.

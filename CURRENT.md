@@ -8,7 +8,7 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root. | Implement catalog-driven verified compatible-binary reuse and official prebuilt executable-tool acquisition into project-local storage. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
-| P0 | [AR-1781](tasks/AR-1781-external-workload-acquisition-catalog.md): External workload acquisition catalog | Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini. | Continue monitoring exact-head checks for 72abf364; merge only after Rust, AArch64, and policy/supply-chain checks pass, then post-merge verify and accept/release. | ar1781-luna56 |
+| P0 | [AR-1781](tasks/AR-1781-external-workload-acquisition-catalog.md): External workload acquisition catalog | Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests. | Monitor PR #572 exact-head checks for c4cd8ea6; do not merge from this worker. | ar1781-luna56 |
 | P0 | [AR-1784](tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. | Repair P1 review findings on PR #573: project-aware preflight, command-scoped dependency mapping, and honest host-only perf/bpftool classification; then rerun full gates. | coordinator |
 
 ## Open
