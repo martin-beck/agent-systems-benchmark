@@ -26,8 +26,8 @@ Generated from local Git and GitHub. Do not edit.
 | #571 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair@37fcf2697dd8` | `main` | DIRTY | - | AR-1777: verified prebuilt tool acquisition repair |
 | #573 | `feature/ar-1784-command-dependency-registry-and-preflight@e85e6872f055` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add command dependency preflight registry |
 | #574 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2@0a389a2f8aa3` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | AR-1777: verified prebuilt tool acquisition (superseding repair) |
-| #575 | `feature/ar-1784-command-dependency-registry-clean@b8a1d6a14cea` | `main` | BLOCKED | IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): enforce command dependency preflight before execution |
-| #576 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean@ec566dfdcde2` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | AR-1777: verified prebuilt tool and workload acquisition (coverage continuation) |
+| #575 | `feature/ar-1784-command-dependency-registry-clean@b8a1d6a14cea` | `main` | CLEAN | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): enforce command dependency preflight before execution |
+| #576 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean@ec566dfdcde2` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | AR-1777: verified prebuilt tool and workload acquisition (coverage continuation) |
 | #577 | `repair/ar-1794-protected-main-merge-path@198bf86975f6` | `main` | CLEAN | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | chore: certify AR-1781 merge provenance |
 
 ## Recent workflows
@@ -36,11 +36,11 @@ Generated from local Git and GitHub. Do not edit.
 | --- | --- | --- | --- | --- |
 | 38135489068 | `ec566dfdcde2` | pull_request | Emulated aarch64 portability | in_progress:- |
 | 38135489032 | `ec566dfdcde2` | pull_request | Portable protected-main provenance | completed:success |
-| 38135489025 | `ec566dfdcde2` | pull_request | Hosted portability and native qualification | in_progress:- |
-| 38135489021 | `ec566dfdcde2` | pull_request | Fault assurance | in_progress:- |
-| 38135489014 | `ec566dfdcde2` | pull_request | Formal assurance | in_progress:- |
-| 38135489011 | `ec566dfdcde2` | pull_request | Credential-free benchmark path | in_progress:- |
-| 38135489007 | `ec566dfdcde2` | pull_request | Cross-repository development broker qualification | in_progress:- |
+| 38135489025 | `ec566dfdcde2` | pull_request | Hosted portability and native qualification | completed:success |
+| 38135489021 | `ec566dfdcde2` | pull_request | Fault assurance | completed:success |
+| 38135489014 | `ec566dfdcde2` | pull_request | Formal assurance | completed:success |
+| 38135489011 | `ec566dfdcde2` | pull_request | Credential-free benchmark path | completed:success |
+| 38135489007 | `ec566dfdcde2` | pull_request | Cross-repository development broker qualification | completed:success |
 | 38135488999 | `ec566dfdcde2` | pull_request | Repository quality | in_progress:- |
 | 38135488998 | `ec566dfdcde2` | pull_request | Huawei MIT source headers | completed:success |
 | 38135488993 | `ec566dfdcde2` | pull_request | Agent Workflow Quality shadow | completed:success |
