@@ -146,12 +146,17 @@
 
 ## Complete AR inventory
 
-### Open (3)
+### In progress (1)
+
+| Priority | AR | Owner | Summary | Next action |
+| --- | --- | --- | --- | --- |
+| P0 | [AR-1723](../tasks/AR-1723-easy-run-default-online.md): Make the easy run default to online provider execution | codex-ar1723-online-default | Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only. | Promote after the live runner and provider qualification dependencies are current; implement and qualify the default-online easy run. |
+
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
-| P0 | [AR-1723](../tasks/AR-1723-easy-run-default-online.md): Make the easy run default to online provider execution | Unclaimed | Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only. | Promote after the live runner and provider qualification dependencies are current; implement and qualify the default-online easy run. |
 | P0 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Unclaimed | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. |
 
 ### Blocked (86)
@@ -560,4 +565,3 @@
 | P0 | [AR-1500](../tasks/AR-1500-development-credential-provider-fixture.md): Development credential/provider lifecycle fixture | Unclaimed | Qualify generated development credentials through provider, capture and replay flows. | AR-1500 complete: PR #379 merged at exact checked head; post-merge main tree equality and offline fixture smoke passed. Continue dependent ARs. |
 | P0 | [AR-1502](../tasks/AR-1502-runtime-bootstrap-authority.md): Runtime-owned bootstrap authority | Unclaimed | Runtime-owned authenticated bootstrap authority merged and verified on main. | No further action; release AR-1502 after protected merge and exact-head post-merge workflows. |
 | P0 | [AR-1505](../tasks/AR-1505-control-plane-platform-authority.md): Control-plane platform authority/bootstrap protocol | Unclaimed | Provide an authenticated platform protocol that issues private runtime bootstrap inputs to ASB. | No further AR-1505 action; merge and post-merge assurance complete. |
-| P0 | [AR-1513](../tasks/AR-1513-authenticated-lease-dispatch-bridge.md): Authenticated lease-to-live-dispatch bridge | Unclaimed | Authenticate process-owner material, validate executable provenance, and connect leases to ordinary live dispatch. | PR #383 merged at 47329e35; monitor post-merge workflows 36550477933, 36550477996, 36550478002, 36550478037, 36550478039, 36550478042, 36550478232 to terminal success, then verify protected main and close AR. |
