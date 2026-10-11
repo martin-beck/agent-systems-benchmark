@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T12:01:56+00:00",
+  "claim_expires": "2026-10-11T12:09:11+00:00",
   "depends_on": [
     "AR-1776"
   ],
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 212,
+  "task_revision": 213,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:08:23+00:00",
+  "updated_at": "2026-10-11T10:09:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -583,3 +583,5 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T10:08:23+00:00: Repaired workflow provenance cli_source_sha256 to exact lib.rs digest
   224a13cb; focused workflow_transcript tests pass 3/3; signed DCO product commit 9d729dd6 pushed to
   PR #573.
+
+- 2026-10-11T10:09:11+00:00: Heartbeat by coordinator.
