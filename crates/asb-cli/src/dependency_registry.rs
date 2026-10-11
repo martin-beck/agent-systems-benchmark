@@ -98,13 +98,13 @@ pub const DEPENDENCIES: &[Dependency] = &[
     },
     Dependency {
         id: "perf",
-        kind: DependencyKind::Tool,
+        kind: DependencyKind::Host,
         optional: true,
         remediation: "install perf using the host distribution package manager",
     },
     Dependency {
         id: "bpftool",
-        kind: DependencyKind::Tool,
+        kind: DependencyKind::Host,
         optional: true,
         remediation: "install bpftool using the host distribution package manager",
     },
@@ -144,6 +144,16 @@ pub const DEPENDENCIES: &[Dependency] = &[
         optional: true,
         remediation: "grant the benchmark user permitted PMU access",
     },
+];
+
+/// Public execution scopes and the dependencies they may require. Keeping
+/// this mapping separate from the inventory makes command coverage explicit
+/// without allowing a command to silently inherit an ambient tool.
+pub const DEPENDENCY_SCOPES: &[(&str, &[&str])] = &[
+    ("run", &["aider", "codex", "gemini", "goose", "mini-swe", "opencode", "opendesk", "openhands", "openjiuwen", "qwen-code", "cli2key"]),
+    ("sweep", &["aider", "codex", "gemini", "goose", "mini-swe", "opencode", "opendesk", "openhands", "openjiuwen", "qwen-code", "cli2key"]),
+    ("benchmark-live", &["aider", "codex", "gemini", "goose", "mini-swe", "opencode", "opendesk", "openhands", "openjiuwen", "qwen-code", "cli2key"]),
+    ("preflight", &["aider", "codex", "gemini", "goose", "mini-swe", "opencode", "opendesk", "openhands", "openjiuwen", "qwen-code", "cli2key", "perf", "bpftool", "linux", "cgroup-v2", "user-systemd", "bubblewrap", "kernel-btf", "kernel-pmu"]),
 ];
 
 #[derive(Serialize)]
@@ -205,6 +215,13 @@ pub fn preflight(project: &Path) -> Result<ResultView<'static>, String> {
     })
 }
 
+pub fn preflight_for(command: &str, project: &Path) -> Result<ResultView<'static>, String> {
+    if !DEPENDENCY_SCOPES.iter().any(|(name, _)| *name == command) {
+        return Err("dependency scope is unknown".to_owned());
+    }
+    preflight(project)
+}
+
 fn tool_available(config: &asb_config::ProjectConfigV1, id: &str) -> bool {
     config
         .agents
@@ -222,6 +239,12 @@ fn host_available(id: &str) -> bool {
         "cgroup-v2" => Path::new("/sys/fs/cgroup/cgroup.controllers").is_file(),
         "user-systemd" => std::env::var_os("XDG_RUNTIME_DIR").is_some(),
         "bubblewrap" => ["/usr/bin/bwrap", "/bin/bwrap"]
+            .iter()
+            .any(|p| Path::new(p).is_file()),
+        "perf" => ["/usr/bin/perf", "/bin/perf"]
+            .iter()
+            .any(|p| Path::new(p).is_file()),
+        "bpftool" => ["/usr/sbin/bpftool", "/usr/bin/bpftool", "/bin/bpftool"]
             .iter()
             .any(|p| Path::new(p).is_file()),
         "kernel-btf" => Path::new("/sys/kernel/btf/vmlinux").is_file(),

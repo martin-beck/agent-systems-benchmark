@@ -1011,10 +1011,17 @@ fn dispatch(
             if command == "doctor" {
                 doctor(stdout).map(|()| 0)
             } else {
-                let view = dependency_registry::preflight(Path::new("."))
+                let view = dependency_registry::preflight_for("preflight", Path::new("."))
                     .map_err(|_| CliError::legacy_operation("preflight could not be evaluated"))?;
                 write_json(stdout, &view).map(|()| 0)
             }
+        }
+        [command, project_flag, project]
+            if command == "preflight" && project_flag == "--project" =>
+        {
+            let view = dependency_registry::preflight_for("preflight", Path::new(project))
+                .map_err(|_| CliError::legacy_operation("preflight could not be evaluated"))?;
+            write_json(stdout, &view).map(|()| 0)
         }
         [command, project_flag, project] if command == "setup" && project_flag == "--project" => {
             project_run::ProjectExecution::validate_setup_project(Path::new(project))?;
