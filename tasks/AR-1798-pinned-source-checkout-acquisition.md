@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair pushed at e25983f6; regenerated 270 reviewed legacy diagnostic callsite identities and passed diagnostic contract.",
-  "task_revision": 55,
+  "task_revision": 56,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:51:49+00:00",
+  "updated_at": "2026-10-11T14:52:07+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -199,3 +199,6 @@ protected merge, and post-merge evidence path.
 - 2026-10-11T14:51:49+00:00: Exact product head e25983f6; clean worktree. Focused source-checkout
   tests 7 passed; diagnostic contract 9 passed; cargo clippy asb-cli all targets offline with
   warnings denied passed; git diff --check passed. Fresh exact-head CI pending.
+
+- 2026-10-11T14:52:07+00:00: Recorded command exit 1; command argv SHA-256
+  2776d7d2255edbb9290f03d5e56b59789cc7e21d74c0c1bb498390d1e64400c4.
