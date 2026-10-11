@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 9,
+  "task_revision": 10,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T06:51:58+00:00",
+  "updated_at": "2026-10-11T06:52:31+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
@@ -75,3 +75,6 @@ gates, independent review, and exact-head hosted CI.
 
 - 2026-10-11T06:51:58+00:00: Recorded command exit 1; command argv SHA-256
   f278f9f9e4a993604fd5adc660ce4f0c5c2f181fc5e0488f47e535c30ba52ccc.
+
+- 2026-10-11T06:52:31+00:00: Recorded command exit 0; command argv SHA-256
+  a940268f1a16b759cfb4943e16441addda9e02aa82cc87db8e87ca86c73fed0e.
