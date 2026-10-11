@@ -3,7 +3,10 @@
   "branch": "",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1776", "AR-1778"],
+  "depends_on": [
+    "AR-1776",
+    "AR-1778"
+  ],
   "id": "AR-1798",
   "next_action": "Implement the bounded immutable source-checkout provider required by AR-1778 and consume it from AR-1779.",
   "observed_branch": "",
@@ -13,14 +16,21 @@
   "plan": "../plans/AR-1798-pinned-source-checkout-acquisition.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "contract-test", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1798.json", "spec_revision": 1, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "contract-test",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1798.json",
+    "spec_revision": 1,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1798.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:12:00Z",
+  "updated_at": "2026-10-11T14:12:04+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -45,3 +55,6 @@ tests, preserve zero runtime dependencies, and leave no credentials or
 unbounded command output in receipts. It must be integrated into AR-1779 and
 qualified through the normal independent review, signed-DCO PR, exact-head CI,
 protected merge, and post-merge evidence path.
+
+- 2026-10-11T14:12:04+00:00: Promote source-checkout repair after AR-1776 and AR-1778 exact-main
+  completion; it unblocks AR-1779 source-only fallback.
