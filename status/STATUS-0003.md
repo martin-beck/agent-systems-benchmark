@@ -1246,7 +1246,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement dedicated verified remote external workload installation and lifecycle through asb workload. |
-| Next action | PR #584 exact remote head 12fbe263; signed+DCO repair adds all AR-1781 archive digests, immutable arXiv source, bounded safe extraction, adapter-ready receipt identity, preparation rollback, and PTY cross-target serialization. Local 384 asb-cli tests, 43 asb-workloads tests, clippy, formatting, archive/lifecycle/diagnostic/provenance checks pass. Poll fresh exact-head CI and independent review; do not merge. |
+| Next action | PR #584 exact remote head 8371090f; signed+DCO refresh of reviewed diagnostic catalog for lifecycle/extraction callsites after hosted Rust failure. Substantive digests, arXiv source, bounded extraction, adapter-ready receipt, rollback, and PTY serialization remain in 12fbe263. Local diagnostic contract and clippy pass. Poll fresh exact-head checks; do not merge. |
 
 ### AR-1783 — Installed workload selection and execution
 
