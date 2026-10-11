@@ -1176,7 +1176,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root. |
-| Next action | Monitor hosted CI for exact head 883d7c13; repair only any exact-head failure, then perform independent review and merge/release verification. |
+| Next action | Repair P1 read_local fixture verification and transactional receipt/config/binary publication on exact head 883d7c13; add positive and negative tests, then sign/push and rerun CI. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 

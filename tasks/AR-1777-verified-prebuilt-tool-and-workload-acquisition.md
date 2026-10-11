@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Monitor hosted CI for exact head 883d7c13; repair only any exact-head failure, then perform independent review and merge/release verification.",
+  "next_action": "Repair P1 read_local fixture verification and transactional receipt/config/binary publication on exact head 883d7c13; add positive and negative tests, then sign/push and rerun CI.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition",
   "observed_dirty": 0,
   "observed_head": "eff009eeefb1b7c4c95217044ba44de5c4d44853",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root.",
-  "task_revision": 77,
+  "task_revision": 78,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T10:04:24+00:00",
+  "updated_at": "2026-10-11T10:04:30+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -259,3 +259,8 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T10:04:24+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T10:04:30+00:00: Independent review found two P1s: read_local rejects uncatalogued
+  explicit local fixture IDs such as matrix; receipt publication occurs after active binary/config
+  and can leave partial install on failure. Preserve safe explicit-local fixture verification and
+  rollback prior install/config on receipt failure.
