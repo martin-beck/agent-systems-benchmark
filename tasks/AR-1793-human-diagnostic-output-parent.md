@@ -16,20 +16,20 @@
   "priority": "P1",
   "schema_version": 1,
   "spec_acceptance": {
-    "evidence_class": "contract-test",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:06bb28a9d3818edce148598c35724c10db65f03a8f02de91bb6255710d05c578",
+    "evidence_ref": "github:martin-beck/agent-systems-benchmark/commit/24f1872cdb335c13331bffb67d0f73aa3f50430d/exact-main-workflows",
     "spec_ref": "specs/AR-1793.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1793.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the legacy human diagnostic output-parent wording contract exposed by the full ASB CLI suite.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "Repair human diagnostic output-parent contract",
-  "updated_at": "2026-10-11T14:17:52+00:00",
+  "updated_at": "2026-10-11T14:30:59+00:00",
   "worktree_key": ""
 }
 ---
@@ -50,3 +50,6 @@ AR-1793 is a narrowly scoped dependent repair for the deterministic human diagno
 
 - 2026-10-11T14:17:52+00:00: Recorded command exit 0; command argv SHA-256
   fd122d0d9f665e58ca7762edee2e1f8c4a41bb3b5805bf31246476fb77bcdabf.
+
+- 2026-10-11T14:30:59+00:00: Signed protected merge 24f1872c; PR #582 exact-head checks and all 14
+  exact-main workflows green; focused diagnostic contract passes.
