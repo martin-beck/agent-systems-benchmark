@@ -1374,6 +1374,20 @@
 | Summary | Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution. |
 | Next action | Inspect privacy/diff, then run another ordinary full workspace gate; release only if it passes and static/provenance gates remain green. |
 
+### AR-1792 — Make development broker PTY fixture deterministic
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage. |
+| Next action | Promote and reproduce the hosted PTY fixture failure in a clean bound worktree; repair the underlying race without serializing or weakening coverage. |
+
 
 ## Dependency graph
 
@@ -2224,6 +2238,7 @@ flowchart LR
         AR_1789["AR-1789 - Done"]:::status_done
         AR_1790["AR-1790 - Done"]:::status_done
         AR_1791["AR-1791 - Done"]:::status_done
+        AR_1792["AR-1792 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4146,6 +4161,7 @@ flowchart LR
     AR_1769 --> AR_1773
     AR_1769 --> AR_1774
     AR_1770 --> AR_1791
+    AR_1770 --> AR_1792
     AR_1771 --> AR_1775
     AR_1772 --> AR_1773
     AR_1773 --> AR_1774
@@ -4168,6 +4184,7 @@ flowchart LR
     AR_1789 --> AR_1791
     AR_1790 --> AR_1789
     AR_1790 --> AR_1791
+    AR_1791 --> AR_1792
     classDef status_in_progress fill:#1565c0,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_open fill:#2e7d32,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_blocked fill:#c62828,color:#ffffff,stroke:#263238,stroke-width:2px
@@ -4247,4 +4264,3 @@ flowchart LR
 | [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0202](../tasks/AR-0202-kernel-diagnostics.md), [AR-0601](../tasks/AR-0601-csb-integration.md), [AR-0604](../tasks/AR-0604-csb-native-qualification.md) | [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
 | [AR-0603](../tasks/AR-0603-csb-execution-assurance.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0104](../tasks/AR-0104-durable-results.md) | [AR-0601](../tasks/AR-0601-csb-integration.md) |
 | [AR-0604](../tasks/AR-0604-csb-native-qualification.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0202](../tasks/AR-0202-kernel-diagnostics.md), [AR-0601](../tasks/AR-0601-csb-integration.md) | [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md), [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
-| [AR-0701](../tasks/AR-0701-platform-manifests.md) | [AR-0001](../tasks/AR-0001-repository-bootstrap.md) | [AR-0317](../tasks/AR-0317-runtime-bundle-manifest.md), [AR-0702](../tasks/AR-0702-native-platforms.md), [AR-0703](../tasks/AR-0703-native-platform-lab.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md), [AR-0707](../tasks/AR-0707-emulated-aarch64-portability.md), [AR-0820](../tasks/AR-0820-verifiable-install-artifacts.md), [AR-0848](../tasks/AR-0848-native-x86-capacity.md), [AR-1007](../tasks/AR-1007-benchmark-validity.md) |
