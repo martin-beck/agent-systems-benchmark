@@ -10,8 +10,8 @@
   "id": "AR-1798",
   "next_action": "Monitor fresh exact-head CI for 176e4e1e and obtain independent re-review; do not merge.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
-  "observed_dirty": 162,
-  "observed_head": "23c7d6a7132d77ac8df251c583263e2f18910cb5",
+  "observed_dirty": 270,
+  "observed_head": "176e4e1ea39fcc671a97fdaf226e71d161fd6cb4",
   "owner": "ar1798-source-checkout-luna56",
   "plan": "../plans/AR-1798-pinned-source-checkout-acquisition.md",
   "priority": "P0",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Coverage repair pushed at 176e4e1e with hostile output/revision/symlink branch tests.",
-  "task_revision": 69,
+  "task_revision": 70,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:16:53+00:00",
+  "updated_at": "2026-10-11T15:17:00+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
