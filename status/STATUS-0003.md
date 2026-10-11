@@ -854,7 +854,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives. |
-| Next action | PR #558 now points to exact signed head c943c276 after adding default-online record-live routes. Independent technical review must inspect the complete diff, then wait for all 15 exact-head checks to reach terminal success. No GitHub Reviews API approval object is required; merge only through the documented signed protected-main procedure. |
+| Next action | PR #558 now points to exact signed head fffa180a. Independently review the complete diff, then wait for all 15 exact-head checks to reach terminal success. No GitHub Reviews API approval object is required; merge only through the documented signed protected-main procedure. |
 
 ### AR-1755 — Make ASB installation safely idempotent
 
