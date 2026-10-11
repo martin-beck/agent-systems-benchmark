@@ -1,5 +1,7 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1637](../tasks/AR-1637.md) | [AR-1636](../tasks/AR-1636.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1638](../tasks/AR-1638.md), [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md) |
+| [AR-1638](../tasks/AR-1638.md) | [AR-1636](../tasks/AR-1636.md), [AR-1637](../tasks/AR-1637.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1639](../tasks/AR-1639.md) |
 | [AR-1639](../tasks/AR-1639.md) | [AR-1638](../tasks/AR-1638.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1640](../tasks/AR-1640.md) |
 | [AR-1640](../tasks/AR-1640.md) | [AR-1639](../tasks/AR-1639.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md) |
 | [AR-1641](../tasks/AR-1641.md) | [AR-1608](../tasks/AR-1608.md), [AR-1609](../tasks/AR-1609.md), [AR-1614](../tasks/AR-1614.md) | [AR-1613](../tasks/AR-1613.md), [AR-1622](../tasks/AR-1622.md), [AR-1643](../tasks/AR-1643.md), [AR-1645](../tasks/AR-1645.md), [AR-1657](../tasks/AR-1657.md), [AR-1725](../tasks/AR-1725-documentation-quickstart-and-platform-install.md) |
@@ -146,19 +148,19 @@
 
 ## Complete AR inventory
 
-### In progress (2)
+### In progress (3)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
+| P0 | [AR-1710](../tasks/AR-1710.md): Wizard provider-model selection and warning-only readiness | ar1710_catalog_luna56 | Make provider, authentication mode, API-key readiness, agent defaults, and supported-model selection explicit and non-blocking in development setup. | Expose the connected provider/model catalog and readiness diagnostics to the setup/materialization boundary; qualify shared defaults, per-agent overrides, unavailable models, and warning-only development auth. |
 | P0 | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md): Require model catalogs and execution parity for every backend | codex-asb-ar1736-catalog-luna56-20261011 | Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution. | Promote after AR-1733; inventory the canonical backend registry and implement catalog, selection, run, and sweep parity with exhaustive fixtures. |
 | P1 | [AR-1725](../tasks/AR-1725-documentation-quickstart-and-platform-install.md): Document two-agent OpenRouter and TUI quickstarts | ar1725-docs-luna56 | Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation. | PR #565 is publication candidate at exact head 34848868 on docs/ar-1725-documentation-quickstart-platform-install-v2; required checks pending. Monitor to terminal green, merge protected, verify exact main, then accept/release AR-1725. |
 
-### Open (2)
+### Open (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
-| P0 | [AR-1710](../tasks/AR-1710.md): Wizard provider-model selection and warning-only readiness | Unclaimed | Make provider, authentication mode, API-key readiness, agent defaults, and supported-model selection explicit and non-blocking in development setup. | Expose the connected provider/model catalog and readiness diagnostics to the setup/materialization boundary; qualify shared defaults, per-agent overrides, unavailable models, and warning-only development auth. |
 
 ### Blocked (85)
 
@@ -566,4 +568,3 @@
 | P0 | [AR-1520](../tasks/AR-1520.md): AR-1308 reduced-profile runtime qualification | Unclaimed | Reduced profile passes self-contained QEMU: transient admission, bounded models, sanitized non-claiming attestation, and clean poweroff. | Release after exact-head review; retain AR-1307/1308 formal qualification as separate blocked gates. |
 | P0 | [AR-1523](../tasks/AR-1523.md): Platform authority deployment adapter | Unclaimed | Qualify the central orchestration path with deterministic local/mock and strict-replay authority; deployment-owned live authority is optional future hardening, not a development prerequisite. | Development path is unblocked: promote and claim this AR, qualify the existing central orchestrator with deterministic local/mock and strict-replay authority, and run exact-head gates. A deployment-owned authenticated source is optional future production hardening and must not block development qualification. |
 | P0 | [AR-1524](../tasks/AR-1524.md): Repair live-dispatch dependency graph | Unclaimed | Repair the stale AR-1374/1375 dependency cycle and make AR-1523 the canonical live-dispatch successor. | Promote after dependency verification; supersede the stale AR-1375 cycle and route AR-1374 to AR-1523 without changing product code. |
-| P0 | [AR-1526](../tasks/AR-1526.md): First-customer local/replay qualification | Unclaimed | Qualify the merged ASB production-shaped local/mock and strict-replay customer path with sanitized evidence. | No development action remains. Preserve the exact-main first-customer local/mock and strict-replay receipt; live-provider deployment remains optional future hardening. |
