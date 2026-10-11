@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Rerun PR #576 hosted Policy/coverage at exact head a666bfda; no product mutation unless PTY failure reproduces locally. Preserve signed head and investigate runner scheduling if rerun fails.",
+  "next_action": "Confirm local coverage margin, then monitor new PR #576 hosted checks at exact head 817de0ed to terminal result.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition",
   "observed_dirty": 0,
   "observed_head": "eff009eeefb1b7c4c95217044ba44de5c4d44853",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #576 exact head a666bfda; PTY failure reproduced as hosted-only flaky",
-  "task_revision": 100,
+  "summary": "PR #576 exact head 817de0ed adds malformed archive coverage after hosted 89.99%",
+  "task_revision": 101,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:07:40+00:00",
+  "updated_at": "2026-10-11T11:07:49+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -358,3 +358,9 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T11:07:40+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T11:07:49+00:00: After hosted rerun 38133385609 passed the PTY test but failed unchanged
+  workspace coverage at 89.99% (97651 covered / 9770 missed), added signed DCO commit
+  817de0ed846f03aaea62c3643a3011de08b498c0. It covers malformed tar member names, invalid octal size
+  metadata, and truncated archive members with bounded negative assertions. Pushed through
+  handoffctl to PR #576; previous a666bfda evidence is superseded by this exact head.

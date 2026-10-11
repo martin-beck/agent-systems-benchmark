@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #576 exact head a666bfda; PTY failure reproduced as hosted-only flaky |
-| Next action | Rerun PR #576 hosted Policy/coverage at exact head a666bfda; no product mutation unless PTY failure reproduces locally. Preserve signed head and investigate runner scheduling if rerun fails. |
+| Summary | PR #576 exact head 817de0ed adds malformed archive coverage after hosted 89.99&#37; |
+| Next action | Confirm local coverage margin, then monitor new PR #576 hosted checks at exact head 817de0ed to terminal result. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
@@ -4278,3 +4278,4 @@ flowchart LR
 | [AR-0521](../tasks/AR-0521-openhands-environment-pin.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md) | None |
 | [AR-0601](../tasks/AR-0601-csb-integration.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0104](../tasks/AR-0104-durable-results.md), [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0603](../tasks/AR-0603-csb-execution-assurance.md) | [AR-0405](../tasks/AR-0405-performance-workloads.md), [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md), [AR-0604](../tasks/AR-0604-csb-native-qualification.md), [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
 | [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0202](../tasks/AR-0202-kernel-diagnostics.md), [AR-0601](../tasks/AR-0601-csb-integration.md), [AR-0604](../tasks/AR-0604-csb-native-qualification.md) | [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
+| [AR-0603](../tasks/AR-0603-csb-execution-assurance.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0104](../tasks/AR-0104-durable-results.md) | [AR-0601](../tasks/AR-0601-csb-integration.md) |
