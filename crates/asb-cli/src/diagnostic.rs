@@ -522,7 +522,7 @@ const fn legacy_cli_context(cause: Cause) -> Context {
             Subject::Parent,
             "inspect_cli_parent",
             Phase::Inspect,
-            StateChange::NotStarted,
+            StateChange::Unchanged,
             Remediation::CreateParent,
         ),
         Cause::InvalidPath
@@ -2248,6 +2248,23 @@ mod tests {
             assert!(black_box(cli_cause_code(cause)).starts_with("cli_"));
             assert!(!legacy_cli_context(black_box(cause)).operation.is_empty());
         }
+    }
+
+    #[test]
+    fn missing_parent_reports_unchanged_state_for_output_parent_diagnostics() {
+        let context = legacy_cli_context(Cause::MissingParent);
+        assert_eq!(context.state_change, StateChange::Unchanged);
+        assert_eq!(context.remediation, Remediation::CreateParent);
+        assert_eq!(
+            Diagnostic {
+                code: "cli_missing_parent",
+                severity: Severity::Error,
+                cause: Cause::MissingParent,
+                context,
+            }
+            .state_change_explanation(),
+            "No relevant state was changed."
+        );
     }
 
     #[test]

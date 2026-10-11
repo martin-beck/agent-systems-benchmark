@@ -9,6 +9,7 @@
 //! and publishes only the declared entrypoint.
 #![allow(missing_docs)]
 
+use crate::source_checkout::SourceCheckout;
 use crate::tool_catalog::{BuildRecipe, ToolEntry};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -91,6 +92,21 @@ pub struct BuildReceipt {
     pub output_bytes: u64,
     pub dependency_ids: Vec<String>,
     pub staging_cleaned: bool,
+}
+
+/// Consume a verified catalog checkout with the existing pinned source
+/// builder.  This is the integration seam used by the supported installer:
+/// callers cannot accidentally pass an archive or an unverified local tree.
+pub fn build_from_checkout(
+    checkout: SourceCheckout,
+    mut request: BuildRequest,
+) -> Result<BuildReceipt, BuildFailure> {
+    request.source = checkout.path().to_path_buf();
+    let result = build(&request);
+    if checkout.cleanup().is_err() {
+        return Err(BuildFailure::CleanupFailed);
+    }
+    result
 }
 
 /// Validate a catalog recipe before execution.  This rejects shell syntax,

@@ -3665,6 +3665,16 @@ mod tests {
                     || output.contains("resulting durable state"),
                 "{output}"
             );
+            if cause == "required parent directory does not exist" {
+                assert!(
+                    output.contains("No relevant state was changed."),
+                    "{output}"
+                );
+                assert!(
+                    !output.contains("No external operation was started."),
+                    "{output}"
+                );
+            }
             assert!(!output.contains("/home/martin"), "{output}");
         }
     }

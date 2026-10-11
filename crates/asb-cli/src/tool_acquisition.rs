@@ -122,6 +122,43 @@ pub fn resolve(id: &str) -> Result<(ToolEntry, ArtifactAlternative), Acquisition
     Ok((entry, alt))
 }
 
+/// Resolve an install selection without treating a source recipe as an
+/// executable artifact. Source entries are returned only so the installer can
+/// hand them to the pinned checkout/builder path.
+pub fn resolve_for_install(id: &str) -> Result<(ToolEntry, ArtifactAlternative), AcquisitionError> {
+    let catalog = tool_catalog::catalog();
+    tool_catalog::validate(&catalog).map_err(|_| AcquisitionError::UnverifiedSource)?;
+    let entry = catalog
+        .entries
+        .into_iter()
+        .find(|entry| entry.id == id)
+        .ok_or(AcquisitionError::UnknownTool)?;
+    let platform = (std::env::consts::OS, std::env::consts::ARCH);
+    if !entry
+        .platforms
+        .iter()
+        .any(|p| (p.os.as_str(), p.arch.as_str()) == platform)
+    {
+        return Err(AcquisitionError::UnsupportedPlatform);
+    }
+    if entry.license.trim().is_empty() {
+        return Err(AcquisitionError::LicenseMissing);
+    }
+    entry
+        .alternatives
+        .iter()
+        .find(|alternative| alternative.kind == "prebuilt")
+        .or_else(|| {
+            entry
+                .build_recipes
+                .first()
+                .and_then(|_| entry.alternatives.iter().find(|a| a.kind == "source"))
+        })
+        .cloned()
+        .map(|alternative| (entry, alternative))
+        .ok_or(AcquisitionError::UnverifiedSource)
+}
+
 pub fn verify_bytes(
     id: &str,
     source_ref: String,
