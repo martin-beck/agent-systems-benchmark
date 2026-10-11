@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T02:47:38+00:00",
   "depends_on": [
     "AR-1699",
     "AR-1700",
@@ -12,17 +12,17 @@
   ],
   "id": "AR-1754",
   "next_action": "Promote after AR-1723, AR-1724, and cli2key qualification AR-1733 are current; inventory every run/sweep/easy/record/campaign/TUI entry point, implement default-online routing with explicit --local-mock and offline replay alternatives, then qualify positive and negative paths.",
-  "owner": "",
+  "owner": "codex-ar1754-online-integration",
   "plan": "../plans/AR-1754-default-online-live-workflow.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1754.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Make online execution the default across ASB workflows",
-  "updated_at": "2026-10-11T02:17:31+00:00",
+  "updated_at": "2026-10-11T02:17:38+00:00",
   "worktree_key": ""
 }
 ---
@@ -44,3 +44,5 @@ production authority checks.
 
 - 2026-10-11T02:17:31+00:00: Dependencies AR-1699, AR-1700, AR-1723, AR-1724, and AR-1733 are
   released/current; promote for canonical online-default integration.
+
+- 2026-10-11T02:17:38+00:00: Claimed by codex-ar1754-online-integration.
