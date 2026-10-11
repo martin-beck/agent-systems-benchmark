@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "PR #575 merged at signed local merge 14de8bce.",
-  "task_revision": 97,
+  "task_revision": 98,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:34:42+00:00",
+  "updated_at": "2026-10-11T11:42:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -336,3 +336,6 @@ and end-to-end development-run tests in the same change.
   b8a1d6a1, tree b4ca9f20, and published it with force-with-lease.
 
 - 2026-10-11T11:34:42+00:00: Heartbeat by coordinator.
+
+- 2026-10-11T11:42:47+00:00: Recorded command exit 0; command argv SHA-256
+  6afe991853bdf2b485aaf037284e37360a9d18718760c9f43e9ec7ee2bcef4ac.
