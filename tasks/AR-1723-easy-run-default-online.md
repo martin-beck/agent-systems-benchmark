@@ -9,6 +9,9 @@
   ],
   "id": "AR-1723",
   "next_action": "Implement easy run default-online on the bound worktree; keep --local-mock explicit, add human/JSON positive and no-fallback negative coverage, then run focused/full gates and publish a reviewed PR.",
+  "observed_branch": "codex/ar-1723-easy-online",
+  "observed_dirty": 0,
+  "observed_head": "5739f6674cc51c87bb3830086ccd57517aa1b1e4",
   "owner": "",
   "plan": "../plans/AR-1723-easy-run-default-online.md",
   "priority": "P0",
@@ -25,9 +28,9 @@
   "spec_revision": 1,
   "status": "done",
   "summary": "Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only.",
-  "task_revision": 38,
+  "task_revision": 39,
   "title": "Make the easy run default to online provider execution",
-  "updated_at": "2026-10-11T01:29:08+00:00",
+  "updated_at": "2026-10-11T01:31:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1723"
 }
 ---

@@ -2,8 +2,8 @@
 
 Generated from local Git and GitHub. Do not edit.
 
-- Product remote main: `16d8512debab5515068d285fd820e1be0751c51b`
-- Local origin/main: `16d8512debab5515068d285fd820e1be0751c51b`
+- Product remote main: `f090de56710db16e3751df180ee4183ca87d952e`
+- Local origin/main: `f090de56710db16e3751df180ee4183ca87d952e`
 - Primary worktree head: `a9abcf2e63f761e314593e9abc6bf074b7418e5e`
 
 ## Open pull requests
@@ -20,21 +20,20 @@ Generated from local Git and GitHub. Do not edit.
 | #494 | `repair/ar-protected-provenance@26bdd021b0d3` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | repair: restore protected-main signed provenance |
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
-| #555 | `codex/ar-1785-openrouter-config@dd1930684ca8` | `main` | BLOCKED | IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): bind OpenRouter config identity before live execution |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38096884683 | `dd1930684ca8` | pull_request | Credential-free benchmark path | completed:success |
-| 38096884651 | `dd1930684ca8` | pull_request | Formal assurance | completed:success |
-| 38096884595 | `dd1930684ca8` | pull_request | Repository quality | queued:- |
-| 38096884578 | `dd1930684ca8` | pull_request | Emulated aarch64 portability | completed:success |
-| 38096884575 | `dd1930684ca8` | pull_request | Agent Workflow Quality shadow | completed:success |
-| 38096884568 | `dd1930684ca8` | pull_request | Cross-repository development broker qualification | completed:success |
-| 38096884556 | `dd1930684ca8` | pull_request | Rust verification | completed:success |
-| 38096884555 | `dd1930684ca8` | pull_request | Hosted portability and native qualification | completed:success |
-| 38096884546 | `dd1930684ca8` | pull_request | Fault assurance | completed:success |
-| 38096884544 | `dd1930684ca8` | pull_request | Portable protected-main provenance | completed:success |
-| 38096884542 | `dd1930684ca8` | pull_request | Huawei MIT source headers | completed:success |
-| 38095677491 | `16d8512debab` | push | Formal assurance | completed:success |
+| 38101221588 | `f090de56710d` | push | Repository quality | completed:success |
+| 38101221573 | `f090de56710d` | push | Fault assurance | completed:success |
+| 38101221555 | `f090de56710d` | push | Cross-repository development broker qualification | completed:success |
+| 38101221552 | `f090de56710d` | push | Emulated aarch64 portability | completed:success |
+| 38101221550 | `f090de56710d` | push | Formal assurance | completed:success |
+| 38101221541 | `f090de56710d` | push | Huawei MIT source headers | completed:success |
+| 38101221526 | `f090de56710d` | push | Credential-free benchmark path | completed:success |
+| 38101221522 | `f090de56710d` | push | Hosted portability and native qualification | completed:success |
+| 38101221515 | `f090de56710d` | push | Rust verification | completed:success |
+| 38101221501 | `f090de56710d` | push | Portable protected-main provenance | completed:success |
+| 38100580480 | `5739f6674cc5` | pull_request | Emulated aarch64 portability | completed:success |
+| 38100580465 | `5739f6674cc5` | pull_request | Agent Workflow Quality shadow | completed:success |
