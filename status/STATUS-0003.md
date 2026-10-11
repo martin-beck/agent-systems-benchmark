@@ -1302,7 +1302,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. |
-| Next action | Publish PR from clean exact candidate 378787cd after independent review and passing focused/full gates; await exact-head CI before protected merge. |
+| Next action | Wait for PR #561 exact-head required CI on 378787cd; merge only through protected workflow when all required checks are green, then verify exact main. |
 
 ### AR-1787 — Repair control lock lifetime semantics
 

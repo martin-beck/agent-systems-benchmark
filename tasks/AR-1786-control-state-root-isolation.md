@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1786",
-  "next_action": "Publish PR from clean exact candidate 378787cd after independent review and passing focused/full gates; await exact-head CI before protected merge.",
+  "next_action": "Wait for PR #561 exact-head required CI on 378787cd; merge only through protected workflow when all required checks are green, then verify exact main.",
   "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
   "observed_head": "7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 92,
+  "task_revision": 93,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T06:37:05+00:00",
+  "updated_at": "2026-10-11T06:37:21+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -315,3 +315,8 @@ gate into a serial-only or exclusion-based check.
 
 - 2026-10-11T06:37:05+00:00: Recorded command exit 0; command argv SHA-256
   87c1afc3951dc4972e46a43505dd73c2fbde57a91817cf413b72bebca430f8ac.
+
+- 2026-10-11T06:37:21+00:00: Published PR #561 from clean branch
+  codex/ar-1786-control-state-review-luna56 at exact candidate 378787cd. PR includes signed DCO lock
+  repair and diagnostic catalog identity refresh. Required local gates and two full workspace runs
+  are green. Hosted exact-head CI pending; no merge claimed.
