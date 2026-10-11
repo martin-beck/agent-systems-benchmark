@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "PR #584 exact remote head d40c5cfd; local focused provenance/diagnostic/hostile archive tests and all 381 asb-cli library tests pass. Poll exact-head CI; independently review; do not merge.",
+  "next_action": "PR #584 exact remote head 9f6e2142; clippy question-mark repair signed+DCO. Local clippy, diagnostic identity/contract, provenance, and diff-check pass. Poll exact-head CI; independently review; do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
   "observed_head": "9f6e21421e39a8b7947ee10f72ff74c4d45cb546",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 52,
+  "task_revision": 53,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T14:56:48+00:00",
+  "updated_at": "2026-10-11T14:57:06+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -188,3 +188,6 @@ remain mandatory.
 
 - 2026-10-11T14:56:48+00:00: Recorded command exit 0; command argv SHA-256
   ac3e505f30fd620a7c294d45f78bcf244146c7ac1be401dd8c78fa01c13f8abb.
+
+- 2026-10-11T14:57:06+00:00: Repaired Rust CI clippy failure at bundle publication and pushed
+  9f6e2142; substantive lifecycle safety remains intact.

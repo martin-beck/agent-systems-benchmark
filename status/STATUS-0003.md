@@ -1246,7 +1246,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement dedicated verified remote external workload installation and lifecycle through asb workload. |
-| Next action | PR #584 exact remote head d40c5cfd; local focused provenance/diagnostic/hostile archive tests and all 381 asb-cli library tests pass. Poll exact-head CI; independently review; do not merge. |
+| Next action | PR #584 exact remote head 9f6e2142; clippy question-mark repair signed+DCO. Local clippy, diagnostic identity/contract, provenance, and diff-check pass. Poll exact-head CI; independently review; do not merge. |
 
 ### AR-1783 — Installed workload selection and execution
 
