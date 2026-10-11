@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Await required exact-head checks for PR #575 at b1cdd5be after local 90.28% coverage; then obtain independent review, merge only through signed local merge-integrity, and verify exact-main workflows.",
+  "next_action": "Await required exact-head checks for PR #575 at d974297a after local 90.29% coverage; then obtain independent exact-head review, merge only through signed local merge-integrity, and verify exact-main workflows.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 1,
   "observed_head": "e85e6872f055209fb54de3e4e5c3f62353db80f5",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 247,
+  "task_revision": 248,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:03:07+00:00",
+  "updated_at": "2026-10-11T11:03:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -685,3 +685,7 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T11:03:07+00:00: Recorded command exit 0; command argv SHA-256
   f430faa65ec173e7dff0287c21397e56a01e3c81a7a2216762898d71d594b307.
+
+- 2026-10-11T11:03:28+00:00: Hosted coverage previously reported 90.00% but failed the floor; added
+  signed+DCO namespace coverage commit d974297a. Local full workspace cargo llvm-cov now passes at
+  90.29%; no gate weakening.
