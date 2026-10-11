@@ -260,4 +260,51 @@ mod tests {
             Err(AcquisitionError::UnsafeArtifact)
         ));
     }
+
+    fn tar_member(name: &[u8], body: &[u8], kind: u8) -> Vec<u8> {
+        let mut header = [0u8; 512];
+        header[..name.len()].copy_from_slice(name);
+        let size = format!("{:011o}\0", body.len());
+        header[124..124 + size.len()].copy_from_slice(size.as_bytes());
+        header[156] = kind;
+        let mut archive = header.to_vec();
+        archive.extend_from_slice(body);
+        archive.resize(archive.len().next_multiple_of(512), 0);
+        archive.extend_from_slice(&[0u8; 1024]);
+        archive
+    }
+
+    #[test]
+    fn tar_extraction_rejects_unsafe_members_and_requires_entrypoint() {
+        assert_eq!(
+            extract_tar_entry(&tar_member(b"../escape", b"x", 0), "tool"),
+            Err(AcquisitionError::UnsafeArtifact)
+        );
+        assert_eq!(
+            extract_tar_entry(&tar_member(b"link", b"x", b'2'), "tool"),
+            Err(AcquisitionError::UnsafeArtifact)
+        );
+        assert_eq!(
+            extract_tar_entry(&tar_member(b"other", b"x", 0), "tool"),
+            Err(AcquisitionError::UnsafeArtifact)
+        );
+        assert_eq!(
+            extract_tar_entry(&tar_member(b"tool", b"payload", 0), "tool")
+                .unwrap(),
+            b"payload"
+        );
+    }
+
+    #[test]
+    fn local_acquisition_rejects_missing_and_non_executable_paths() {
+        assert!(matches!(
+            read_local("codex", Path::new("/definitely/missing/asb-tool")),
+            Err(AcquisitionError::Unavailable)
+        ));
+        let temporary = tempfile::NamedTempFile::new().unwrap();
+        assert!(matches!(
+            read_local("codex", temporary.path()),
+            Err(AcquisitionError::UnsafeArtifact)
+        ));
+    }
 }

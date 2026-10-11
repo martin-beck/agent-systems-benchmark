@@ -11343,6 +11343,28 @@ pub(crate) mod tests {
         );
         assert!(!project.join(".asb/tools/matrix").exists());
 
+        let catalog_dry_run = vec![
+            OsString::from("tool"),
+            OsString::from("install"),
+            OsString::from("codex"),
+            OsString::from("--kind"),
+            OsString::from("support"),
+            OsString::from("--version"),
+            OsString::from("0.153.4"),
+            OsString::from("--project"),
+            project.clone().into_os_string(),
+            OsString::from("--dry-run"),
+        ];
+        assert_eq!(
+            run_with_default_mode(
+                &catalog_dry_run,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                false
+            ),
+            0
+        );
+
         let source = scratch.0.join("local-tool");
         fs::write(&source, b"local tool bytes").unwrap();
         let source_string = source.to_string_lossy().into_owned();
