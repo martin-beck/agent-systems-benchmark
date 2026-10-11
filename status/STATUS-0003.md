@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #579 exact head f299ef1c has bounded allocator/clippy fixes but full CLI and hosted Credential-free still fail replay authority. Investigation points to AF_UNIX path overflow from the new PID-scoped root plus digest-named relay socket; repair worker is validating and fixing this. |
-| Next action | Repair fixture socket path-length failure: PID-scoped /tmp/asb-dr-{pid}-{seq} makes relay path exceed AF_UNIX limit with replay digest socket names, yielding development replay authority unavailable. Shorten bounded fixture root identity while preserving cross-process isolation, add path-length regression, rerun full CLI and hosted checks. |
+| Summary | PR #579 exact head 2fc8b428 shortens PID/sequence replay fixture roots to stay within AF_UNIX socket limits while preserving bounded cross-process isolation. Full CLI parallel and serial validation passed locally; fresh independent review and hosted checks are pending. |
+| Next action | Independent-review exact head 2fc8b428 and monitor fresh hosted Policy/Credential-free/Rust/AArch64 checks; merge only after every required gate is green and exact-head evidence is reconciled. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
@@ -4336,3 +4336,4 @@ flowchart LR
 | [AR-0512](../tasks/AR-0512-replay-goose.md) | [AR-0307](../tasks/AR-0307-agent-goose.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0513](../tasks/AR-0513-replay-miniswe.md) | [AR-0308](../tasks/AR-0308-agent-mini-swe.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0514](../tasks/AR-0514-replay-openhands.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
+| [AR-0515](../tasks/AR-0515-replay-matrix.md) | [AR-0506](../tasks/AR-0506-replay-opencode.md), [AR-0507](../tasks/AR-0507-replay-opendesk.md), [AR-0508](../tasks/AR-0508-replay-aider.md), [AR-0509](../tasks/AR-0509-replay-codex.md), [AR-0510](../tasks/AR-0510-replay-gemini.md), [AR-0511](../tasks/AR-0511-replay-qwen.md), [AR-0512](../tasks/AR-0512-replay-goose.md), [AR-0513](../tasks/AR-0513-replay-miniswe.md), [AR-0514](../tasks/AR-0514-replay-openhands.md) | None |

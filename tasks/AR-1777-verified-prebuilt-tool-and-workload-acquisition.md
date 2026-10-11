@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Repair fixture socket path-length failure: PID-scoped /tmp/asb-dr-{pid}-{seq} makes relay path exceed AF_UNIX limit with replay digest socket names, yielding development replay authority unavailable. Shorten bounded fixture root identity while preserving cross-process isolation, add path-length regression, rerun full CLI and hosted checks.",
+  "next_action": "Independent-review exact head 2fc8b428 and monitor fresh hosted Policy/Credential-free/Rust/AArch64 checks; merge only after every required gate is green and exact-head evidence is reconciled.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #579 exact head f299ef1c has bounded allocator/clippy fixes but full CLI and hosted Credential-free still fail replay authority. Investigation points to AF_UNIX path overflow from the new PID-scoped root plus digest-named relay socket; repair worker is validating and fixing this.",
-  "task_revision": 149,
+  "summary": "PR #579 exact head 2fc8b428 shortens PID/sequence replay fixture roots to stay within AF_UNIX socket limits while preserving bounded cross-process isolation. Full CLI parallel and serial validation passed locally; fresh independent review and hosted checks are pending.",
+  "task_revision": 150,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:33:05+00:00",
+  "updated_at": "2026-10-11T12:33:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -530,3 +530,7 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T12:33:05+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T12:33:11+00:00: Repair fixed the measured 112-byte relay path overflow caused by
+  PID-scoped roots; temporary debug diagnostics were removed. Signed/DCO commit pushed. No merge
+  authorized until exact-head review and hosted gates.
