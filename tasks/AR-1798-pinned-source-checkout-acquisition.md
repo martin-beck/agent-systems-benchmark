@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Exact fixture checkout repair pushed at dfe6fe70.",
-  "task_revision": 90,
+  "task_revision": 91,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:50:50+00:00",
+  "updated_at": "2026-10-11T15:50:53+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -297,3 +297,6 @@ protected merge, and post-merge evidence path.
   tests x10 runs passed; cargo fmt, clippy -D warnings, and diff-check passed. Full workspace
   llvm-cov reached 389 passed but encountered unrelated TUI PTY regression; non-coverage workspace
   run reached 389 passed but encountered unrelated TUI GCC probe regression. No threshold changes.
+
+- 2026-10-11T15:50:53+00:00: Recorded command exit 0; command argv SHA-256
+  136bdf016b1dbf80b2796688fd0d48b86a813dcdd4e9e8d2e4d16beb2cd6c67c.
