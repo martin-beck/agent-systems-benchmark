@@ -1469,8 +1469,8 @@
 | Owner | ar1798-source-checkout-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Coverage repair pushed at aa9569a3 with nonzero command test. |
-| Next action | Monitor fresh exact-head CI for aa9569a3 and obtain independent re-review; do not merge. |
+| Summary | Coverage margin repair pushed at c5303c05. |
+| Next action | Monitor fresh exact-head CI for c5303c05 and obtain independent re-review; do not merge. |
 
 
 ## Dependency graph
