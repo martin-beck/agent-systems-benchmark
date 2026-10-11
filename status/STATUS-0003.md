@@ -1444,6 +1444,20 @@
 | Summary | Keep autonomous development live during concurrent protected-main integration. |
 | Next action | Publish the bounded policy repair, then add enforceable integration-queue and evidence-reuse controls without weakening merge-result assurance. |
 
+### AR-1797 — Wire cli2key sidecar into live benchmark execution
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Repair cli2key so an installed pinned bridge receives a runtime-issued sidecar launch and can execute a development ASB benchmark. |
+| Next action | Wire the verified project-local cli2key bridge into the runtime-owned sidecar launch path, then qualify fake and opt-in live benchmark execution without exposing credentials. |
+
 
 ## Dependency graph
 
@@ -2299,6 +2313,7 @@ flowchart LR
         AR_1794["AR-1794 - Open"]:::status_open
         AR_1795["AR-1795 - In progress"]:::status_in_progress
         AR_1796["AR-1796 - Open"]:::status_open
+        AR_1797["AR-1797 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4167,9 +4182,12 @@ flowchart LR
     AR_1728 --> AR_1729
     AR_1728 --> AR_1730
     AR_1729 --> AR_1731
+    AR_1729 --> AR_1797
     AR_1730 --> AR_1731
     AR_1731 --> AR_1732
+    AR_1731 --> AR_1797
     AR_1732 --> AR_1733
+    AR_1732 --> AR_1797
     AR_1733 --> AR_1736
     AR_1733 --> AR_1754
     AR_1733 --> AR_1785
@@ -4178,6 +4196,7 @@ flowchart LR
     AR_1733 --> AR_1788
     AR_1733 --> AR_1789
     AR_1733 --> AR_1790
+    AR_1733 --> AR_1797
     AR_1734 --> AR_1737
     AR_1734 --> AR_1738
     AR_1737 --> AR_1751
@@ -4234,6 +4253,7 @@ flowchart LR
     AR_1777 --> AR_1779
     AR_1778 --> AR_1779
     AR_1779 --> AR_1780
+    AR_1779 --> AR_1797
     AR_1781 --> AR_1782
     AR_1781 --> AR_1794
     AR_1782 --> AR_1783
@@ -4317,5 +4337,3 @@ flowchart LR
 | [AR-0513](../tasks/AR-0513-replay-miniswe.md) | [AR-0308](../tasks/AR-0308-agent-mini-swe.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0514](../tasks/AR-0514-replay-openhands.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0515](../tasks/AR-0515-replay-matrix.md) | [AR-0506](../tasks/AR-0506-replay-opencode.md), [AR-0507](../tasks/AR-0507-replay-opendesk.md), [AR-0508](../tasks/AR-0508-replay-aider.md), [AR-0509](../tasks/AR-0509-replay-codex.md), [AR-0510](../tasks/AR-0510-replay-gemini.md), [AR-0511](../tasks/AR-0511-replay-qwen.md), [AR-0512](../tasks/AR-0512-replay-goose.md), [AR-0513](../tasks/AR-0513-replay-miniswe.md), [AR-0514](../tasks/AR-0514-replay-openhands.md) | None |
-| [AR-0516](../tasks/AR-0516-opendesk-strict-replay-http-compatibility.md) | [AR-0302](../tasks/AR-0302-agent-opendesk.md), [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | None |
-| [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md), [AR-0520](../tasks/AR-0520-interaction-aware-redaction.md) |
