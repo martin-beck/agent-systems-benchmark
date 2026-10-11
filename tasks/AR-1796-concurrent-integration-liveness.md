@@ -2,7 +2,7 @@
 {
   "branch": "policy/concurrent-integration-liveness",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T14:30:01+00:00",
+  "claim_expires": "2026-10-11T15:47:17+00:00",
   "depends_on": [],
   "id": "AR-1796",
   "next_action": "Wire the reviewed publication-job primitive into the fast publisher, then run independent and formal verification.",
@@ -15,9 +15,9 @@
   "schema_version": 1,
   "status": "in_progress",
   "summary": "Keep autonomous development live during concurrent protected-main integration.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "Concurrent integration liveness",
-  "updated_at": "2026-10-11T12:40:17+00:00",
+  "updated_at": "2026-10-11T13:47:17+00:00",
   "worktree_key": ""
 }
 ---
@@ -38,3 +38,5 @@ workers checkpoint, retry, and continue useful work during integration churn.
   lease fencing, exact candidate observation, v3 migration, and a new publication model. Focused
   receipt tests pass. Canonical TLC queue is foreign-owned; isolated one-worker TLC cannot
   initialize a JVM because the host returns pthread_create EAGAIN before parsing.
+
+- 2026-10-11T13:47:17+00:00: Heartbeat by codex-ar1796-integration-liveness.
