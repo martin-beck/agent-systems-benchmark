@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
-  "task_revision": 85,
+  "task_revision": 86,
   "title": "Make online execution the default across ASB workflows",
-  "updated_at": "2026-10-11T03:07:41+00:00",
+  "updated_at": "2026-10-11T03:07:50+00:00",
   "worktree_key": ""
 }
 ---
@@ -288,3 +288,6 @@ production authority checks.
   3624c529276fa502511125892b0aefc0f540282eb8821b4a89c0b5f35987763d.
 
 - 2026-10-11T03:07:41+00:00: Heartbeat by codex-ar1754-online-integration.
+
+- 2026-10-11T03:07:50+00:00: Recorded command exit 0; command argv SHA-256
+  adb32bf6a74b6b627f01047b0737454d216f0735b258693015fde95a32b063ce.
