@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Signed repair 37fcf269 pushed; PR #571 conflicts with advanced main and has no new hosted checks",
-  "task_revision": 87,
+  "task_revision": 88,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T10:47:42+00:00",
+  "updated_at": "2026-10-11T10:48:02+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -303,3 +303,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T10:47:42+00:00: Recorded command exit 1; command argv SHA-256
   e242e7d1ea692dd48661f20418fe44799e39cd92485923b8b1af3e6154d0a71d.
+
+- 2026-10-11T10:48:02+00:00: Recorded command exit 0; command argv SHA-256
+  9ea78e1547bacb4a97d2d139396a54349f7b28ffccae0cba9050a45ce384a28d.
