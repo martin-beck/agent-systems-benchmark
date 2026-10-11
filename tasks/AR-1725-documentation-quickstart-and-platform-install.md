@@ -12,7 +12,7 @@
     "AR-1724"
   ],
   "id": "AR-1725",
-  "next_action": "Promote after coordinator integrity repair and dependency verification; audit existing docs, add the CLI/TUI tutorial and platform install matrix, then qualify links, commands, and visual evidence.",
+  "next_action": "Implementation commit d77230ae is clean on declared branch docs/ar-1725-quickstart-platform-install; focused tutorial tests and guide_examples pass. Platform validator baseline fails independently on stale Ubuntu native report ancestry/tree; record evidence and proceed to independent review/publication.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 10,
+  "task_revision": 11,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T06:52:31+00:00",
+  "updated_at": "2026-10-11T06:52:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
@@ -78,3 +78,7 @@ gates, independent review, and exact-head hosted CI.
 
 - 2026-10-11T06:52:31+00:00: Recorded command exit 0; command argv SHA-256
   a940268f1a16b759cfb4943e16441addda9e02aa82cc87db8e87ca86c73fed0e.
+
+- 2026-10-11T06:52:43+00:00: Reconciled branch/worktree metadata through declared docs branch;
+  verified baseline platform validator failure on untouched origin/main; tutorial freshness and
+  guide_examples pass.
