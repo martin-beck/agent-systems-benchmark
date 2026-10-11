@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix.",
-  "task_revision": 26,
+  "task_revision": 27,
   "title": "Pinned source builds and project dependencies",
-  "updated_at": "2026-10-11T08:38:36+00:00",
+  "updated_at": "2026-10-11T08:39:00+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies"
 }
 ---
@@ -107,3 +107,6 @@ limit are distinct actionable outcomes.
 
 - 2026-10-11T08:38:36+00:00: Recorded command exit 0; command argv SHA-256
   a5e91d8a6e356ba88fd4835c765ebd2411c75eacaa60f98e203295ec257bd3a5.
+
+- 2026-10-11T08:39:00+00:00: Recorded command exit 0; command argv SHA-256
+  ce7d45fffe378f17b6453e4e851b9576b579444d490ac31ccb139f845c58245e.
