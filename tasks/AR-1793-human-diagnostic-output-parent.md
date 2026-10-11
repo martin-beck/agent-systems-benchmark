@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the legacy human diagnostic output-parent wording contract exposed by the full ASB CLI suite.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "Repair human diagnostic output-parent contract",
-  "updated_at": "2026-10-11T14:17:37+00:00",
+  "updated_at": "2026-10-11T14:17:52+00:00",
   "worktree_key": ""
 }
 ---
@@ -47,3 +47,6 @@ AR-1793 is a narrowly scoped dependent repair for the deterministic human diagno
 
 - 2026-10-11T14:17:37+00:00: Recorded command exit 0; command argv SHA-256
   9cf29fc0352b0e72f5005a63316a870d5238e1cd0d27389342228a8370d75300.
+
+- 2026-10-11T14:17:52+00:00: Recorded command exit 0; command argv SHA-256
+  fd122d0d9f665e58ca7762edee2e1f8c4a41bb3b5805bf31246476fb77bcdabf.
