@@ -175,10 +175,8 @@ fn extract_tar_entry(archive: &[u8], entrypoint: &str) -> Result<Vec<u8>, Acquis
         )
         .map_err(|_| AcquisitionError::UnsafeArtifact)?;
         let kind = header[156];
-        if kind != 0 && kind != b'0' {
-            if kind == b'2' || kind == b'1' {
-                return Err(AcquisitionError::UnsafeArtifact);
-            }
+        if kind != 0 && kind != b'0' && (kind == b'2' || kind == b'1') {
+            return Err(AcquisitionError::UnsafeArtifact);
         }
         let start = offset + 512;
         let end = start.checked_add(size).ok_or(AcquisitionError::TooLarge)?;
