@@ -3402,30 +3402,6 @@ fn read_bounded_json(
     Ok(bytes)
 }
 
-fn read_bounded_file(path: &Path, maximum: u64) -> Result<Vec<u8>, CliError> {
-    let file = OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(path)
-        .map_err(|_| CliError::legacy_validation("tool source file cannot be inspected"))?;
-    let metadata = file
-        .metadata()
-        .map_err(|_| CliError::legacy_validation("tool source file cannot be inspected"))?;
-    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > maximum {
-        return Err(CliError::legacy_validation(
-            "tool source must be a bounded non-empty regular file",
-        ));
-    }
-    let mut bytes = Vec::with_capacity(metadata.len() as usize);
-    file.take(maximum.saturating_add(1))
-        .read_to_end(&mut bytes)
-        .map_err(|_| CliError::legacy_validation("tool source file cannot be read"))?;
-    if bytes.len() as u64 > maximum {
-        return Err(CliError::legacy_validation("tool source exceeds its bound"));
-    }
-    Ok(bytes)
-}
-
 fn write_atomic_private(
     path: &Path,
     bytes: &[u8],
@@ -4308,9 +4284,20 @@ fn tool_install_with_progress(
         }
     }
     let kind = kind.ok_or_else(|| CliError::legacy_usage("tool install requires --kind"))?;
-    let source = source.ok_or_else(|| CliError::legacy_usage("tool install requires --source"))?;
-    let version =
-        version.ok_or_else(|| CliError::legacy_usage("tool install requires --version"))?;
+    let fixture_source = source.as_deref().and_then(tool_acquisition::fixture);
+    let (catalog_entry, catalog_artifact) = if fixture_source.is_some() {
+        (None, None)
+    } else {
+        let (entry, artifact) = tool_acquisition::resolve(id)
+            .map_err(|error| CliError::legacy_validation(error.message()))?;
+        (Some(entry), Some(artifact))
+    };
+    let version = version.unwrap_or_else(|| {
+        catalog_entry
+            .as_ref()
+            .map(|entry| entry.official_source.version.clone())
+            .unwrap_or_else(|| "fixture".into())
+    });
     if version.contains('/')
         || version.contains('\\')
         || version.contains("secret")
@@ -4322,27 +4309,69 @@ fn tool_install_with_progress(
     }
     let root = PathBuf::from(project);
     let mut config = load_tool_project(&root)?;
-    let (source_ref, bytes) = if let Some(fixture) = source.strip_prefix("fixture://") {
-        if !valid_tool_id(fixture) {
-            return Err(CliError::legacy_validation("fixture source ID is invalid"));
-        }
-        (
-            source.clone(),
-            format!("ASB deterministic tool fixture {fixture}\n").into_bytes(),
-        )
-    } else {
+    let source_url = catalog_artifact
+        .as_ref()
+        .map(|artifact| artifact.url.clone())
+        .unwrap_or_default();
+    if dry_run && fixture_source.is_some() {
+        return write_json(
+            output,
+            &json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "tool install", "id": id, "kind": kind, "version": version, "source": source_url, "platform": platform_label(), "dry_run": true}),
+        );
+    }
+    let verified = if let Some(verified) = fixture_source {
+        verified
+    } else if let Some(source) = source {
         if source.contains("://") {
             return Err(CliError::legacy_validation(
-                "tool source is unsupported; only local files and fixture:// sources are allowed",
+                "tool source must be a local regular executable; downloads use the catalog primary source",
             ));
         }
-        let source_path = Path::new(&source);
-        let bytes = read_bounded_file(source_path, MAX_EXECUTABLE_BYTES)?;
-        ("local-file".to_owned(), bytes)
+        tool_acquisition::read_local(id, Path::new(&source))
+            .map_err(|error| CliError::legacy_validation(error.message()))?
+    } else if dry_run {
+        return write_json(
+            output,
+            &json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "tool install", "id": id, "kind": kind, "version": version, "source": source_url, "platform": platform_label(), "dry_run": true}),
+        );
+    } else {
+        // curl is invoked with an argument array, strict HTTPS policy, a
+        // bounded transfer and no credential-bearing environment.
+        let result = Command::new("/usr/bin/curl")
+            .args([
+                "--fail",
+                "--silent",
+                "--show-error",
+                "--location",
+                "--proto",
+                "=https",
+                "--tlsv1.2",
+                "--connect-timeout",
+                "10",
+                "--max-time",
+                "60",
+                "--max-filesize",
+                "134217728",
+                &source_url,
+            ])
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .output()
+            .map_err(|_| {
+                CliError::legacy_validation("official tool source is unavailable or offline")
+            })?;
+        if !result.status.success() {
+            return Err(CliError::legacy_validation(
+                "official tool source is unavailable or offline",
+            ));
+        }
+        tool_acquisition::verify_bytes(id, source_url.clone(), result.stdout)
+            .map_err(|error| CliError::legacy_validation(error.message()))?
     };
-    if bytes.is_empty() {
-        return Err(CliError::legacy_validation("tool source is empty"));
-    }
+    let entrypoint = verified.entry.entrypoint.clone();
+    let verifier = verified.alternative.verifier.clone();
+    let bytes = verified.bytes;
+    let source_ref = verified.source_ref;
     let digest = format!("{:x}", Sha256::digest(&bytes));
     let path = format!(".asb/tools/{id}/tool");
     let record = ProjectToolRecordV1 {
@@ -4352,7 +4381,12 @@ fn tool_install_with_progress(
         platform: platform_label(),
         path: Some(path.clone()),
         digest_sha256: Some(digest.clone()),
-        capabilities: vec!["execute".into(), format!("kind:{kind:?}").to_lowercase()],
+        capabilities: vec![
+            "execute".into(),
+            format!("kind:{kind:?}").to_lowercase(),
+            format!("entrypoint:{entrypoint}"),
+            format!("verifier:{verifier}"),
+        ],
         status: ProjectToolStatus::Available,
     };
     let inventory = tool_kind_map(&config, kind);
@@ -4365,10 +4399,7 @@ fn tool_install_with_progress(
     }
     let destination = root.join(&path);
     if dry_run {
-        return write_json(
-            output,
-            &serde_json::json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "tool install", "id": id, "kind": kind, "path": path, "digest_sha256": digest, "dry_run": true}),
-        );
+        unreachable!("dry-run is handled before acquisition")
     }
     ensure_project_directory_with_progress(
         &root.join(".asb/tools"),
@@ -17028,4 +17059,5 @@ fn recording_selection_error(error: asb_replay::SourceSelectionError) -> CliErro
 }
 
 pub mod source_builder;
+mod tool_acquisition;
 pub mod tool_catalog;
