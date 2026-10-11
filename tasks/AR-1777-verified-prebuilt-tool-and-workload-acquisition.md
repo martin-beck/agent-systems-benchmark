@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Repair LocalReplayProvisioner development fixture root collisions: process-local sequence starts at zero in each concurrent test binary, causing development replay authority unavailable and nondeterministic coverage. Add bounded per-process uniqueness and regression tests, then rerun exact hosted quality.",
+  "next_action": "Run focused/full applicable gates again, then monitor fresh hosted Policy/Rust/AArch64 checks at exact 3aa65a51; inspect coverage and review before merge.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #579 exact head 56ca12a7 passes review and all hosted checks except coverage. Hosted is 89.99% lines; clean local is 90.27%. Investigation found a concrete shared /tmp/asb-dr-0 root collision from concurrent test binaries, so a focused fixture-isolation repair is in progress.",
-  "task_revision": 132,
+  "summary": "PR #579 exact head 3aa65a51 on protected-main base 14de8bce. Added PID plus monotonic sequence development replay fixture roots, stale-root retry, and concurrent allocator regression. Focused runtime fixture tests pass (3/3), full asb-runtime had 178 passed/1 ignored and one unrelated flaky process-boundary failure.",
+  "task_revision": 133,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:20:28+00:00",
+  "updated_at": "2026-10-11T12:20:34+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -469,3 +469,10 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T12:20:28+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T12:20:34+00:00: 2026-10-11: Hosted Policy at 56ca12a7 was 88.49% despite local 90.26%;
+  coordinator identified LocalReplayProvisioner /tmp/asb-dr-0 collisions across concurrent test
+  binaries. Signed DCO commit 3aa65a51 isolates roots as asb-dr-PID-sequence and retries stale
+  collisions. Focused launch_factory fixture tests 3/3 pass; full asb-runtime 178 passed, 1 ignored,
+  with transient process_boundary::successful_leader_cannot_leave_background_child_live failure.
+  Fresh hosted checks required.
