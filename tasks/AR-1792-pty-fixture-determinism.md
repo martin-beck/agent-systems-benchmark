@@ -9,9 +9,9 @@
   ],
   "id": "AR-1792",
   "next_action": "Promote and reproduce the hosted PTY fixture failure in a clean bound worktree; repair the underlying race without serializing or weakening coverage.",
-  "observed_branch": "",
+  "observed_branch": "codex/ar-1792-pty-fixture-determinism",
   "observed_dirty": 0,
-  "observed_head": "",
+  "observed_head": "16d8512debab5515068d285fd820e1be0751c51b",
   "owner": "codex-ar1792-pty-repair",
   "plan": "../plans/AR-1792-pty-fixture-determinism.md",
   "priority": "P0",
@@ -20,10 +20,10 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "Make development broker PTY fixture deterministic",
-  "updated_at": "2026-10-11T00:10:54+00:00",
-  "worktree_key": ""
+  "updated_at": "2026-10-11T00:11:18+00:00",
+  "worktree_key": "agent-systems-benchmark-ar-1792-pty-fixture-determinism"
 }
 ---
 
