@@ -3972,7 +3972,27 @@ fn tool_with_progress(
     })?;
     match operation {
         "install" => tool_install_with_progress(&args[1..], output, progress, human),
-        "repair" | "update" => tool_install_with_progress(&args[1..], output, progress, human),
+        "repair" | "update" => {
+            let id = args.get(1).ok_or_else(|| {
+                CliError::legacy_usage("tool repair/update requires an installed ID")
+            })?;
+            let rest = &args[2..];
+            let root = tool_project_path(rest, 0)?;
+            let config = load_tool_project(&root)?;
+            let installed = [
+                (&config.agents, ProjectToolKind::Agent),
+                (&config.harnesses, ProjectToolKind::Harness),
+                (&config.benchmarks, ProjectToolKind::Benchmark),
+                (&config.workloads, ProjectToolKind::Workload),
+                (&config.support_tools, ProjectToolKind::SupportTool),
+            ]
+            .iter()
+            .find_map(|(inventory, kind)| inventory.get(id).map(|_| *kind));
+            installed.ok_or_else(|| CliError::legacy_validation("tool ID is not installed"))?;
+            // Re-run the exact catalog selection. Publication remains
+            // transactional, so failed repair/update retains the prior record.
+            tool_install_with_progress(&args[1..], output, progress, human)
+        }
         "list" => tool_inventory(&args[1..], output),
         "discover" => tool_discovery(&args[1..], output),
         "status" => tool_status(&args[1..], output),
@@ -4533,7 +4553,21 @@ fn tool_install_with_progress(
     }
     write_json(
         output,
-        &serde_json::json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "tool install", "id": id, "kind": kind, "path": path, "digest_sha256": digest, "dry_run": false}),
+        &serde_json::json!({
+            "schema_version": OUTPUT_SCHEMA_VERSION,
+            "ok": true,
+            "command": "tool install",
+            "id": id,
+            "kind": kind,
+            "selection": if catalog_entry.is_some() { "catalog" } else { "development-import" },
+            "source": source_ref,
+            "build": if catalog_entry.as_ref().is_some_and(|entry| entry.build_recipes.len() > 0) { "pinned-source-fallback" } else { "verified-artifact" },
+            "reused": !created_destination,
+            "path": path,
+            "digest_sha256": digest,
+            "dry_run": false,
+            "next": format!("run `asb tool status {id} --project PATH` to inspect the verified installation")
+        }),
     )
 }
 
