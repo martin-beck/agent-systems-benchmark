@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Run coverage/full applicable gates and monitor PR #576 hosted checks at exact head ec566dfd.",
+  "next_action": "Monitor PR #576 hosted checks at exact head ec566dfd to terminal result; repair only concrete failures.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #576 exact head ec566dfd; fail-closed source/archive repair pushed; focused and full asb-cli tests pass",
-  "task_revision": 111,
+  "summary": "PR #576 exact head ec566dfd; fail-closed source/archive repair pushed; focused/full tests and 90.28% workspace coverage pass",
+  "task_revision": 112,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:25:47+00:00",
+  "updated_at": "2026-10-11T11:27:45+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -396,3 +396,7 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T11:25:47+00:00: Recorded command exit 0; command argv SHA-256
   4c01cd291136d9f617724980f48525c5b9a2f531e929973bfe0189a1e1890d75.
+
+- 2026-10-11T11:27:45+00:00: 2026-10-11T11:48Z local evidence: cargo fmt, focused acquisition 13/13,
+  full asb-cli lib 362+1, and workspace check_coverage passed (90.28% line coverage; 97,676/9,491).
+  Hosted PR #576 checks are newly running at exact ec566dfd; no-force policy preserved.
