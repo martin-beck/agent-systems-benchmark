@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Await required checks for superseding PR #574 at fc4e8c9d (base af75cd06); then obtain independent exact-head review, merge only through signed local merge-integrity, and verify exact-main workflows.",
+  "next_action": "Repair PR #574 coverage floor failure (workspace 89.99%) with bounded tests or equivalent coverage improvement; rerun Rust/policy/full gates, then review and local signed merge.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair",
   "observed_dirty": 216,
   "observed_head": "62951d5629fae89653497545952247c0cbed382f",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root.",
-  "task_revision": 66,
+  "task_revision": 67,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T10:22:53+00:00",
+  "updated_at": "2026-10-11T10:30:46+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -174,3 +174,6 @@ reporting contract when available while keeping machine-mode output safe.
 - 2026-10-11T10:22:53+00:00: Clean-topic/superseding workflow created PR #574 at signed/DCO head
   fc4e8c9d after PR #571 conflict. Local focused/full asb-cli gates pass; hosted checks pending. No
   force-push or merge performed.
+
+- 2026-10-11T10:30:46+00:00: Exact-head PR #574 fc4e8c9 is based on af75cd06 and all checks except
+  Policy coverage and Rust are successful; Policy reports 89.99% workspace lines, no merge yet.
