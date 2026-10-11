@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Make online execution the default across ASB workflows",
-  "updated_at": "2026-10-11T02:17:38+00:00",
+  "updated_at": "2026-10-11T02:17:46+00:00",
   "worktree_key": ""
 }
 ---
@@ -46,3 +46,6 @@ production authority checks.
   released/current; promote for canonical online-default integration.
 
 - 2026-10-11T02:17:38+00:00: Claimed by codex-ar1754-online-integration.
+
+- 2026-10-11T02:17:46+00:00: Recorded command exit 0; command argv SHA-256
+  904023b98f9c92c714e92042ea44849c3dc5cd79aee9bc2c4f6c2da4145ad191.
