@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head f299ef1c has bounded allocator/clippy fixes but full CLI and hosted Credential-free still fail replay authority. Investigation points to AF_UNIX path overflow from the new PID-scoped root plus digest-named relay socket; repair worker is validating and fixing this.",
-  "task_revision": 147,
+  "task_revision": 148,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:32:32+00:00",
+  "updated_at": "2026-10-11T12:32:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -524,3 +524,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T12:32:32+00:00: Recorded command exit 0; command argv SHA-256
   700f6fdddcc93d6be7bd47b1d169dda4fe6859f8752d4c2b967df3645c4a359f.
+
+- 2026-10-11T12:32:47+00:00: Recorded command exit 0; command argv SHA-256
+  15ba3a41c837c91311303c22c83caea2bb631caad71ee2ce32f5d07adb9f5e8b.
