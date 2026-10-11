@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Run focused/full applicable gates again, then monitor fresh hosted Policy/Rust/AArch64 checks at exact 3aa65a51; inspect coverage and review before merge.",
+  "next_action": "Run fresh full applicable gates and monitor hosted Policy/Rust/AArch64 at exact 1cac935c; inspect any failures before review/merge.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #579 exact head 3aa65a51 on protected-main base 14de8bce. Added PID plus monotonic sequence development replay fixture roots, stale-root retry, and concurrent allocator regression. Focused runtime fixture tests pass (3/3), full asb-runtime had 178 passed/1 ignored and one unrelated flaky process-boundary failure.",
-  "task_revision": 137,
+  "summary": "PR #579 exact head 1cac935c on protected-main base 14de8bce. PID plus monotonic sequence replay fixture roots, stale-root retry, concurrent allocator and stale-root regression tests. Focused launch_factory fixture suite 4/4 passes; full asb-runtime prior run 178 passed/1 ignored with one unrelated flaky process-boundary failure.",
+  "task_revision": 138,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:21:37+00:00",
+  "updated_at": "2026-10-11T12:21:53+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -488,3 +488,9 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T12:21:37+00:00: Recorded command exit 0; command argv SHA-256
   15ba3a41c837c91311303c22c83caea2bb631caad71ee2ce32f5d07adb9f5e8b.
+
+- 2026-10-11T12:21:53+00:00: 2026-10-11: Added explicit stale-root negative test; focused
+  launch_factory::tests::development_fixture suite now 4/4, including parallel uniqueness, stale
+  collision retry, cleanup, and invalid digest no-allocation. Signed DCO product commits 3aa65a51
+  and 1cac935c pushed to PR579. Full runtime prior run had transient process_boundary
+  background-child failure; rerun required.
