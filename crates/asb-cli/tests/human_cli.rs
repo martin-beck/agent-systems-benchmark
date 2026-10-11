@@ -281,7 +281,7 @@ fn ar1769_executable_diagnostic_matrix_covers_public_failure_boundaries() {
             "provider-plan",
             vec!["--details".into(), "provider-plan".into()],
             3,
-            "required input",
+            "provider profile is absent",
         ),
         (
             "tui-lifecycle",
