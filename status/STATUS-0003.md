@@ -1458,6 +1458,20 @@
 | Summary | Repair cli2key so an installed pinned bridge receives a runtime-issued sidecar launch and can execute a development ASB benchmark. |
 | Next action | Wire the verified project-local cli2key bridge into the runtime-owned sidecar launch path, then qualify fake and opt-in live benchmark execution without exposing credentials. |
 
+### AR-1798 — Pinned source-checkout acquisition
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance. |
+| Next action | Implement the bounded immutable source-checkout provider required by AR-1778 and consume it from AR-1779. |
+
 
 ## Dependency graph
 
@@ -2314,6 +2328,7 @@ flowchart LR
         AR_1795["AR-1795 - Done"]:::status_done
         AR_1796["AR-1796 - In progress"]:::status_in_progress
         AR_1797["AR-1797 - Planned"]:::status_planned
+        AR_1798["AR-1798 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4250,8 +4265,10 @@ flowchart LR
     AR_1776 --> AR_1777
     AR_1776 --> AR_1778
     AR_1776 --> AR_1784
+    AR_1776 --> AR_1798
     AR_1777 --> AR_1779
     AR_1778 --> AR_1779
+    AR_1778 --> AR_1798
     AR_1779 --> AR_1780
     AR_1779 --> AR_1797
     AR_1781 --> AR_1782
@@ -4336,4 +4353,3 @@ flowchart LR
 | [AR-0512](../tasks/AR-0512-replay-goose.md) | [AR-0307](../tasks/AR-0307-agent-goose.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0513](../tasks/AR-0513-replay-miniswe.md) | [AR-0308](../tasks/AR-0308-agent-mini-swe.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0514](../tasks/AR-0514-replay-openhands.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
-| [AR-0515](../tasks/AR-0515-replay-matrix.md) | [AR-0506](../tasks/AR-0506-replay-opencode.md), [AR-0507](../tasks/AR-0507-replay-opendesk.md), [AR-0508](../tasks/AR-0508-replay-aider.md), [AR-0509](../tasks/AR-0509-replay-codex.md), [AR-0510](../tasks/AR-0510-replay-gemini.md), [AR-0511](../tasks/AR-0511-replay-qwen.md), [AR-0512](../tasks/AR-0512-replay-goose.md), [AR-0513](../tasks/AR-0513-replay-miniswe.md), [AR-0514](../tasks/AR-0514-replay-openhands.md) | None |
