@@ -26,8 +26,6 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `.asb-ar1768-merge` | `DETACHED` | `dc6739049480` | 0 | behind 200, ahead 0 |
 | `.asb-ar1770-merge` | `DETACHED` | `31f52d75f006` | 0 | behind 210, ahead 0 |
 | `.asb-ar1771-merge` | `DETACHED` | `fd61b856570b` | 0 | behind 151, ahead 0 |
-| `.asb-coverage-701` | `DETACHED` | `7019409f45a7` | 54 | behind 18, ahead 0 |
-| changed files | - | - | - | `crates/asb-cli/default_5457504961782656023_0_2376746.profraw`, `crates/asb-cli/default_5457504961782656023_0_2376749.profraw`, `crates/asb-cli/default_5457504961782656023_0_2376752.profraw`, `crates/asb-cli/default_5457504961782656023_0_2376755.profraw`, `crates/asb-cli/default_5457504961782656023_0_2376843.profraw`, `crates/asb-cli/default_5457504961782656023_0_2376859.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377088.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377091.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377151.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377164.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377195.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377214.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377267.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377272.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377273.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377274.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377277.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377278.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377279.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377280.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377285.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377291.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377325.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377403.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377412.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377423.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377435.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377439.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377448.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377450.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377499.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377527.profraw`, `crates/asb-cli/default_5457504961782656023_0_2377554.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378048.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378057.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378109.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378120.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378125.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378134.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378141.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378146.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378161.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378169.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378177.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378186.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378199.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378205.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378213.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378222.profraw`, `crates/asb-cli/default_5457504961782656023_0_2378235.profraw` |
 | `.asb-rebase-446` | `DETACHED` | `0559c6f268db` | 0 | behind 494, ahead 4 |
 | `.asb-rebase-448` | `DETACHED` | `58d108d9192a` | 0 | behind 492, ahead 0 |
 | `.asb-rebase-450` | `DETACHED` | `1b245632c957` | 0 | behind 493, ahead 2 |
@@ -36,8 +34,6 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `.review-ar1761-537` | `DETACHED` | `95e540be95d2` | 0 | behind 227, ahead 0 |
 | `.review-ar1761-537-v2` | `DETACHED` | `fe6aa7c346e5` | 0 | behind 218, ahead 0 |
 | `.review-ar1762-536` | `DETACHED` | `26161a060868` | 0 | behind 232, ahead 0 |
-| `.review-ar1766` | `DETACHED` | `f065eed1b054` | 0 | behind 216, ahead 0 |
-| `.review-ar1766-repair` | `DETACHED` | `b8ae2dc60a71` | 0 | behind 215, ahead 0 |
 | `_ar1615-asb` | `DETACHED` | `1521b9800bf4` | 0 | behind 528, ahead 0 |
 | `_ar1615-asb62` | `DETACHED` | `62fda2f3417b` | 0 | behind 526, ahead 0 |
 | `a17b` | `DETACHED` | `dd10b075c065` | 0 | behind 372, ahead 0 |
@@ -55,37 +51,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-agent-runtime-bundles` | `feature/agent-runtime-bundles` | `1249fd87d46d` | 0 | behind 626, ahead 132 |
 | `agent-systems-benchmark-aider-deterministic-replay` | `fix/aider-deterministic-replay` | `87a22654913a` | 0 | behind 626, ahead 99 |
 | `agent-systems-benchmark-all-agents-provider` | `feature/all-agents-provider` | `03962f28571e` | 0 | behind 626, ahead 136 |
-| `agent-systems-benchmark-ar-1698-current-head` | `codex/ar-1698-current-head` | `f090de56710d` | 0 | behind 100, ahead 0 |
-| `agent-systems-benchmark-ar-1701-recording` | `codex/ar-1701-recording` | `f090de56710d` | 0 | behind 100, ahead 0 |
-| `agent-systems-benchmark-ar-1712-handoff` | `codex/ar-1712-handoff` | `f090de56710d` | 0 | behind 100, ahead 0 |
-| `agent-systems-benchmark-ar-1716-recording-fence` | `DETACHED` | `3031428aab47` | 0 | behind 71, ahead 0 |
-| `agent-systems-benchmark-ar-1723` | `codex/ar-1723-easy-online` | `5739f6674cc5` | 0 | behind 101, ahead 0 |
-| `agent-systems-benchmark-ar-1724-easy-sweep` | `codex/ar-1724-easy-sweep-online` | `70f20a9f1f5d` | 0 | behind 97, ahead 0 |
-| `agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install` | `docs/ar-1725-quickstart-platform-install` | `695f1335c4ed` | 0 | behind 81, ahead 2 |
-| `agent-systems-benchmark-ar-1725-v2` | `docs/ar-1725-quickstart-platform-install-v2` | `8028fd66f26d` | 0 | behind 76, ahead 0 |
-| `agent-systems-benchmark-ar-1736-backend-model-catalog` | `codex/ar-1736-backend-model-catalog` | `fa1940c0b9b1` | 0 | behind 78, ahead 0 |
-| `agent-systems-benchmark-ar-1736-integration` | `DETACHED` | `4cb87998c133` | 0 | behind 77, ahead 0 |
-| `agent-systems-benchmark-ar-1754-merge` | `DETACHED` | `8e4dc926d4b8` | 0 | behind 84, ahead 0 |
-| `agent-systems-benchmark-ar-1754-online` | `codex/ar-1754-online-integration` | `0dcd147261d4` | 0 | behind 85, ahead 0 |
-| `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `2521df12cc31` | 0 | behind 82, ahead 0 |
-| `agent-systems-benchmark-ar-1777-current` | `feature/ar-1777-verified-tool-current` | `d30079b7188e` | 0 | behind 8, ahead 0 |
-| `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2` | `0a389a2f8aa3` | 0 | behind 50, ahead 15 |
-| `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `ec566dfdcde2` | 0 | behind 50, ahead 18 |
-| `agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies` | `feature/ar-1778-pinned-source-build-and-project-dependencies` | `1c11b88d2790` | 0 | behind 58, ahead 0 |
-| `agent-systems-benchmark-ar-1779-default-usable-tool-install-command` | `feature/ar-1779-default-usable-tool-install-command` | `7c08cfb019ee` | 0 | behind 3, ahead 3 |
-| `agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog` | `feature/ar-1781-external-workload-acquisition-catalog` | `286cccd6d7c0` | 0 | behind 51, ahead 0 |
-| `agent-systems-benchmark-ar-1782-verified-asb-workload-installation` | `feature/ar-1782-verified-asb-workload-installation` | `a1090297dede` | 1 | behind 3, ahead 1 |
-| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog_compact.rs` |
-| `agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight` | `feature/ar-1784-command-dependency-registry-and-preflight` | `e85e6872f055` | 1 | behind 50, ahead 11 |
-| changed files | - | - | - | `docs/examples/asb-cli-workflow-v1.provenance.json` |
-| `agent-systems-benchmark-ar-1784-command-dependency-registry-clean` | `feature/ar-1784-command-dependency-registry-clean` | `b8a1d6a14cea` | 0 | behind 35, ahead 0 |
-| `agent-systems-benchmark-ar-1793-human-diagnostic-output-parent` | `feature/ar-1793-human-diagnostic-output-parent` | `e85e6872f055` | 0 | behind 50, ahead 11 |
-| `agent-systems-benchmark-ar-1793-human-diagnostic-output-parent-v2` | `DETACHED` | `a89dd44ea978` | 0 | behind 3, ahead 0 |
-| `agent-systems-benchmark-ar-1794-forward-merge` | `DETACHED` | `06514c0622c4` | 0 | behind 5, ahead 0 |
-| `agent-systems-benchmark-ar-1794-protected-main-merge-path` | `repair/ar-1794-protected-main-merge-path` | `198bf86975f6` | 0 | behind 50, ahead 1 |
-| `agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition` | `feature/ar-1798-pinned-source-checkout-acquisition` | `b305ff826c1f` | 0 | behind 0, ahead 1 |
-| `agent-systems-benchmark-ar1710` | `codex/ar1710-provider-model-readiness` | `c059e9a63dbc` | 0 | behind 79, ahead 0 |
-| `agent-systems-benchmark-ar1786-repair-luna56` | `codex/ar-1786-control-state-protected-current` | `a5e589544f6d` | 0 | behind 80, ahead 0 |
+| `agent-systems-benchmark-ar-1782-verified-asb-workload-installation` | `feature/ar-1782-verified-asb-workload-installation` | `9f6e21421e39` | 0 | behind 0, ahead 5 |
+| `agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition` | `feature/ar-1798-pinned-source-checkout-acquisition` | `ce16703c2ad7` | 0 | behind 0, ahead 11 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 626, ahead 326 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
 | `agent-systems-benchmark-asb-tui-capabilities-command` | `feature/asb-tui-capabilities-command` | `d60d23510044` | 0 | behind 626, ahead 323 |
@@ -268,14 +235,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `ar1652-asb` | `ar-1652-record-replay` | `edd9ee0d19b4` | 0 | behind 496, ahead 1 |
 | `ar1653-asb` | `ar-1653-dev-channel` | `b7be789fdf51` | 0 | behind 495, ahead 0 |
 | `ar1689-asb-fix` | `repair/ar-1678-tui-host-preflight` | `a186357977ad` | 0 | behind 455, ahead 0 |
-| `ar1777-review-0efe01f7` | `DETACHED` | `0efe01f79342` | 0 | behind 19, ahead 0 |
 | `ar1777-review-1cac935c` | `DETACHED` | `1cac935c9bd0` | 0 | behind 14, ahead 0 |
-| `ar1777-review-2fc8b428` | `DETACHED` | `2fc8b428bfbc` | 0 | behind 12, ahead 0 |
 | `ar1777-review-3aa65a51` | `DETACHED` | `3aa65a514547` | 0 | behind 15, ahead 0 |
-| `ar1777-review-56ca12a7` | `DETACHED` | `56ca12a79ec3` | 0 | behind 16, ahead 0 |
-| `ar1777-review-7019409f` | `DETACHED` | `7019409f45a7` | 0 | behind 18, ahead 0 |
-| `ar1777-review-79c21f62` | `DETACHED` | `79c21f62b68e` | 0 | behind 17, ahead 0 |
-| `ar1777-review-f299ef1c` | `DETACHED` | `f299ef1c23d9` | 0 | behind 13, ahead 0 |
 | `ar1781-review-198bf869` | `DETACHED` | `198bf86975f6` | 0 | behind 50, ahead 1 |
 | `ar1781-review-323aa8c2` | `DETACHED` | `323aa8c26374` | 0 | behind 33, ahead 0 |
 | `ar442-review` | `DETACHED` | `1f86b19fb9a1` | 0 | behind 509, ahead 0 |
@@ -308,25 +269,20 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-merge-575` | `DETACHED` | `14de8bce040e` | 0 | behind 34, ahead 0 |
 | `asb-post-568` | `DETACHED` | `d64ac90ad96a` | 0 | behind 57, ahead 0 |
 | `asb-pr1777-review.pqgKnj` | `DETACHED` | `d30079b7188e` | 0 | behind 8, ahead 0 |
-| `asb-pr492-review` | `repair/pr492-coverage-cleanup` | `358bd9a2816f` | 0 | behind 355, ahead 0 |
 | `asb-pr499-rereview-d9ef0bc` | `DETACHED` | `d9ef0bce9bf6` | 0 | behind 342, ahead 0 |
 | `asb-pr500-rereview-420b57d` | `DETACHED` | `420b57d20a6c` | 0 | behind 342, ahead 0 |
 | `asb-pr501-review-0714b0e` | `DETACHED` | `0714b0e96c45` | 0 | behind 340, ahead 0 |
 | `asb-pr502-review-40f618b` | `DETACHED` | `40f618b9389c` | 0 | behind 333, ahead 0 |
 | `asb-pr509-integration` | `DETACHED` | `9aeea48c4041` | 0 | behind 321, ahead 0 |
 | `asb-pr509-postmerge` | `DETACHED` | `9aeea48c4041` | 0 | behind 321, ahead 0 |
-| `asb-pr579-review-new` | `DETACHED` | `67d28a610016` | 0 | behind 9, ahead 0 |
 | `asb-pr580-review.8Gxz0i` | `DETACHED` | `f20f7bf26a12` | 0 | behind 4, ahead 0 |
 | `asb218-asb` | `DETACHED` | `62fda2f3417b` | 0 | behind 526, ahead 0 |
 | `agent-systems-benchmark-ar-1498` | `feature/ar-1498-authenticated-lifecycle-executor` | `55ff13fb6cb2` | 0 | behind 626, ahead 1275 |
 | `agent-systems-benchmark-ar-1499` | `feature/ar-1499-development-credential-enrollment` | `0a2f6e9c74f9` | 0 | behind 626, ahead 1280 |
 | `ar1722-receipt-worker.ObeqHt` | `DETACHED` | `ac6557038cc3` | 0 | behind 368, ahead 0 |
 | `ar1784-baseline` | `DETACHED` | `4245b4a1046c` | 0 | behind 63, ahead 0 |
-| `asb-ar1652-review-20261007` | `DETACHED` | `0c4ba0c721d0` | 0 | behind 352, ahead 1 |
 | `asb-ar1704-integration` | `DETACHED` | `4dfc1e07f424` | 0 | behind 130, ahead 0 |
 | `asb-ar1709-integration` | `DETACHED` | `2c6f3083504c` | 0 | behind 127, ahead 0 |
-| `asb-ar1715-live-qualification` | `DETACHED` | `b79ad1597a1c` | 5 | behind 122, ahead 0 |
-| changed files | - | - | - | `config-home/`, `live-selected.toml`, `provider-catalog.json`, `selected.toml`, `selection.json` |
 | `asb-ar1725-base` | `DETACHED` | `fa9e0c6c9e71` | 0 | behind 81, ahead 0 |
 | `asb-ar1743-integration` | `DETACHED` | `507559f636e0` | 0 | behind 315, ahead 0 |
 | `asb-ar1743-postmerge` | `DETACHED` | `fd956d857970` | 0 | behind 313, ahead 0 |
@@ -334,7 +290,6 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-ar1746-postmerge` | `DETACHED` | `2f52ecbaf79a` | 0 | behind 296, ahead 0 |
 | `asb-ar1765-merge.X54pFB` | `DETACHED` | `3cd8ae24048d` | 0 | behind 143, ahead 0 |
 | `asb-ar1781-repair2` | `repair/ar-1781-provenance-descendant-v2` | `323aa8c26374` | 0 | behind 33, ahead 0 |
-| `asb-main-verify.FEM1UX` | `DETACHED` | `856294553f2f` | 0 | behind 352, ahead 0 |
 | `asb-merge-568` | `DETACHED` | `4245b4a1046c` | 0 | behind 63, ahead 0 |
 | `asb-post-568` | `DETACHED` | `d64ac90ad96a` | 0 | behind 57, ahead 0 |
 | `asb-pr496-review.3ZigFi` | `DETACHED` | `dc5a635fd37f` | 0 | behind 349, ahead 1 |
@@ -343,4 +298,6 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-pr512-integration` | `DETACHED` | `1ab175c30eb0` | 0 | behind 309, ahead 0 |
 | `asb-pr513-integration` | `DETACHED` | `5e8e5b7fdb04` | 0 | behind 298, ahead 0 |
 | `asb-pr579-review.dr6fId` | `DETACHED` | `67d28a610016` | 0 | behind 9, ahead 0 |
+| `asb-pr584-review.mSyp` | `DETACHED` | `16c9bbd9f060` | 0 | behind 0, ahead 3 |
+| `asb-pr585-review.f6IY` | `DETACHED` | `1436bb035864` | 0 | behind 0, ahead 8 |
 | `policy-asb-review` | `codex/development-review-identity-asb` | `589e218f64a4` | 0 | behind 374, ahead 0 |

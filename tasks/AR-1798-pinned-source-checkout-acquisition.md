@@ -11,7 +11,7 @@
   "next_action": "Monitor fresh exact-head CI for e25983f6 and obtain independent re-review; do not merge.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "observed_dirty": 0,
-  "observed_head": "b305ff826c1f06da84205e2f32899291b976ebc7",
+  "observed_head": "ce16703c2ad73d227f6f507303dd7623302a7b74",
   "owner": "ar1798-source-checkout-luna56",
   "plan": "../plans/AR-1798-pinned-source-checkout-acquisition.md",
   "priority": "P0",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair pushed at e25983f6; regenerated 270 reviewed legacy diagnostic callsite identities and passed diagnostic contract.",
-  "task_revision": 59,
+  "task_revision": 60,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:56:38+00:00",
+  "updated_at": "2026-10-11T14:56:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---

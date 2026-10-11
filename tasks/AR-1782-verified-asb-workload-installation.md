@@ -9,8 +9,8 @@
   "id": "AR-1782",
   "next_action": "PR #584 exact remote head d40c5cfd; local focused provenance/diagnostic/hostile archive tests and all 381 asb-cli library tests pass. Poll exact-head CI; independently review; do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
-  "observed_dirty": 1,
-  "observed_head": "a1090297dede4412bcf1487d2d7bc00315c69dc5",
+  "observed_dirty": 0,
+  "observed_head": "9f6e21421e39a8b7947ee10f72ff74c4d45cb546",
   "owner": "ar1782_workload_install_luna56",
   "plan": "../plans/AR-1782-verified-asb-workload-installation.md",
   "priority": "P0",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 50,
+  "task_revision": 51,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T14:56:15+00:00",
+  "updated_at": "2026-10-11T14:56:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
