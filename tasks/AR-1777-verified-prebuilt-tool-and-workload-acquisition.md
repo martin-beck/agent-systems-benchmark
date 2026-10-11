@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head d30079b7: credential-channel command construction is tested even when hosted bwrap is unavailable; source/archive validation remains hardened.",
-  "task_revision": 176,
+  "task_revision": 177,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T13:18:12+00:00",
+  "updated_at": "2026-10-11T13:18:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -623,3 +623,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T13:18:12+00:00: Recorded command exit 1; command argv SHA-256
   8cd334158e1bac6da2e0aeede5b3c6302480ab8bcca76ba545e8a772540d1a64.
+
+- 2026-10-11T13:18:47+00:00: Recorded command exit 0; command argv SHA-256
+  d63d92ce64a8d4d7abb22cea588444f8a99231a5452ecea2c2d3e79f6579091b.
