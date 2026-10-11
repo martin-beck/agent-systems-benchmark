@@ -16,13 +16,21 @@
   "plan": "../plans/AR-1724-easy-sweep-default-online.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "contract-test",
+    "evidence_digest": "sha256:079af97cb3027afdc3a0922e29111c73d256be7bbf98bb80e9699bb072c98468",
+    "evidence_ref": "quality/AR-1724-postmerge-receipt.json",
+    "spec_ref": "specs/AR-1724.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1724.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Extend the simple default-online journey to bounded selected/all agent and workload sweeps with explicit mock and replay alternatives.",
-  "task_revision": 41,
+  "task_revision": 42,
   "title": "Make the easy sweep default to online provider execution",
-  "updated_at": "2026-10-11T02:17:03+00:00",
+  "updated_at": "2026-10-11T02:17:17+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1724-easy-sweep"
 }
 ---
@@ -130,3 +138,6 @@ management remain warning-only and never block setup.
 
 - 2026-10-11T02:17:03+00:00: Recorded command exit 0; command argv SHA-256
   81a35b50a930f88be6b8482bcc0323a62c0bd2798743574df9d22dbae0d57318.
+
+- 2026-10-11T02:17:17+00:00: Accepted exact signed merge a31232f4, 341 local post-merge CLI tests,
+  and all 10 exact-main workflows terminal-success.
