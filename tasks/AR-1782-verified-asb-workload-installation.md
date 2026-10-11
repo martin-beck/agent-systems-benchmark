@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "PR #584 exact remote head 16c9bbd9; fresh CI has AWQ, headers, provenance, Kani, Loom, retained-faults passing; remaining required checks pending. Independently review; do not merge until all required checks pass.",
+  "next_action": "PR #584 exact remote head d40c5cfd; local focused provenance/diagnostic/hostile archive tests and all 381 asb-cli library tests pass. Poll exact-head CI; independently review; do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 1,
   "observed_head": "a1090297dede4412bcf1487d2d7bc00315c69dc5",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 46,
+  "task_revision": 47,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T14:51:47+00:00",
+  "updated_at": "2026-10-11T14:52:32+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -173,3 +173,7 @@ remain mandatory.
 
 - 2026-10-11T14:51:47+00:00: Recorded command exit 0; command argv SHA-256
   ac3e505f30fd620a7c294d45f78bcf244146c7ac1be401dd8c78fa01c13f8abb.
+
+- 2026-10-11T14:52:32+00:00: Repair d40c5cfd signed+DCO hardens archive safety, mandatory
+  digest/proof/license/preparation validation, rollback, hostile lifecycle tests, and refreshes
+  provenance/catalog.

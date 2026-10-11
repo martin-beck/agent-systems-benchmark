@@ -1246,7 +1246,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement dedicated verified remote external workload installation and lifecycle through asb workload. |
-| Next action | PR #584 exact remote head 16c9bbd9; fresh CI has AWQ, headers, provenance, Kani, Loom, retained-faults passing; remaining required checks pending. Independently review; do not merge until all required checks pass. |
+| Next action | PR #584 exact remote head d40c5cfd; local focused provenance/diagnostic/hostile archive tests and all 381 asb-cli library tests pass. Poll exact-head CI; independently review; do not merge. |
 
 ### AR-1783 — Installed workload selection and execution
 
