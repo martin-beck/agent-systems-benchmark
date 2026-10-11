@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head 1cac935c on protected-main base 14de8bce. PID plus monotonic sequence replay fixture roots, stale-root retry, concurrent allocator and stale-root regression tests. Focused launch_factory fixture suite 4/4 passes; full asb-runtime prior run 178 passed/1 ignored with one unrelated flaky process-boundary failure.",
-  "task_revision": 138,
+  "task_revision": 139,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:21:53+00:00",
+  "updated_at": "2026-10-11T12:21:59+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -494,3 +494,6 @@ reporting contract when available while keeping machine-mode output safe.
   collision retry, cleanup, and invalid digest no-allocation. Signed DCO product commits 3aa65a51
   and 1cac935c pushed to PR579. Full runtime prior run had transient process_boundary
   background-child failure; rerun required.
+
+- 2026-10-11T12:21:59+00:00: Recorded command exit 0; command argv SHA-256
+  422de929f35a13a7206d8a95352061502a93f1785f7694e5184458196cd08b15.
