@@ -17,9 +17,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only.",
-  "task_revision": 21,
+  "task_revision": 22,
   "title": "Make the easy run default to online provider execution",
-  "updated_at": "2026-10-11T01:01:41+00:00",
+  "updated_at": "2026-10-11T01:02:15+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1723"
 }
 ---
@@ -86,3 +86,6 @@ requested; live failures never silently select mock or replay.
 
 - 2026-10-11T01:01:41+00:00: Recorded command exit 0; command argv SHA-256
   a03671fa8a3a9506d3b87cbd36454ba3c645501c7ac96ab784e224ef26e168ec.
+
+- 2026-10-11T01:02:15+00:00: Recorded command exit 101; command argv SHA-256
+  c15440b1a7a7abd04342ad6b8365a6e903d12fa266d6292ac93aba9b18750f88.
