@@ -66,7 +66,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1754-merge` | `DETACHED` | `8e4dc926d4b8` | 0 | behind 27, ahead 0 |
 | `agent-systems-benchmark-ar-1754-online` | `codex/ar-1754-online-integration` | `0dcd147261d4` | 0 | behind 28, ahead 0 |
 | `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `2521df12cc31` | 0 | behind 25, ahead 0 |
-| `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `beea986122d3` | 0 | behind 0, ahead 7 |
+| `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `beea986122d3` | 2 | behind 0, ahead 7 |
+| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog.rs`, `crates/asb-cli/src/lib.rs` |
 | `agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies` | `feature/ar-1778-pinned-source-build-and-project-dependencies` | `1c11b88d2790` | 0 | behind 1, ahead 0 |
 | `agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight` | `feature/ar-1784-command-dependency-registry-and-preflight` | `af940cddad98` | 7 | behind 14, ahead 1 |
 | changed files | - | - | - | `crates/asb-analysis/src/comparison.rs`, `crates/asb-cli/src/diagnostic_legacy_catalog.rs`, `crates/asb-cli/src/lib.rs`, `crates/asb-cli/src/source_builder.rs`, `crates/asb-cli/src/tool_catalog.rs`, `docs/PROJECT_TOOLS.md`, `docs/examples/asb-cli-workflow-v1.provenance.json` |
