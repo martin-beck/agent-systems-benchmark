@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Signed repair 37fcf269 pushed; PR #571 conflicts with advanced main and has no new hosted checks",
-  "task_revision": 85,
+  "task_revision": 86,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T10:47:18+00:00",
+  "updated_at": "2026-10-11T10:47:23+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -297,3 +297,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T10:47:18+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T10:47:23+00:00: Recorded command exit 0; command argv SHA-256
+  f7773a4cd2146701662b491a0f04721741d5b3e60cd93b9229ddccd353a0ff30.
