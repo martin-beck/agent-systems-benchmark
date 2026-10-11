@@ -203,7 +203,25 @@ pub fn read_local(id: &str, path: &Path) -> Result<VerifiedArtifact, Acquisition
         return Err(AcquisitionError::UnsafeArtifact);
     }
     let bytes = fs::read(path).map_err(|_| AcquisitionError::Unavailable)?;
-    verify_bytes(id, format!("local:{}", path.display()), bytes)
+    let source_ref = format!("local:{}", path.display());
+    match verify_bytes(id, source_ref.clone(), bytes.clone()) {
+        Ok(artifact) => Ok(artifact),
+        Err(AcquisitionError::UnknownTool) => {
+            // Explicit local sources retain the deterministic fixture
+            // lifecycle used by offline tests without making fixture IDs
+            // part of the official acquisition catalog.
+            let fixture =
+                fixture(&format!("fixture://{id}")).ok_or(AcquisitionError::UnknownTool)?;
+            if fixture.bytes != bytes {
+                return Err(AcquisitionError::DigestMismatch);
+            }
+            Ok(VerifiedArtifact {
+                source_ref,
+                ..fixture
+            })
+        }
+        Err(error) => Err(error),
+    }
 }
 
 #[cfg(unix)]
@@ -304,6 +322,26 @@ mod tests {
         assert!(matches!(
             read_local("codex", temporary.path()),
             Err(AcquisitionError::UnsafeArtifact)
+        ));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn local_fixture_acquisition_allows_uncatalogued_ids_only_for_matching_bytes() {
+        let temporary = tempfile::NamedTempFile::new().unwrap();
+        let fixture = fixture("fixture://matrix").unwrap();
+        fs::write(temporary.path(), &fixture.bytes).unwrap();
+        fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let artifact = read_local("matrix", temporary.path()).unwrap();
+        assert_eq!(
+            artifact.source_ref,
+            format!("local:{}", temporary.path().display())
+        );
+
+        fs::write(temporary.path(), b"not the reviewed fixture").unwrap();
+        assert!(matches!(
+            read_local("matrix", temporary.path()),
+            Err(AcquisitionError::DigestMismatch)
         ));
     }
 }
