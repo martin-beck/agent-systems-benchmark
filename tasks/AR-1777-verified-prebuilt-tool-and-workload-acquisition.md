@@ -3,7 +3,9 @@
   "branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1776"],
+  "depends_on": [
+    "AR-1776"
+  ],
   "id": "AR-1777",
   "next_action": "Implement catalog-driven verified compatible-binary reuse and official prebuilt executable-tool acquisition into project-local storage.",
   "observed_branch": "",
@@ -13,14 +15,21 @@
   "plan": "../plans/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "contract-test", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1777.json", "spec_revision": 1, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "contract-test",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1777.json",
+    "spec_revision": 1,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-10T09:49:36+00:00",
+  "updated_at": "2026-10-11T08:19:13+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -40,3 +49,6 @@ offline/unavailable source must be separately diagnosed and leave the previous
 usable installation intact. Do not execute downloaded installer scripts, require
 root, persist credentials, or use a package manager. Use the shared human status
 reporting contract when available while keeping machine-mode output safe.
+
+- 2026-10-11T08:19:13+00:00: AR-1776 dependency is accepted on protected main; open AR-1777 for
+  implementation.
