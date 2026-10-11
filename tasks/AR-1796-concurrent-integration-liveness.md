@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-11T15:47:17+00:00",
   "depends_on": [],
   "id": "AR-1796",
-  "next_action": "Wire the reviewed publication-job primitive into the fast publisher, then run independent and formal verification.",
+  "next_action": "Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release.",
   "observed_branch": "policy/concurrent-integration-liveness",
   "observed_dirty": 0,
   "observed_head": "",
@@ -15,9 +15,9 @@
   "schema_version": 1,
   "status": "in_progress",
   "summary": "Keep autonomous development live during concurrent protected-main integration.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "Concurrent integration liveness",
-  "updated_at": "2026-10-11T13:47:17+00:00",
+  "updated_at": "2026-10-11T13:47:19+00:00",
   "worktree_key": ""
 }
 ---
@@ -40,3 +40,7 @@ workers checkpoint, retry, and continue useful work during integration churn.
   initialize a JVM because the host returns pthread_create EAGAIN before parsing.
 
 - 2026-10-11T13:47:17+00:00: Heartbeat by codex-ar1796-integration-liveness.
+
+- 2026-10-11T13:47:19+00:00: PR #1226 merged as 31a7e14; required CI, independent review, and
+  canonical exact-head pr-fast attestation 38144510163 passed. Release remains pending the
+  documented full-exhaustive gate.

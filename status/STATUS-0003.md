@@ -1442,7 +1442,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Keep autonomous development live during concurrent protected-main integration. |
-| Next action | Wire the reviewed publication-job primitive into the fast publisher, then run independent and formal verification. |
+| Next action | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. |
 
 ### AR-1797 — Wire cli2key sidecar into live benchmark execution
 

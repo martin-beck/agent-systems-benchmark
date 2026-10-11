@@ -173,7 +173,7 @@
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](../tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 | PR #579 exact head d30079b7: credential-channel command construction is tested even when hosted bwrap is unavailable; source/archive validation remains hardened. | AR-1794 — protected-main merge-path repair must create the signed local forward merge after the web-merge provenance failure; then rerun exact-main workflows and close AR-1777 only after all post-merge gates pass. |
 | P0 | [AR-1794](../tasks/AR-1794-protected-main-merge-path-repair.md): Protected-main merge-path repair | ar1794-protected-merge-repair-luna56 | Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity. | Keep open pending a clean signed local merge and green exact-main provenance receipt; do not use GitHub web merge. |
-| P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | codex-ar1796-integration-liveness | Keep autonomous development live during concurrent protected-main integration. | Wire the reviewed publication-job primitive into the fast publisher, then run independent and formal verification. |
+| P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | codex-ar1796-integration-liveness | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. |
 
 ### Open (1)
 
