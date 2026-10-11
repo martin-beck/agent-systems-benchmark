@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1798",
-  "next_action": "Monitor fresh exact-head CI for 176e4e1e and obtain independent re-review; do not merge.",
+  "next_action": "Monitor fresh exact-head CI for c9867dce and obtain independent re-review; do not merge.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "observed_dirty": 270,
   "observed_head": "176e4e1ea39fcc671a97fdaf226e71d161fd6cb4",
@@ -27,10 +27,10 @@
   "spec_ref": "specs/AR-1798.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "Coverage repair pushed at 176e4e1e with hostile output/revision/symlink branch tests.",
-  "task_revision": 70,
+  "summary": "Coverage repair pushed at c9867dce with bounded output and file-count tests.",
+  "task_revision": 71,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:17:00+00:00",
+  "updated_at": "2026-10-11T15:25:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -239,3 +239,8 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T15:16:53+00:00: Recorded command exit 0; command argv SHA-256
   52fc5259f34b543f553f2c091abd5fdf4b8cacc310963ae50b74a74d4576816c.
+
+- 2026-10-11T15:25:24+00:00: Exact product head c9867dce; clean worktree. Source-checkout focused
+  tests 10 passed; hosted-equivalent locked workspace llvm-cov --fail-under-lines 90 passed: 90.23%
+  lines (88.70% regions). Clippy all asb-cli targets offline and diff-check passed. No threshold
+  changes.
