@@ -9,7 +9,7 @@
   "id": "AR-1782",
   "next_action": "PR #584 exact remote head 722b259c; added install/update/repair rejection, unavailable selection, symlink-safe removal, malformed archive/boundary coverage. Local clippy, focused tests, diagnostic identity, provenance, and diff checks pass. Poll fresh exact-head coverage; independently review; do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
-  "observed_dirty": 0,
+  "observed_dirty": 3,
   "observed_head": "722b259cd2574614cbc89a8726ebfc90312aeb41",
   "owner": "ar1782_workload_install_luna56",
   "plan": "../plans/AR-1782-verified-asb-workload-installation.md",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 74,
+  "task_revision": 75,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T15:33:00+00:00",
+  "updated_at": "2026-10-11T15:41:21+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
