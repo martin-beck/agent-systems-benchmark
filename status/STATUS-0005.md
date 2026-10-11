@@ -113,7 +113,7 @@
 | [AR-1753](../tasks/AR-1753-coordinator-v0359-release-upgrade.md) | [AR-1749](../tasks/AR-1749-coordinator-unblock-bootstrap.md) | [AR-1756](../tasks/AR-1756-coordinator-v040-development.md) |
 | [AR-1754](../tasks/AR-1754-default-online-live-workflow.md) | [AR-1699](../tasks/AR-1699.md), [AR-1700](../tasks/AR-1700.md), [AR-1723](../tasks/AR-1723-easy-run-default-online.md), [AR-1724](../tasks/AR-1724-easy-sweep-default-online.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
 | [AR-1755](../tasks/AR-1755-idempotent-make-install.md) | [AR-1745](../tasks/AR-1745-user-local-install-prefix.md) | None |
-| [AR-1756](../tasks/AR-1756-coordinator-v040-development.md) | [AR-1753](../tasks/AR-1753-coordinator-v0359-release-upgrade.md) | [AR-1793](../tasks/AR-1793-coordinator-v051-adoption.md) |
+| [AR-1756](../tasks/AR-1756-coordinator-v040-development.md) | [AR-1753](../tasks/AR-1753-coordinator-v0359-release-upgrade.md) | [AR-1795](../tasks/AR-1795-coordinator-v051-adoption.md) |
 | [AR-1757](../tasks/AR-1757-human-first-cli-output.md) | [AR-1338](../tasks/AR-1338-guided-asb-command-wrapper.md), [AR-1555](../tasks/AR-1555.md) | [AR-1766](../tasks/AR-1766-fine-grained-human-diagnostic-contract.md) |
 | [AR-1758](../tasks/AR-1758-ar1731-merge-dco-repair.md) | None | None |
 | [AR-1759](../tasks/AR-1759-tool-project-config-schema.md) | [AR-1745](../tasks/AR-1745-user-local-install-prefix.md) | [AR-1760](../tasks/AR-1760-project-init-workspace.md), [AR-1761](../tasks/AR-1761-tool-install-registry.md), [AR-1762](../tasks/AR-1762-tool-discovery.md) |
@@ -141,7 +141,7 @@
 | [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md) | [AR-1760](../tasks/AR-1760-project-init-workspace.md) | [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md), [AR-1794](../tasks/AR-1794-protected-main-merge-path-repair.md) |
 | [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md) | [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md) | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md) |
 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md) | [AR-1763](../tasks/AR-1763-generated-catalog-selection.md), [AR-1764](../tasks/AR-1764-project-run-integration.md), [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md) | [AR-1780](../tasks/AR-1780-installed-tool-workload-execution-qualification.md) |
-| [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md) | [AR-1776](../tasks/AR-1776-supported-tool-acquisition-catalog.md) | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md), [AR-1795](../tasks/AR-1795-human-diagnostic-output-parent.md) |
+| [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md) | [AR-1776](../tasks/AR-1776-supported-tool-acquisition-catalog.md) | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md), [AR-1793](../tasks/AR-1793-human-diagnostic-output-parent.md) |
 | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md), [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md), [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) | None |
 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
 | [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) |
@@ -150,9 +150,9 @@
 | [AR-1790](../tasks/AR-1790-metrics-retry-budget.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md), [AR-1791](../tasks/AR-1791-tui-fixture-isolation.md) |
 | [AR-1791](../tasks/AR-1791-tui-fixture-isolation.md) | [AR-1770](../tasks/AR-1770-descriptor-safe-directory-race-hardening.md), [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md), [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md), [AR-1790](../tasks/AR-1790-metrics-retry-budget.md) | [AR-1792](../tasks/AR-1792-pty-fixture-determinism.md) |
 | [AR-1792](../tasks/AR-1792-pty-fixture-determinism.md) | [AR-1770](../tasks/AR-1770-descriptor-safe-directory-race-hardening.md), [AR-1791](../tasks/AR-1791-tui-fixture-isolation.md) | None |
-| [AR-1793](../tasks/AR-1793-coordinator-v051-adoption.md) | [AR-1756](../tasks/AR-1756-coordinator-v040-development.md) | None |
+| [AR-1793](../tasks/AR-1793-human-diagnostic-output-parent.md) | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md) | None |
 | [AR-1794](../tasks/AR-1794-protected-main-merge-path-repair.md) | [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md) | None |
-| [AR-1795](../tasks/AR-1795-human-diagnostic-output-parent.md) | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md) | None |
+| [AR-1795](../tasks/AR-1795-coordinator-v051-adoption.md) | [AR-1756](../tasks/AR-1756-coordinator-v040-development.md) | None |
 
 ## Complete AR inventory
 
@@ -169,8 +169,8 @@
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
-| P0 | [AR-1793](../tasks/AR-1793-coordinator-v051-adoption.md): Coordinator v0.5.1 adoption | Unclaimed | Adopt v0.5.1 with strict coverage repair. | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. |
 | P0 | [AR-1794](../tasks/AR-1794-protected-main-merge-path-repair.md): Protected-main merge-path repair | Unclaimed | Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity. | Keep open pending a clean signed local merge and green exact-main provenance receipt; do not use GitHub web merge. |
+| P0 | [AR-1795](../tasks/AR-1795-coordinator-v051-adoption.md): Coordinator v0.5.1 adoption | Unclaimed | Adopt v0.5.1 with strict coverage repair. | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. |
 
 ### Blocked (85)
 
@@ -351,7 +351,7 @@
 | P1 | [AR-1682](../tasks/AR-1682.md): Restore formal hierarchy model contract | Unclaimed | Repair the PR-publication formal model fixture so its hierarchy invariant matches the declared task domain without weakening any invariant or hosted gate. | Run exact formal publication verification and independent review on the corrected model fixture. |
 | P1 | [AR-1683](../tasks/AR-1683.md): Provide approved TLC attestation resource bounds | Unclaimed | Make the hosted formal workflow export the approved TLC memory and swap bounds required by attestation. | Run formal publication verification and runner regression tests on the exact hosted head. |
 | P1 | [AR-1684](../tasks/AR-1684.md): Harden runtime selector helper matrix | Unclaimed | Lock in fail-closed rejection of hostile selector directory, symlink, and non-regular entries. | Run the targeted authority defensive matrix and full hosted checks on the signed head. |
-| P1 | [AR-1795](../tasks/AR-1795-human-diagnostic-output-parent.md): Repair human diagnostic output-parent contract | Unclaimed | Repair the legacy human diagnostic output-parent wording contract exposed by the full ASB CLI suite. | Repair the legacy human diagnostic output-parent wording contract and add focused positive/negative coverage; do not publish AR-1784 until green. |
+| P1 | [AR-1793](../tasks/AR-1793-human-diagnostic-output-parent.md): Repair human diagnostic output-parent contract | Unclaimed | Repair the legacy human diagnostic output-parent wording contract exposed by the full ASB CLI suite. | Repair the legacy human diagnostic output-parent wording contract and add focused positive/negative coverage; do not publish AR-1784 until green. |
 | P2 | [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md): Validate CSB monitoring and contention diagnostics | Unclaimed | Validate and integrate optional CSB resource monitoring and kernel-contention evidence without double counting or overstating support. | Audit CSB monitoring using native x86_64 oracles and required pinned QEMU AArch64 portable mapping/lifecycle checks; keep native ARM64 counters and performance as optional future evidence. |
 | P2 | [AR-0903](../tasks/AR-0903-release-qualification.md): Package and qualify the first release | Unclaimed | Deliver reproducible native release artifacts with complete support and evidence statements. | Audit milestone completeness and run isolated release qualification. |
 | P2 | [AR-1016](../tasks/AR-1016-measurement-integration-audit.md): Integrate and audit measurement selection and CSB evidence | Unclaimed | Audit selectable and CSB-backed measurements across live and replay runs. | Add end-to-end live/replay comparison, release documentation, and independent audit after AR-1014 and AR-1015. |

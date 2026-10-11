@@ -1388,19 +1388,19 @@
 | Summary | Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage. |
 | Next action | Release AR-1792 as done ownerless after independent review; no source changes. |
 
-### AR-1793 — Coordinator v0.5.1 adoption
+### AR-1793 — Repair human diagnostic output-parent contract
 
 | Field | Value |
 | --- | --- |
-| Status | open |
-| Priority | P0 |
+| Status | planned |
+| Priority | P1 |
 | Role | unassigned |
 | Team | unassigned |
 | Owner | Unclaimed |
 | Parent | None |
 | Children | None |
-| Summary | Adopt v0.5.1 with strict coverage repair. |
-| Next action | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. |
+| Summary | Repair the legacy human diagnostic output-parent wording contract exposed by the full ASB CLI suite. |
+| Next action | Repair the legacy human diagnostic output-parent wording contract and add focused positive/negative coverage; do not publish AR-1784 until green. |
 
 ### AR-1794 — Protected-main merge-path repair
 
@@ -1416,19 +1416,19 @@
 | Summary | Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity. |
 | Next action | Keep open pending a clean signed local merge and green exact-main provenance receipt; do not use GitHub web merge. |
 
-### AR-1795 — Repair human diagnostic output-parent contract
+### AR-1795 — Coordinator v0.5.1 adoption
 
 | Field | Value |
 | --- | --- |
-| Status | planned |
-| Priority | P1 |
+| Status | open |
+| Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
 | Owner | Unclaimed |
 | Parent | None |
 | Children | None |
-| Summary | Repair the legacy human diagnostic output-parent wording contract exposed by the full ASB CLI suite. |
-| Next action | Repair the legacy human diagnostic output-parent wording contract and add focused positive/negative coverage; do not publish AR-1784 until green. |
+| Summary | Adopt v0.5.1 with strict coverage repair. |
+| Next action | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. |
 
 
 ## Dependency graph
@@ -2281,9 +2281,9 @@ flowchart LR
         AR_1790["AR-1790 - Done"]:::status_done
         AR_1791["AR-1791 - Done"]:::status_done
         AR_1792["AR-1792 - Done"]:::status_done
-        AR_1793["AR-1793 - Open"]:::status_open
+        AR_1793["AR-1793 - Planned"]:::status_planned
         AR_1794["AR-1794 - Open"]:::status_open
-        AR_1795["AR-1795 - Planned"]:::status_planned
+        AR_1795["AR-1795 - Open"]:::status_open
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4172,7 +4172,7 @@ flowchart LR
     AR_1749 --> AR_1753
     AR_1750 --> AR_1748
     AR_1753 --> AR_1756
-    AR_1756 --> AR_1793
+    AR_1756 --> AR_1795
     AR_1757 --> AR_1766
     AR_1759 --> AR_1760
     AR_1759 --> AR_1761
@@ -4224,7 +4224,7 @@ flowchart LR
     AR_1782 --> AR_1783
     AR_1783 --> AR_1780
     AR_1784 --> AR_1779
-    AR_1784 --> AR_1795
+    AR_1784 --> AR_1793
     AR_1787 --> AR_1785
     AR_1788 --> AR_1785
     AR_1788 --> AR_1791
