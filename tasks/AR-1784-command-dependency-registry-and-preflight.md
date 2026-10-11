@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T09:07:20+00:00",
   "depends_on": [
     "AR-1776"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 3,
   "observed_head": "cd8473f925cb3e785f0d675d3c5f83b42acdf48c",
-  "owner": "",
+  "owner": "coordinator",
   "plan": "../plans/AR-1784-command-dependency-registry-and-preflight.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1784.json",
   "spec_revision": 2,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 101,
+  "task_revision": 102,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T08:56:41+00:00",
+  "updated_at": "2026-10-11T08:57:20+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -322,3 +322,5 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T08:56:41+00:00: Implementation and local gates complete at signed product head
   af940cddad9861fa442b50462e80ee07e239387a; formatting and diagnostic catalog repair complete;
   release lease for parent independent review/publication.
+
+- 2026-10-11T08:57:20+00:00: Claimed by coordinator.
