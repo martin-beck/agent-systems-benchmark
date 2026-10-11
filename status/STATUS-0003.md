@@ -146,11 +146,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1698-current-main |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Qualify the existing ASB selected/all recording, cassette sealing, and strict offline replay implementation at the current merged ASB head so AR-1652 can be reconciled truthfully. |
@@ -2147,7 +2147,7 @@ flowchart LR
         AR_1695["AR-1695 - Done"]:::status_done
         AR_1696["AR-1696 - Done"]:::status_done
         AR_1697["AR-1697 - Planned"]:::status_planned
-        AR_1698["AR-1698 - In progress"]:::status_in_progress
+        AR_1698["AR-1698 - Done"]:::status_done
         AR_1699["AR-1699 - Done"]:::status_done
     end
     subgraph series_17["17 - Additional work"]
