@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1723](tasks/AR-1723-easy-run-default-online.md): Make the easy run default to online provider execution | Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only. | Promote after the live runner and provider qualification dependencies are current; implement and qualify the default-online easy run. | codex-ar1723-online-default |
+| P0 | [AR-1723](tasks/AR-1723-easy-run-default-online.md): Make the easy run default to online provider execution | Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only. | Implement easy run default-online on the bound worktree; keep --local-mock explicit, add human/JSON positive and no-fallback negative coverage, then run focused/full gates and publish a reviewed PR. | codex-ar1723-online-default |
 
 ## Open
 

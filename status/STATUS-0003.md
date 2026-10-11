@@ -420,7 +420,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only. |
-| Next action | Promote after the live runner and provider qualification dependencies are current; implement and qualify the default-online easy run. |
+| Next action | Implement easy run default-online on the bound worktree; keep --local-mock explicit, add human/JSON positive and no-fallback negative coverage, then run focused/full gates and publish a reviewed PR. |
 
 ### AR-1724 — Make the easy sweep default to online provider execution
 
