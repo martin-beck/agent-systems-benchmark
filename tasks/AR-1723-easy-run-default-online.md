@@ -17,9 +17,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Make the easy run default to online provider execution",
-  "updated_at": "2026-10-11T00:55:40+00:00",
+  "updated_at": "2026-10-11T00:55:54+00:00",
   "worktree_key": ""
 }
 ---
@@ -32,3 +32,6 @@ requested; live failures never silently select mock or replay.
   easy-run default-online implementation. No GitHub Reviews API approval object required.
 
 - 2026-10-11T00:55:40+00:00: Claimed by codex-ar1723-online-default.
+
+- 2026-10-11T00:55:54+00:00: Recorded command exit 0; command argv SHA-256
+  458fe905accebbed12134170484404395a6896798b7ecf8981c465e078f751e0.
