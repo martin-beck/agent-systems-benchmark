@@ -16,13 +16,21 @@
   "plan": "../plans/AR-1792-pty-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:5c3b781b018ee1d479707094fcd626bd7cd758c1e0b13866f66eb5ba9c0c843a",
+    "evidence_ref": "hosted-run-38096884595-exact-head-rerun-and-merge-daae06e",
+    "spec_ref": "specs/AR-1792.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1792.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage.",
-  "task_revision": 21,
+  "task_revision": 22,
   "title": "Make development broker PTY fixture deterministic",
-  "updated_at": "2026-10-11T00:29:17+00:00",
+  "updated_at": "2026-10-11T00:29:29+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1792-pty-fixture-determinism"
 }
 ---
@@ -100,3 +108,8 @@ serial-only or exclusion-based gate.
   test failed with exit status 101 after 340/341 tests, without child stderr. Local focused six-pass
   and 341/341 coverage-equivalent runs passed. PR #555 subsequently merged as daae06e. No product
   changes were made for AR-1792.
+
+- 2026-10-11T00:29:29+00:00: Accepted as done and released ownerless: exact-head hosted rerun
+  38096884595 passed full coverage and remaining policy gates; original failure classified transient
+  hosted PTY flake. Local six focused repetitions and 341/341 coverage-equivalent tests passed. PR
+  #555 merged as daae06e. No AR-1792 source changes.
