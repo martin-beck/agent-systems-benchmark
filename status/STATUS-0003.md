@@ -1274,7 +1274,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. |
-| Next action | Await required checks for PR #573 at e8e3b9e7; then obtain independent exact-head review, use signed local merge-integrity publication, and verify exact-main workflows. |
+| Next action | Synchronize PR #573 repair head e8e3b9e7 with current protected main af75cd06 using signed topic-sync, refresh identities/provenance, then await exact-head checks and independent review before local signed merge. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 

@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Await required checks for PR #573 at e8e3b9e7; then obtain independent exact-head review, use signed local merge-integrity publication, and verify exact-main workflows.",
+  "next_action": "Synchronize PR #573 repair head e8e3b9e7 with current protected main af75cd06 using signed topic-sync, refresh identities/provenance, then await exact-head checks and independent review before local signed merge.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 2,
   "observed_head": "9d729dd610d303b5ab5ba9815fff76bab1b917a7",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 219,
+  "task_revision": 220,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:18:25+00:00",
+  "updated_at": "2026-10-11T10:20:07+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -601,3 +601,6 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T10:18:25+00:00: Repair worker pushed signed DCO e8e3b9e7: human preflight default plus
   --json, selected agent/runtime scope, positive/negative tests, 448 diagnostic identities, and
   workflow provenance refresh. Hosted checks have restarted.
+
+- 2026-10-11T10:20:07+00:00: PR #573 currently has no checks and mergeState DIRTY because main
+  advanced when PR #572 merged; branch synchronization is required before publication.
