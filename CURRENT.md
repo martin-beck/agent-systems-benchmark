@@ -9,6 +9,7 @@ Never edit this file directly.
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #576 exact head 817de0ed; local workspace coverage 90.28% | Monitor new PR #576 hosted checks at exact head 817de0ed to terminal result; preserve no-force policy. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | P0 | [AR-1781](tasks/AR-1781-external-workload-acquisition-catalog.md): External workload acquisition catalog | Post-merge provenance repair PR #577 open at signed DCO head 198bf869; historical af75cd06 preserved. | Obtain independent review and green exact-head checks for PR #577, then publish its signed two-parent merge with tools/integration/merge_pr.py and verify exact-main workflows. | ar1781-luna56 |
+| P0 | [AR-1784](tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | PR #575 coverage repair pushed at exact head e5f378aa | Monitor PR #575 exact-head hosted checks; if coverage passes, independently review and handoff. Preserve PR #573 as superseded. | coordinator |
 | P0 | [AR-1793](tasks/AR-1793-coordinator-v051-adoption.md): Coordinator v0.5.1 adoption | Adopt v0.5.1 with strict coverage repair. | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. | codex-ar1793-awc-v051 |
 
 ## Open
@@ -16,7 +17,6 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. | - |
-| P0 | [AR-1784](tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | PR #575 coverage repair pushed at exact head e5f378aa | Monitor PR #575 exact-head hosted checks; if coverage passes, independently review and handoff. Preserve PR #573 as superseded. | - |
 | P0 | [AR-1794](tasks/AR-1794-protected-main-merge-path-repair.md): Protected-main merge-path repair | Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity. | Keep open pending a clean signed local merge and green exact-main provenance receipt; do not use GitHub web merge. | - |
 
 ## Blocked

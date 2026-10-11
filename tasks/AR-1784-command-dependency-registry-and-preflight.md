@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T11:43:47+00:00",
   "depends_on": [
     "AR-1776"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 6,
   "observed_head": "fe7f1ce8b34d286ae7e0a83d1d64b2211e7302a5",
-  "owner": "",
+  "owner": "coordinator",
   "plan": "../plans/AR-1784-command-dependency-registry-and-preflight.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1784.json",
   "spec_revision": 2,
-  "status": "open",
+  "status": "in_progress",
   "summary": "PR #575 coverage repair pushed at exact head e5f378aa",
-  "task_revision": 79,
+  "task_revision": 80,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:13:38+00:00",
+  "updated_at": "2026-10-11T11:13:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -286,3 +286,5 @@ and end-to-end development-run tests in the same change.
   checks.
 
 - 2026-10-11T11:13:38+00:00: Independent review complete; coordinator resumes repair.
+
+- 2026-10-11T11:13:47+00:00: Claimed by coordinator.
