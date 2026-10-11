@@ -440,11 +440,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P1 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | ar1725-docs-luna56 |
 | Parent | None |
 | Children | None |
 | Summary | Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation. |
@@ -2171,7 +2171,7 @@ flowchart LR
         AR_1722["AR-1722 - Done"]:::status_done
         AR_1723["AR-1723 - Done"]:::status_done
         AR_1724["AR-1724 - Done"]:::status_done
-        AR_1725["AR-1725 - Open"]:::status_open
+        AR_1725["AR-1725 - In progress"]:::status_in_progress
         AR_1726["AR-1726 - Done"]:::status_done
         AR_1727["AR-1727 - Done"]:::status_done
         AR_1728["AR-1728 - Done"]:::status_done

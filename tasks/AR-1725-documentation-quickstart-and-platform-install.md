@@ -2,7 +2,7 @@
 {
   "branch": "docs/ar-1725-quickstart-platform-install",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T08:49:01+00:00",
   "depends_on": [
     "AR-1336",
     "AR-1338",
@@ -16,17 +16,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "ar1725-docs-luna56",
   "plan": "../plans/AR-1725-documentation-quickstart-and-platform-install.md",
   "priority": "P1",
   "schema_version": 1,
   "spec_ref": "specs/AR-1725.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T06:48:55+00:00",
+  "updated_at": "2026-10-11T06:49:01+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
@@ -55,3 +55,5 @@ gates, independent review, and exact-head hosted CI.
 
 - 2026-10-11T06:48:55+00:00: Dependencies AR-1336, AR-1338, AR-1641, AR-1642, AR-1723, and AR-1724
   are done with checkpoints; promote documentation work.
+
+- 2026-10-11T06:49:01+00:00: Claimed by ar1725-docs-luna56.
