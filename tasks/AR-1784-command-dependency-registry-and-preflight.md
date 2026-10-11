@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Repair PR #573 at 9d729dd6: implement human default preflight output, selected-agent/runtime scoping, add coverage, refresh diagnostic identities/provenance, then rerun all gates.",
+  "next_action": "Await required checks for PR #573 at e8e3b9e7; then obtain independent exact-head review, use signed local merge-integrity publication, and verify exact-main workflows.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 2,
   "observed_head": "9d729dd610d303b5ab5ba9815fff76bab1b917a7",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 218,
+  "task_revision": 219,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:17:54+00:00",
+  "updated_at": "2026-10-11T10:18:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -597,3 +597,7 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T10:17:54+00:00: Exact-head CI run 38130866643 failed diagnostic identity/coverage;
   independent review also found JSON-only preflight and all-agent scope. Repair worker active; do
   not merge.
+
+- 2026-10-11T10:18:25+00:00: Repair worker pushed signed DCO e8e3b9e7: human preflight default plus
+  --json, selected agent/runtime scope, positive/negative tests, 448 diagnostic identities, and
+  workflow provenance refresh. Hosted checks have restarted.
