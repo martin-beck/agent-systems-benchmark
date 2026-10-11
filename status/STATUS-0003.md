@@ -1232,7 +1232,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests. |
-| Next action | Continue monitoring PR #572 exact-head checks for c4cd8ea6; parent merges only after all required checks pass. |
+| Next action | Monitor PR #572 exact-head checks for 7271331b; parent merges only after all required checks pass. |
 
 ### AR-1782 — Verified asb workload installation
 
@@ -4278,3 +4278,4 @@ flowchart LR
 | [AR-0521](../tasks/AR-0521-openhands-environment-pin.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md) | None |
 | [AR-0601](../tasks/AR-0601-csb-integration.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0104](../tasks/AR-0104-durable-results.md), [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0603](../tasks/AR-0603-csb-execution-assurance.md) | [AR-0405](../tasks/AR-0405-performance-workloads.md), [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md), [AR-0604](../tasks/AR-0604-csb-native-qualification.md), [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
 | [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0202](../tasks/AR-0202-kernel-diagnostics.md), [AR-0601](../tasks/AR-0601-csb-integration.md), [AR-0604](../tasks/AR-0604-csb-native-qualification.md) | [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
+| [AR-0603](../tasks/AR-0603-csb-execution-assurance.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0104](../tasks/AR-0104-durable-results.md) | [AR-0601](../tasks/AR-0601-csb-integration.md) |

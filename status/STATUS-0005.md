@@ -1,6 +1,5 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
-| [AR-1636](../tasks/AR-1636.md) | [AR-1634](../tasks/AR-1634.md), [AR-1635](../tasks/AR-1635.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1637](../tasks/AR-1637.md), [AR-1638](../tasks/AR-1638.md), [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md) |
 | [AR-1637](../tasks/AR-1637.md) | [AR-1636](../tasks/AR-1636.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1638](../tasks/AR-1638.md), [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md) |
 | [AR-1638](../tasks/AR-1638.md) | [AR-1636](../tasks/AR-1636.md), [AR-1637](../tasks/AR-1637.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1639](../tasks/AR-1639.md) |
 | [AR-1639](../tasks/AR-1639.md) | [AR-1638](../tasks/AR-1638.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1640](../tasks/AR-1640.md) |
@@ -155,7 +154,7 @@
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](../tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 | Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root. | Implement catalog-driven verified compatible-binary reuse and official prebuilt executable-tool acquisition into project-local storage. |
-| P0 | [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md): External workload acquisition catalog | ar1781-luna56 | Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests. | Continue monitoring PR #572 exact-head checks for c4cd8ea6; parent merges only after all required checks pass. |
+| P0 | [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md): External workload acquisition catalog | ar1781-luna56 | Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests. | Monitor PR #572 exact-head checks for 7271331b; parent merges only after all required checks pass. |
 | P0 | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | coordinator | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. | Repair PR #573 exact-head human_cli diagnostic matrix failure, then rerun Rust/policy and all required gates before review/merge. |
 
 ### Open (1)
@@ -570,3 +569,4 @@
 | P0 | [AR-1528](../tasks/AR-1528.md): Rerun AR-1307/1308 development fixtures | Unclaimed | Run the repaired AR-1307/1308 unsigned-development fixture path and preserve separate formal qualification blockers. | No further action: development fixture rerun is complete; retain its non-qualifying evidence while formal work proceeds separately. |
 | P0 | [AR-1529](../tasks/AR-1529.md): AR-1307/1308 formal capacity decision successor | Unclaimed | Replace the stale AR-1309 dependency with a reviewed formal capacity/model decision grounded in the completed capacity and reduced-profile evidence. | No further action: the 8 GiB/8 GiB signed-capacity contract is recorded; AR-1530 owns implementation. |
 | P0 | [AR-1530](../tasks/AR-1530.md): State formal capacity profile for AR-1307/1308 | Unclaimed | Implement the state-owned 8G/8G formal capacity profile selected by AR-1529 and route it to AR-1522. | No further action: merged PR #31 provides the signed-capacity-8g profile; AR-1531 owns disposable fixture provisioning. |
+| P0 | [AR-1532](../tasks/AR-1532.md): AR-1307 unsigned-development runner repair | Unclaimed | Repair and independently qualify the provider-free unsigned-development runner path associated with AR-1307 without changing formal limits or evidence gates. | Promote and claim; rerun the provider-free unsigned-development AR-1307 runner path on the v0.3.53-compatible state, then record non-qualifying evidence. |

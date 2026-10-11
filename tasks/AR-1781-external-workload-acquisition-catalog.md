@@ -7,7 +7,7 @@
     "AR-1760"
   ],
   "id": "AR-1781",
-  "next_action": "Continue monitoring PR #572 exact-head checks for c4cd8ea6; parent merges only after all required checks pass.",
+  "next_action": "Monitor PR #572 exact-head checks for 7271331b; parent merges only after all required checks pass.",
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "observed_dirty": 0,
   "observed_head": "0db5831b7e6d87bf0993fcfd38889abc19595b6f",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests.",
-  "task_revision": 21,
+  "task_revision": 22,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T09:54:11+00:00",
+  "updated_at": "2026-10-11T09:54:18+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -106,3 +106,9 @@ labelled.
   and matcher/SLO. No failures observed; PR remains open and unmerged.
 
 - 2026-10-11T09:54:11+00:00: Heartbeat by ar1781-luna56.
+
+- 2026-10-11T09:54:18+00:00: Repaired hosted Rust/policy diagnostic_contract failure on product head
+  7271331b (signed DCO). Refreshed reviewed legacy producer catalog identity legacy_cli_0676 from
+  crates/asb-cli/src/lib.rs:16921 to :16958, preserving cause MalformedInput; no contract weakening.
+  Focused diagnostic_contract: 9 passed. Full cargo test --locked -p asb-cli: 348 passed. PR remains
+  open and unmerged; rerun hosted gates on 7271331b.
