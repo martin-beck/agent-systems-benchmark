@@ -7,7 +7,7 @@
     "AR-1760"
   ],
   "id": "AR-1781",
-  "next_action": "Monitor PR #572 exact-head checks for 286cccd6; parent merges only after all required checks pass.",
+  "next_action": "Repair post-merge provenance for merge af75cd06: protected-main verifier rejected GitHub merge committer; do not accept/release until exact-main provenance is green.",
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "observed_dirty": 0,
   "observed_head": "286cccd6d7c0337fe19fbfba4aadacfa0c8b40f5",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests.",
-  "task_revision": 26,
+  "task_revision": 27,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T10:13:37+00:00",
+  "updated_at": "2026-10-11T10:14:19+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -123,3 +123,8 @@ labelled.
 
 - 2026-10-11T10:13:37+00:00: Recorded command exit 0; command argv SHA-256
   279a83e801c2421a21b8ba2ad28361837263ce39e61279d163229ba361d275a4.
+
+- 2026-10-11T10:14:19+00:00: PR #572 merged at af75cd06 after exact-head green checks and
+  independent review. Post-merge Portable protected-main provenance failed run 38131187031 because
+  merge committer is GitHub <noreply@github.com>, while repository policy requires local integration
+  identity. Preserve failure; no acceptance/release yet.

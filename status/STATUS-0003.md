@@ -1232,7 +1232,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests. |
-| Next action | Monitor PR #572 exact-head checks for 286cccd6; parent merges only after all required checks pass. |
+| Next action | Repair post-merge provenance for merge af75cd06: protected-main verifier rejected GitHub merge committer; do not accept/release until exact-main provenance is green. |
 
 ### AR-1782 — Verified asb workload installation
 
