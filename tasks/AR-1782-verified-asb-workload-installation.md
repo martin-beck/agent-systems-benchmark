@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 33,
+  "task_revision": 34,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T14:34:05+00:00",
+  "updated_at": "2026-10-11T14:34:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -135,3 +135,6 @@ remain mandatory.
 - 2026-10-11T14:34:05+00:00: Rebased after AR-1793 merge and pushed generated diagnostic identity
   repair 0c31a205. Fresh PR checks are running; headers/provenance/AWQ shadow pass, remaining checks
   pending.
+
+- 2026-10-11T14:34:47+00:00: Recorded command exit 8; command argv SHA-256
+  78f325bde3962aea10f3844ad0018af88b2cf3e001f1e02858b67193c031b6ae.
