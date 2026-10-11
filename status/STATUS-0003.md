@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #579 exact head b8cf6cb3: forwards only explicit LLVM_PROFILE_FILE into scrubbed development child, preserving hosted child coverage attribution; sandbox helper positive/negative test passes; clean local workspace coverage 90.28&#37;. |
-| Next action | Monitor fresh hosted Policy coverage and all required checks at exact b8cf6cb3; inspect any remaining failures before review/merge. |
+| Summary | PR #579 exact head b8cf6cb3 has hosted checks pending and coverage attribution repair, but independent review found three AR-1777 blockers in acquisition: private local path leakage, special tar entry acceptance, and insufficient executable/entrypoint validation. No merge. |
+| Next action | Repair independent-review blockers on exact b8cf6cb3: redact absolute local source paths from persisted identities, reject all non-regular tar entries, and validate executable format/entrypoint. Add regression tests, rerun hosted Policy and all required gates, then review exact head. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
@@ -4336,4 +4336,3 @@ flowchart LR
 | [AR-0512](../tasks/AR-0512-replay-goose.md) | [AR-0307](../tasks/AR-0307-agent-goose.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0513](../tasks/AR-0513-replay-miniswe.md) | [AR-0308](../tasks/AR-0308-agent-mini-swe.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0514](../tasks/AR-0514-replay-openhands.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
-| [AR-0515](../tasks/AR-0515-replay-matrix.md) | [AR-0506](../tasks/AR-0506-replay-opencode.md), [AR-0507](../tasks/AR-0507-replay-opendesk.md), [AR-0508](../tasks/AR-0508-replay-aider.md), [AR-0509](../tasks/AR-0509-replay-codex.md), [AR-0510](../tasks/AR-0510-replay-gemini.md), [AR-0511](../tasks/AR-0511-replay-qwen.md), [AR-0512](../tasks/AR-0512-replay-goose.md), [AR-0513](../tasks/AR-0513-replay-miniswe.md), [AR-0514](../tasks/AR-0514-replay-openhands.md) | None |

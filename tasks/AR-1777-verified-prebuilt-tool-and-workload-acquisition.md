@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Monitor fresh hosted Policy coverage and all required checks at exact b8cf6cb3; inspect any remaining failures before review/merge.",
+  "next_action": "Repair independent-review blockers on exact b8cf6cb3: redact absolute local source paths from persisted identities, reject all non-regular tar entries, and validate executable format/entrypoint. Add regression tests, rerun hosted Policy and all required gates, then review exact head.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #579 exact head b8cf6cb3: forwards only explicit LLVM_PROFILE_FILE into scrubbed development child, preserving hosted child coverage attribution; sandbox helper positive/negative test passes; clean local workspace coverage 90.28%.",
-  "task_revision": 160,
+  "summary": "PR #579 exact head b8cf6cb3 has hosted checks pending and coverage attribution repair, but independent review found three AR-1777 blockers in acquisition: private local path leakage, special tar entry acceptance, and insufficient executable/entrypoint validation. No merge.",
+  "task_revision": 161,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:49:08+00:00",
+  "updated_at": "2026-10-11T12:51:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -569,3 +569,7 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T12:49:08+00:00: Recorded command exit 0; command argv SHA-256
   422de929f35a13a7206d8a95352061502a93f1785f7694e5184458196cd08b15.
+
+- 2026-10-11T12:51:28+00:00: Replacement independent review FAIL: focused acquisition tests pass but
+  identified P1 privacy and archive-safety defects plus P2 executable validation gap. Repair worker
+  assigned; no gate weakening or merge authorized.

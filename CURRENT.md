@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #579 exact head b8cf6cb3: forwards only explicit LLVM_PROFILE_FILE into scrubbed development child, preserving hosted child coverage attribution; sandbox helper positive/negative test passes; clean local workspace coverage 90.28%. | Monitor fresh hosted Policy coverage and all required checks at exact b8cf6cb3; inspect any remaining failures before review/merge. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
+| P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #579 exact head b8cf6cb3 has hosted checks pending and coverage attribution repair, but independent review found three AR-1777 blockers in acquisition: private local path leakage, special tar entry acceptance, and insufficient executable/entrypoint validation. No merge. | Repair independent-review blockers on exact b8cf6cb3: redact absolute local source paths from persisted identities, reject all non-regular tar entries, and validate executable format/entrypoint. Add regression tests, rerun hosted Policy and all required gates, then review exact head. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | P0 | [AR-1796](tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Keep autonomous development live during concurrent protected-main integration. | Wire the reviewed publication-job primitive into the fast publisher, then run independent and formal verification. | codex-ar1796-integration-liveness |
 
 ## Open
