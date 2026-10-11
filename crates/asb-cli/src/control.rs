@@ -11381,20 +11381,12 @@ static CONTROL_STATE_LOCK_OWNERS: std::sync::LazyLock<Mutex<BTreeSet<(u64, u64)>
     std::sync::LazyLock::new(|| Mutex::new(BTreeSet::new()));
 
 struct ControlStateLock {
-    file: fs::File,
+    _file: nix::fcntl::Flock<fs::File>,
     identity: (u64, u64),
 }
 
 impl Drop for ControlStateLock {
     fn drop(&mut self) {
-        let unlock = libc::flock {
-            l_type: libc::F_UNLCK as libc::c_short,
-            l_whence: libc::SEEK_SET as libc::c_short,
-            l_start: 0,
-            l_len: 0,
-            l_pid: 0,
-        };
-        let _ = nix::fcntl::fcntl(&self.file, nix::fcntl::FcntlArg::F_SETLK(&unlock));
         let mut owners = CONTROL_STATE_LOCK_OWNERS
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -11441,19 +11433,21 @@ fn acquire_control_state_lock(path: &Path) -> Result<ControlStateLock, CliError>
             "control state root is already owned",
         ));
     }
-    let lock = libc::flock {
-        l_type: libc::F_WRLCK as libc::c_short,
-        l_whence: libc::SEEK_SET as libc::c_short,
-        l_start: 0,
-        l_len: 0,
-        l_pid: 0,
+    // BSD `flock` locks are attached to the open file description. Unlike
+    // POSIX record locks, closing a separately opened failed contender cannot
+    // release the owner's lock in this process.
+    let file = match nix::fcntl::Flock::lock(file, nix::fcntl::FlockArg::LockExclusiveNonblock) {
+        Ok(file) => file,
+        Err((_file, _error)) => {
+            return Err(CliError::legacy_operation(
+                "control state root is already owned",
+            ));
+        }
     };
-    if nix::fcntl::fcntl(&file, nix::fcntl::FcntlArg::F_SETLK(&lock)).is_err() {
-        return Err(CliError::legacy_operation(
-            "control state root is already owned",
-        ));
-    }
     owners.insert(identity);
     drop(owners);
-    Ok(ControlStateLock { file, identity })
+    Ok(ControlStateLock {
+        _file: file,
+        identity,
+    })
 }

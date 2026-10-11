@@ -713,12 +713,12 @@ const LEGACY_CLI_CATALOG: &[(&str, u32, &str, Cause)] = &[
     ("crates/asb-cli/src/lib.rs", 7850, "legacy_cli_0711", Cause::MalformedInput),
     ("crates/asb-cli/src/lib.rs", 7853, "legacy_cli_0712", Cause::IncompatibleInput),
     ("crates/asb-cli/src/lib.rs", 7862, "legacy_cli_0713", Cause::MalformedInput),
-    ("crates/asb-cli/src/control.rs", 11434, "legacy_cli_0714", Cause::ReconciliationRequired),
-    ("crates/asb-cli/src/control.rs", 11421, "legacy_cli_0715", Cause::ReconciliationRequired),
-    ("crates/asb-cli/src/control.rs", 11423, "legacy_cli_0716", Cause::ReconciliationRequired),
-    ("crates/asb-cli/src/control.rs", 11440, "legacy_cli_0717", Cause::ReconciliationRequired),
-    ("crates/asb-cli/src/control.rs", 11437, "legacy_cli_0718", Cause::ReconciliationRequired),
-    ("crates/asb-cli/src/control.rs", 11452, "legacy_cli_0719", Cause::ReconciliationRequired),
+    ("crates/asb-cli/src/control.rs", 11426, "legacy_cli_0714", Cause::ReconciliationRequired),
+    ("crates/asb-cli/src/control.rs", 11413, "legacy_cli_0715", Cause::ReconciliationRequired),
+    ("crates/asb-cli/src/control.rs", 11415, "legacy_cli_0716", Cause::ReconciliationRequired),
+    ("crates/asb-cli/src/control.rs", 11432, "legacy_cli_0717", Cause::ReconciliationRequired),
+    ("crates/asb-cli/src/control.rs", 11429, "legacy_cli_0718", Cause::ReconciliationRequired),
+    ("crates/asb-cli/src/control.rs", 11442, "legacy_cli_0719", Cause::ReconciliationRequired),
     ("crates/asb-cli/src/lib.rs", 5447, "legacy_cli_0720", Cause::MissingInput),
     ("crates/asb-cli/src/lib.rs", 5475, "legacy_cli_0721", Cause::MalformedInput),
     ("crates/asb-cli/src/lib.rs", 5477, "legacy_cli_0722", Cause::MissingInput),
@@ -743,6 +743,7 @@ const LEGACY_CLI_CATALOG: &[(&str, u32, &str, Cause)] = &[
     ("crates/asb-cli/src/lib.rs", 5578, "legacy_cli_0741", Cause::StaleIdentity),
     ("crates/asb-cli/src/lib.rs", 5317, "legacy_cli_0742", Cause::StaleIdentity),
     ("crates/asb-cli/src/lib.rs", 7609, "legacy_cli_0743", Cause::ReconciliationRequired),
+    ("crates/asb-cli/src/control.rs", 11402, "legacy_cli_0744", Cause::ReconciliationRequired),
 ];
 
 fn legacy_cli_catalog(file: &str, line: u32) -> Option<(&str, Cause)> {
