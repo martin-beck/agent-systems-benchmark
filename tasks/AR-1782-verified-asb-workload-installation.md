@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "PR #584 exact remote head 722b259c; added install/update/repair rejection, unavailable selection, symlink-safe removal, malformed archive/boundary coverage. Local clippy, focused tests, diagnostic identity, provenance, and diff checks pass. Poll fresh exact-head coverage; independently review; do not merge.",
+  "next_action": "PR #584 exact remote head 12fbe263; signed+DCO repair adds all AR-1781 archive digests, immutable arXiv source, bounded safe extraction, adapter-ready receipt identity, preparation rollback, and PTY cross-target serialization. Local 384 asb-cli tests, 43 asb-workloads tests, clippy, formatting, archive/lifecycle/diagnostic/provenance checks pass. Poll fresh exact-head CI and independent review; do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 3,
   "observed_head": "722b259cd2574614cbc89a8726ebfc90312aeb41",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 78,
+  "task_revision": 79,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T15:43:17+00:00",
+  "updated_at": "2026-10-11T15:43:59+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -247,3 +247,6 @@ remain mandatory.
 
 - 2026-10-11T15:43:17+00:00: Recorded command exit 0; command argv SHA-256
   293c2148a179cf191174557f643f16f9891d390fd73eaa6feadfba1fcb474444.
+
+- 2026-10-11T15:43:59+00:00: Repaired substantive lifecycle and hosted PTY race blockers; push
+  complete, awaiting fresh hosted checks.

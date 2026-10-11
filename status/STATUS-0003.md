@@ -1246,7 +1246,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement dedicated verified remote external workload installation and lifecycle through asb workload. |
-| Next action | PR #584 exact remote head 722b259c; added install/update/repair rejection, unavailable selection, symlink-safe removal, malformed archive/boundary coverage. Local clippy, focused tests, diagnostic identity, provenance, and diff checks pass. Poll fresh exact-head coverage; independently review; do not merge. |
+| Next action | PR #584 exact remote head 12fbe263; signed+DCO repair adds all AR-1781 archive digests, immutable arXiv source, bounded safe extraction, adapter-ready receipt identity, preparation rollback, and PTY cross-target serialization. Local 384 asb-cli tests, 43 asb-workloads tests, clippy, formatting, archive/lifecycle/diagnostic/provenance checks pass. Poll fresh exact-head CI and independent review; do not merge. |
 
 ### AR-1783 — Installed workload selection and execution
 
