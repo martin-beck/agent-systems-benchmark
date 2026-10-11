@@ -21,7 +21,7 @@ Generated from local Git and GitHub. Do not edit.
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
-| #569 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition@8d3d85f72d99` | `main` | BLOCKED | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS | feat: verified prebuilt tool acquisition |
+| #569 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition@8d3d85f72d99` | `main` | BLOCKED | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat: verified prebuilt tool acquisition |
 | #570 | `feature/ar-1784-command-dependency-registry@af940cddad98` | `main` | DIRTY | - | feat(cli): add command dependency preflight registry |
 
 ## Recent workflows
@@ -35,7 +35,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38127013834 | `8d3d85f72d99` | pull_request | Portable protected-main provenance | completed:failure |
 | 38127013833 | `8d3d85f72d99` | pull_request | Huawei MIT source headers | completed:success |
 | 38127013825 | `8d3d85f72d99` | pull_request | Fault assurance | in_progress:- |
-| 38127013823 | `8d3d85f72d99` | pull_request | Hosted portability and native qualification | in_progress:- |
+| 38127013823 | `8d3d85f72d99` | pull_request | Hosted portability and native qualification | completed:success |
 | 38127013820 | `8d3d85f72d99` | pull_request | Emulated aarch64 portability | in_progress:- |
 | 38127013818 | `8d3d85f72d99` | pull_request | Repository quality | in_progress:- |
 | 38127013817 | `8d3d85f72d99` | pull_request | Credential-free benchmark path | in_progress:- |
