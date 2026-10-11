@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Monitor PR #573 exact head e8e3b9e7 for hosted gates; repair only any exact-head failure, then perform independent review and handoff. Do not merge from this worktree.",
+  "next_action": "Monitor exact-head PR #573 hosted checks and review; do not merge from this worktree.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 6,
   "observed_head": "fe7f1ce8b34d286ae7e0a83d1d64b2211e7302a5",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1784.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 71,
+  "summary": "Mandatory execution preflight repair pushed at exact head e85e6872",
+  "task_revision": 72,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:23:46+00:00",
+  "updated_at": "2026-10-11T10:28:29+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -249,3 +249,11 @@ and end-to-end development-run tests in the same change.
   tests pass.
 
 - 2026-10-11T10:23:46+00:00: Heartbeat by ar1784_dependency_registry_luna56.
+
+- 2026-10-11T10:28:29+00:00: Signed DCO repair b4ae226c adds project-aware fail-fast selected
+  dependency preflight before run/sweep execution and before each benchmark-live matrix entry,
+  preserving local-mock semantics. Synced protected main af75cd06 via signed merge 80062618;
+  refreshed 435 diagnostic identities plus one final lib.rs and 13 project_run.rs identities, and
+  provenance CLI digest to 89aa603de1ba5a23b2dab766fec5852ecfb1bec8e988441293dc0ee196ceb28f. Focused
+  diagnostic/provenance gates, cargo fmt, and full asb-cli package tests pass. Pushed exact PR #573
+  head e85e6872c0e2dd9bfaa94ea7fc1e3b7178baf005.
