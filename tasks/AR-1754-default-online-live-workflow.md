@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T03:42:21+00:00",
+  "claim_expires": "2026-10-11T03:46:44+00:00",
   "depends_on": [
     "AR-1699",
     "AR-1700",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
-  "task_revision": 95,
+  "task_revision": 96,
   "title": "Make online execution the default across ASB workflows",
-  "updated_at": "2026-10-11T03:14:09+00:00",
+  "updated_at": "2026-10-11T03:16:44+00:00",
   "worktree_key": ""
 }
 ---
@@ -318,3 +318,5 @@ production authority checks.
 - 2026-10-11T03:14:09+00:00: Repaired the workflow provenance JSON digest after hosted Rust
   identified the exact lib.rs hash drift; workflow_transcript now passes locally. Pushed signed DCO
   head 0dcd1472; exact-head CI restarted.
+
+- 2026-10-11T03:16:44+00:00: Heartbeat by codex-ar1754-online-integration.
