@@ -1274,7 +1274,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. |
-| Next action | Repair P1 review findings on PR #573: project-aware preflight, command-scoped dependency mapping, and honest host-only perf/bpftool classification; then rerun full gates. |
+| Next action | Await all required checks for PR #573 at 4580f5c8; then complete independent review, merge, exact-main post-merge assurance, and accept/release. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 
