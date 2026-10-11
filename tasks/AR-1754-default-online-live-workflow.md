@@ -16,13 +16,21 @@
   "plan": "../plans/AR-1754-default-online-live-workflow.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:4e56abadaeaa886980ea42a8ae3ef022f5f3f1d36982d0285b7bf9b200168c23",
+    "evidence_ref": "quality/AR-1754-default-online-postmerge-receipt.json",
+    "spec_ref": "specs/AR-1754.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1754.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
-  "task_revision": 109,
+  "task_revision": 110,
   "title": "Make online execution the default across ASB workflows",
-  "updated_at": "2026-10-11T03:39:04+00:00",
+  "updated_at": "2026-10-11T03:39:30+00:00",
   "worktree_key": ""
 }
 ---
@@ -353,3 +361,8 @@ production authority checks.
 
 - 2026-10-11T03:39:04+00:00: Recorded command exit 0; command argv SHA-256
   914dca83ea7fdafd2a4ca76b1e9171206ff2f8787f8d1f1f29b3574c052cdb36.
+
+- 2026-10-11T03:39:30+00:00: Accepted after signed merge 8e4dc926, all ten exact-main workflows
+  succeeded, protected-main provenance rerun succeeded after merged-PR association propagation, and
+  fresh exact-main policy plus workflow-transcript, diagnostic, guide, and 342-test library
+  verification passed. No GitHub Reviews API approval object required.
