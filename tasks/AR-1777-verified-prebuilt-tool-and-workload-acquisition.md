@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Synchronize signed repair head 37fcf269 with current protected main af75cd06 through clean-topic/superseding-PR workflow; PR #571 is conflicting, so do not force-push or merge until new exact-head checks and independent review pass.",
+  "next_action": "Await required checks for superseding PR #574 at fc4e8c9d (base af75cd06); then obtain independent exact-head review, merge only through signed local merge-integrity, and verify exact-main workflows.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair",
   "observed_dirty": 216,
   "observed_head": "62951d5629fae89653497545952247c0cbed382f",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root.",
-  "task_revision": 65,
+  "task_revision": 66,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T10:21:40+00:00",
+  "updated_at": "2026-10-11T10:22:53+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -170,3 +170,7 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T10:21:40+00:00: Claimed by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T10:22:53+00:00: Clean-topic/superseding workflow created PR #574 at signed/DCO head
+  fc4e8c9d after PR #571 conflict. Local focused/full asb-cli gates pass; hosted checks pending. No
+  force-push or merge performed.

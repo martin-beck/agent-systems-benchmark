@@ -1176,7 +1176,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root. |
-| Next action | Synchronize signed repair head 37fcf269 with current protected main af75cd06 through clean-topic/superseding-PR workflow; PR #571 is conflicting, so do not force-push or merge until new exact-head checks and independent review pass. |
+| Next action | Await required checks for superseding PR #574 at fc4e8c9d (base af75cd06); then obtain independent exact-head review, merge only through signed local merge-integrity, and verify exact-main workflows. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
