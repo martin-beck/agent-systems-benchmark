@@ -58,6 +58,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1712-handoff` | `codex/ar-1712-handoff` | `f090de56710d` | 0 | behind 19, ahead 0 |
 | `agent-systems-benchmark-ar-1723` | `codex/ar-1723-easy-online` | `5739f6674cc5` | 0 | behind 20, ahead 0 |
 | `agent-systems-benchmark-ar-1724-easy-sweep` | `codex/ar-1724-easy-sweep-online` | `70f20a9f1f5d` | 0 | behind 16, ahead 0 |
+| `agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install` | `docs/ar-1725-quickstart-platform-install` | `d77230ae46ce` | 0 | behind 0, ahead 1 |
 | `agent-systems-benchmark-ar-1736-backend-model-catalog` | `codex/ar-1736-backend-model-catalog` | `89852e60c5bf` | 0 | behind 0, ahead 1 |
 | `agent-systems-benchmark-ar-1754-merge` | `DETACHED` | `8e4dc926d4b8` | 0 | behind 3, ahead 0 |
 | `agent-systems-benchmark-ar-1754-online` | `codex/ar-1754-online-integration` | `0dcd147261d4` | 0 | behind 4, ahead 0 |
@@ -286,7 +287,6 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-ar1709-integration` | `DETACHED` | `2c6f3083504c` | 0 | behind 46, ahead 0 |
 | `asb-ar1715-live-qualification` | `DETACHED` | `b79ad1597a1c` | 5 | behind 41, ahead 0 |
 | changed files | - | - | - | `config-home/`, `live-selected.toml`, `provider-catalog.json`, `selected.toml`, `selection.json` |
-| `asb-ar1725` | `docs/ar-1725-quickstart-platform-install` | `d77230ae46ce` | 0 | behind 0, ahead 1 |
 | `asb-ar1725-base` | `DETACHED` | `fa9e0c6c9e71` | 0 | behind 0, ahead 0 |
 | `asb-ar1743-integration` | `DETACHED` | `507559f636e0` | 0 | behind 234, ahead 0 |
 | `asb-ar1743-postmerge` | `DETACHED` | `fd956d857970` | 0 | behind 232, ahead 0 |
