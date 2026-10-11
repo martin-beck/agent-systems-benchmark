@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix.",
-  "task_revision": 23,
+  "task_revision": 24,
   "title": "Pinned source builds and project dependencies",
-  "updated_at": "2026-10-11T08:35:24+00:00",
+  "updated_at": "2026-10-11T08:37:00+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies"
 }
 ---
@@ -98,3 +98,6 @@ limit are distinct actionable outcomes.
   4245b4a1; full asb-cli suite 348 passed, focused source-builder/catalog tests and clippy passed.
   PR #568 required checks remain in progress; separate technical review and protected merge are
   pending.
+
+- 2026-10-11T08:37:00+00:00: Recorded command exit 0; command argv SHA-256
+  780a79fcab6a88f44c65a1c800ec215251ab9b9960f708c32ff0ee8c8063d4c4.
