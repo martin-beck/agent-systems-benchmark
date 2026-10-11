@@ -448,7 +448,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation. |
-| Next action | PR #565 is publication candidate at exact head 34848868 on docs/ar-1725-documentation-quickstart-platform-install-v2; required checks pending. Monitor to terminal green, merge protected, verify exact main, then accept/release AR-1725. |
+| Next action | PR #565 rebased and re-signed onto protected main 4cb87998; exact candidate head is 8028fd66. Required checks rerunning with no failures; monitor to terminal green, then protected merge and post-merge release. |
 
 ### AR-1726 — Allow user-owned group-writable rustup shim in development
 

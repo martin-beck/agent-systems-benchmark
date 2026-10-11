@@ -12,7 +12,7 @@
     "AR-1724"
   ],
   "id": "AR-1725",
-  "next_action": "PR #565 is publication candidate at exact head 34848868 on docs/ar-1725-documentation-quickstart-platform-install-v2; required checks pending. Monitor to terminal green, merge protected, verify exact main, then accept/release AR-1725.",
+  "next_action": "PR #565 rebased and re-signed onto protected main 4cb87998; exact candidate head is 8028fd66. Required checks rerunning with no failures; monitor to terminal green, then protected merge and post-merge release.",
   "observed_branch": "docs/ar-1725-quickstart-platform-install",
   "observed_dirty": 0,
   "observed_head": "695f1335c4ede05b174cb6f369c4415ec1556fcf",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 29,
+  "task_revision": 30,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T07:16:02+00:00",
+  "updated_at": "2026-10-11T07:17:01+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
@@ -131,3 +131,7 @@ gates, independent review, and exact-head hosted CI.
 
 - 2026-10-11T07:16:02+00:00: Recorded command exit 8; command argv SHA-256
   1dd74d5c789009242632fac966edc34829f5316081d56f81f33fbdc485eaa9eb.
+
+- 2026-10-11T07:17:01+00:00: Rebased clean squashed PR #565 branch onto current protected main
+  4cb87998 and force-with-lease published signed head 8028fd66. Prior head 34848868 was behind and
+  superseded.
