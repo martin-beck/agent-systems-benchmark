@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Monitor new PR #576 hosted checks at exact head 817de0ed to terminal result; preserve no-force policy.",
+  "next_action": "Commit signed fail-closed resolver/validator repair, push PR #576, run focused/full gates, and reconcile exact head.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #576 exact head 817de0ed; local workspace coverage 90.28%",
-  "task_revision": 104,
+  "summary": "PR #576 exact head 817de0ed; source-only fallback and compressed archive validation gaps under repair",
+  "task_revision": 105,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:14:44+00:00",
+  "updated_at": "2026-10-11T11:24:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -372,3 +372,7 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T11:11:01+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T11:24:16+00:00: 2026-10-11T11:31Z repair in progress: resolve no longer falls back to
+  source alternatives; verify_bytes rejects gzip/xz archive magic before digest/executable handling;
+  focused 13-test suite passes.

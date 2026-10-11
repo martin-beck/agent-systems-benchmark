@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #576 exact head 817de0ed; local workspace coverage 90.28&#37; |
-| Next action | Monitor new PR #576 hosted checks at exact head 817de0ed to terminal result; preserve no-force policy. |
+| Summary | PR #576 exact head 817de0ed; source-only fallback and compressed archive validation gaps under repair |
+| Next action | Commit signed fail-closed resolver/validator repair, push PR #576, run focused/full gates, and reconcile exact head. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
