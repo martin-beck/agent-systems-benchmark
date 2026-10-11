@@ -8,6 +8,7 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1716](tasks/AR-1716.md): Cassette provider-profile identity binding | Bind every recording index insertion to the selected provider profile identity and reject mismatched cassette metadata before mutation. | Add a focused RecordingIndex::insert identity fence and deterministic positive/mismatch tests, then qualify exact human/JSON diagnostics and receipt integrity. | codex-ar1716-recording-fence-luna56 |
+| P0 | [AR-1717](tasks/AR-1717.md): Comparison exact provider/settings/endpoint identity fences | Require exact provider, model settings, and endpoint identity equality before comparison admits online/offline results. | Add focused comparison admission fences for provider, model/settings digest, endpoint identity, and generation; qualify symmetric/asymmetric mismatch diagnostics without weakening development setup. | codex-ar1717-comparison |
 | P1 | [AR-1725](tasks/AR-1725-documentation-quickstart-and-platform-install.md): Document two-agent OpenRouter and TUI quickstarts | Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation. | PR #565 is publication candidate at exact head 34848868 on docs/ar-1725-documentation-quickstart-platform-install-v2; required checks pending. Monitor to terminal green, merge protected, verify exact main, then accept/release AR-1725. | ar1725-docs-luna56 |
 
 ## Open
@@ -15,7 +16,6 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. | - |
-| P0 | [AR-1717](tasks/AR-1717.md): Comparison exact provider/settings/endpoint identity fences | Require exact provider, model settings, and endpoint identity equality before comparison admits online/offline results. | Add focused comparison admission fences for provider, model/settings digest, endpoint identity, and generation; qualify symmetric/asymmetric mismatch diagnostics without weakening development setup. | - |
 
 ## Blocked
 
