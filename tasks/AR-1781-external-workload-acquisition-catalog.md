@@ -1,7 +1,7 @@
 ---
 {
   "branch": "feature/ar-1781-external-workload-acquisition-catalog",
-  "checkpoint_commit": "",
+  "checkpoint_commit": "fd5868cf4c33c67db01cca18eefa4b8aacc024f1",
   "claim_expires": "2026-10-11T11:26:53+00:00",
   "depends_on": [
     "AR-1760"
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini.",
-  "task_revision": 8,
+  "task_revision": 9,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T09:26:53+00:00",
+  "updated_at": "2026-10-11T09:26:59+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -64,3 +64,5 @@ labelled.
   379d22b10394143332e165d35aef5072d33bcfe42a074b67c37a24320167a0ea.
 
 - 2026-10-11T09:26:53+00:00: Heartbeat by ar1781-luna56.
+
+- 2026-10-11T09:26:59+00:00: Checkpointed source commit fd5868cf4c33c67db01cca18eefa4b8aacc024f1.
