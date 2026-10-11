@@ -58,8 +58,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1712-handoff` | `codex/ar-1712-handoff` | `f090de56710d` | 0 | behind 16, ahead 0 |
 | `agent-systems-benchmark-ar-1723` | `codex/ar-1723-easy-online` | `5739f6674cc5` | 0 | behind 17, ahead 0 |
 | `agent-systems-benchmark-ar-1724-easy-sweep` | `codex/ar-1724-easy-sweep-online` | `70f20a9f1f5d` | 0 | behind 13, ahead 0 |
-| `agent-systems-benchmark-ar-1736-backend-model-catalog` | `codex/ar-1736-backend-model-catalog` | `8e4dc926d4b8` | 1 | behind 0, ahead 0 |
-| changed files | - | - | - | `crates/asb-control/src/provider.rs` |
+| `agent-systems-benchmark-ar-1736-backend-model-catalog` | `codex/ar-1736-backend-model-catalog` | `0b6e2ed1f92d` | 0 | behind 0, ahead 1 |
 | `agent-systems-benchmark-ar-1754-merge` | `DETACHED` | `8e4dc926d4b8` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar-1754-online` | `codex/ar-1754-online-integration` | `0dcd147261d4` | 0 | behind 1, ahead 0 |
 | `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `dd4cef2716da` | 1 | behind 0, ahead 1 |
