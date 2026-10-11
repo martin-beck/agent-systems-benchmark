@@ -1175,7 +1175,7 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #576 coverage continuation pushed at exact head a666bfda |
+| Summary | PR #576 exact head a666bfda; local workspace coverage 90.28&#37; |
 | Next action | Monitor PR #576 exact-head hosted checks; independently review and supersede stale PR #574 only after replacement checks are green. Preserve original PR #574 evidence. |
 
 ### AR-1778 — Pinned source builds and project dependencies

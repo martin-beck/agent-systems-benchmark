@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #576 coverage continuation pushed at exact head a666bfda",
-  "task_revision": 91,
+  "summary": "PR #576 exact head a666bfda; local workspace coverage 90.28%",
+  "task_revision": 92,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T10:50:56+00:00",
+  "updated_at": "2026-10-11T10:51:14+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -324,3 +324,9 @@ reporting contract when available while keeping machine-mode output safe.
   branch at
   /srv/data/projects/agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean.
   Hosted PR #574 policy remained 89.99%; do not weaken the floor.
+
+- 2026-10-11T10:51:14+00:00: Local tools/quality/check_coverage.py on clean PR #576 branch passed
+  workspace line floor at 90.28% (97642 covered, 9488 missed), above 90% with margin. Focused
+  tool_acquisition tests pass 11/11 and cargo fmt passes. Signed DCO head
+  a666bfdab274fb31fa043ce5ee27d1f8aeb38cb1 is pushed; hosted PR #576 checks are now the
+  authoritative pending gate.
