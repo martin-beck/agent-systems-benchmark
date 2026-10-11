@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1786",
-  "next_action": "Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass.",
+  "next_action": "Independent exact-head review of db3dfad83c511fa51f4315e2dcb57981048970d9; then exact-head CI. Replaced process-scoped POSIX record locks with nix Flock descriptor locks and added failed contender regression.",
   "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
   "observed_head": "7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 68,
+  "task_revision": 69,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T06:26:40+00:00",
+  "updated_at": "2026-10-11T06:26:48+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -234,3 +234,7 @@ gate into a serial-only or exclusion-based check.
   db3dfad83c511fa51f4315e2dcb57981048970d9; no PR or merge until review and exact-head CI pass.
 
 - 2026-10-11T06:26:40+00:00: Claimed by codex-ar1786-repair-luna56.
+
+- 2026-10-11T06:26:48+00:00: Repair commit db3dfad83c511fa51f4315e2dcb57981048970d9 is SSH-signed
+  and DCO-signed. Focused state-lock, failed same-process contender, parallel isolation, diagnostic
+  contract, fmt, and diff-check pass. Candidate remains unreleased pending independent review.
