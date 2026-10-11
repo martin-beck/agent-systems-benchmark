@@ -146,12 +146,6 @@
 
 ## Complete AR inventory
 
-### In progress (1)
-
-| Priority | AR | Owner | Summary | Next action |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1712](../tasks/AR-1712.md): Live result, recording, and comparison handoff contract | codex-ar1712-handoff | Define the ASB live-run result and selected/all recording handoff consumed by TUI for offline replay and comparison. | PR #484 merged at ASB 972a29f provides selected 2x2 and full 9x27 deterministic local-mock recording with offline_ready=true; still qualify strict network-denied replay, comparison, and paired TUI handoff before closure. |
-
 ### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
@@ -360,7 +354,7 @@
 | --- | --- | --- | --- | --- |
 | P4 | [AR-0703](../tasks/AR-0703-native-platform-lab.md): Provision native platform qualification capacity | Unclaimed | Optionally provide native ARM64 Debian/openEuler capacity for future claim-scoped evidence. | When separately authorized, provision genuine ARM64 Debian/openEuler capacity for optional future native evidence; absence must not block any AR. |
 
-### Done (566)
+### Done (567)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -567,3 +561,4 @@
 | P0 | [AR-1515](../tasks/AR-1515-ar1307-runner-ci-oom-repair.md): AR-1307 runner CI repair | Unclaimed | Triage complete: AR-1307 runner admission and diagnostics are intact; remaining failure is workload capacity under the unchanged 3G/3G contract. | No runner source repair remains; AR-1309 owns the separately reviewed capacity/model-reduction decision. |
 | P0 | [AR-1516](../tasks/AR-1516-ar1308-qemu-fixture-evidence-repair.md): AR-1308 QEMU fixture repair | Unclaimed | Fixture repair passed boot/transient/JAR checks; full tier timed out at 1700s without attestation. | Close fixture repair; hand timeout to AR-1309 for capacity/model decision. |
 | P0 | [AR-1517](../tasks/AR-1517-ar1309-capacity-decision-unblock.md): AR-1309 capacity decision | Unclaimed | Select a reviewed AR-1309 capacity/model contract after runner failure. | Classify evidence and select AR-1309&#x27;s capacity/model contract. |
+| P0 | [AR-1519](../tasks/AR-1519.md): AR-1307/1308 reduced-model development profile | Unclaimed | Reduced development tier implemented with explicit 900s/1-worker/2G/2G/4G bounds and non-claiming attestation. | Independently review the exact head, then release this development-only repair; full AR-1307/1308 qualification remains separate. |

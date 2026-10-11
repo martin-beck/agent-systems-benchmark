@@ -3,12 +3,6 @@
 This file is generated. Read `README.md`, then use `tools/handoffctl snapshot`.
 Never edit this file directly.
 
-## In Progress
-
-| Priority | Task | Summary | Next action | Owner |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1712](tasks/AR-1712.md): Live result, recording, and comparison handoff contract | Define the ASB live-run result and selected/all recording handoff consumed by TUI for offline replay and comparison. | PR #484 merged at ASB 972a29f provides selected 2x2 and full 9x27 deterministic local-mock recording with offline_ready=true; still qualify strict network-denied replay, comparison, and paired TUI handoff before closure. | codex-ar1712-handoff |
-
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |
