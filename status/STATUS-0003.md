@@ -1386,7 +1386,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage. |
-| Next action | Reproduce under repeated focused and coverage-equivalent execution; inspect PTY foreground/restore race and implement deterministic fixture repair without serialization or exclusion. |
+| Next action | Obtain the hosted coverage failure artifact or independent reproduction before changing the PTY fixture; current-main candidate remains unchanged and clean. |
 
 
 ## Dependency graph

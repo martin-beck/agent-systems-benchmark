@@ -8,7 +8,7 @@
     "AR-1791"
   ],
   "id": "AR-1792",
-  "next_action": "Reproduce under repeated focused and coverage-equivalent execution; inspect PTY foreground/restore race and implement deterministic fixture repair without serialization or exclusion.",
+  "next_action": "Obtain the hosted coverage failure artifact or independent reproduction before changing the PTY fixture; current-main candidate remains unchanged and clean.",
   "observed_branch": "codex/ar-1792-pty-fixture-determinism",
   "observed_dirty": 0,
   "observed_head": "16d8512debab5515068d285fd820e1be0751c51b",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage.",
-  "task_revision": 15,
+  "task_revision": 16,
   "title": "Make development broker PTY fixture deterministic",
-  "updated_at": "2026-10-11T00:13:49+00:00",
+  "updated_at": "2026-10-11T00:13:56+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1792-pty-fixture-determinism"
 }
 ---
@@ -72,3 +72,12 @@ serial-only or exclusion-based gate.
 
 - 2026-10-11T00:13:49+00:00: Recorded command exit 0; command argv SHA-256
   84515acabd057d18badc32f49cae687ea92c7e913c3441b813527ce0c3590669.
+
+- 2026-10-11T00:13:56+00:00: Coverage-equivalent qualification completed against isolated
+  CARGO_TARGET_DIR=/tmp/ar1792-pty-target: cargo test --locked -p asb-cli --lib -- --test-threads=1
+  passed 341/341, including the target PTY test and related changed-owner/restore-owner tests. The
+  target PTY test also passed in three additional exact focused repetitions (0.05s each), following
+  the initial three-pass reproduction. No product changes are justified or present; current head
+  remains 16d8512debab5515068d285fd820e1be0751c51b. The only failure observed was the initial direct
+  /srv/data build blocked by No space left on device, classified as infrastructure; no fixture
+  failure reproduced.
