@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
-  "task_revision": 55,
+  "task_revision": 56,
   "title": "Make online execution the default across ASB workflows",
-  "updated_at": "2026-10-11T02:44:02+00:00",
+  "updated_at": "2026-10-11T02:44:33+00:00",
   "worktree_key": ""
 }
 ---
@@ -201,3 +201,6 @@ production authority checks.
 
 - 2026-10-11T02:44:02+00:00: Recorded command exit 0; command argv SHA-256
   5b3cbeadbe0801c723718018e0dbaaba6628283c4d4841041f7b1d912f280c59.
+
+- 2026-10-11T02:44:33+00:00: Recorded command exit 0; command argv SHA-256
+  024f7af5ef34e4a75ed4d40981c1ccedd976339f904663fc9df39a6792118b31.
