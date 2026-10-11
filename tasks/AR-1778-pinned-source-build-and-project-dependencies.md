@@ -3,7 +3,9 @@
   "branch": "feature/ar-1778-pinned-source-build-and-project-dependencies",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1776"],
+  "depends_on": [
+    "AR-1776"
+  ],
   "id": "AR-1778",
   "next_action": "Implement catalog-pinned source fallback builds and project-local dependency materialization for supported tools without root or ambient package-manager mutation.",
   "observed_branch": "",
@@ -13,14 +15,21 @@
   "plan": "../plans/AR-1778-pinned-source-build-and-project-dependencies.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "property-or-fuzz", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1778.json", "spec_revision": 1, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "property-or-fuzz",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1778.json",
+    "spec_revision": 1,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1778.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Pinned source builds and project dependencies",
-  "updated_at": "2026-10-10T09:49:36+00:00",
+  "updated_at": "2026-10-11T08:14:46+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies"
 }
 ---
@@ -41,3 +50,6 @@ diagnostics, atomically publish the final tool and dependency closure, and clean
 only transaction-owned staging data. Missing compiler/platform support, failed
 dependency build, build-script policy rejection, output mismatch, and resource
 limit are distinct actionable outcomes.
+
+- 2026-10-11T08:14:46+00:00: Dependency AR-1776 is complete; opening AR-1778 for implementation per
+  coordinated plan.
