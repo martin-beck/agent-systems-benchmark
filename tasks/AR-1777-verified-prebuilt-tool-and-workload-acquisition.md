@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Independent-review exact head 2fc8b428 and monitor fresh hosted Policy/Credential-free/Rust/AArch64 checks; merge only after every required gate is green and exact-head evidence is reconciled.",
+  "next_action": "Monitor fresh hosted checks at exact 2fc8b428; inspect any failure before review/merge.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #579 exact head 2fc8b428 shortens PID/sequence replay fixture roots to stay within AF_UNIX socket limits while preserving bounded cross-process isolation. Full CLI parallel and serial validation passed locally; fresh independent review and hosted checks are pending.",
-  "task_revision": 150,
+  "summary": "PR #579 exact head 2fc8b428; compact PID/sequence replay fixture roots preserve cross-process isolation and fit AF_UNIX relay path; serial asb-cli lib 376/376 green; exact replay regression passes.",
+  "task_revision": 151,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:33:11+00:00",
+  "updated_at": "2026-10-11T12:33:27+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -534,3 +534,7 @@ reporting contract when available while keeping machine-mode output safe.
 - 2026-10-11T12:33:11+00:00: Repair fixed the measured 112-byte relay path overflow caused by
   PID-scoped roots; temporary debug diagnostics were removed. Signed/DCO commit pushed. No merge
   authorized until exact-head review and hosted gates.
+
+- 2026-10-11T12:33:27+00:00: Confirmed f299 path-too-long root cause. Signed 2fc8b428 shortens root
+  identity to compact hex and removes debug instrumentation. Focused and serial full CLI gates pass;
+  default parallel had separate unrelated fixture races.

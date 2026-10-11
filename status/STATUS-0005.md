@@ -1,7 +1,5 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
-| [AR-1623](../tasks/AR-1623.md) | [AR-1614](../tasks/AR-1614.md), [AR-1620](../tasks/AR-1620.md), [AR-1622](../tasks/AR-1622.md), [AR-1632](../tasks/AR-1632.md) | [AR-1624](../tasks/AR-1624.md), [AR-1653](../tasks/AR-1653.md), [AR-1655](../tasks/AR-1655.md) |
-| [AR-1624](../tasks/AR-1624.md) | [AR-1623](../tasks/AR-1623.md) | [AR-1655](../tasks/AR-1655.md) |
 | [AR-1625](../tasks/AR-1625.md) | [AR-1615](../tasks/AR-1615.md) | [AR-1627](../tasks/AR-1627.md) |
 | [AR-1626](../tasks/AR-1626.md) | [AR-1615](../tasks/AR-1615.md) | [AR-1628](../tasks/AR-1628.md) |
 | [AR-1627](../tasks/AR-1627.md) | [AR-1615](../tasks/AR-1615.md), [AR-1625](../tasks/AR-1625.md) | None |
@@ -171,7 +169,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1777](../tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 | PR #579 exact head 2fc8b428 shortens PID/sequence replay fixture roots to stay within AF_UNIX socket limits while preserving bounded cross-process isolation. Full CLI parallel and serial validation passed locally; fresh independent review and hosted checks are pending. | Independent-review exact head 2fc8b428 and monitor fresh hosted Policy/Credential-free/Rust/AArch64 checks; merge only after every required gate is green and exact-head evidence is reconciled. |
+| P0 | [AR-1777](../tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 | PR #579 exact head 2fc8b428; compact PID/sequence replay fixture roots preserve cross-process isolation and fit AF_UNIX relay path; serial asb-cli lib 376/376 green; exact replay regression passes. | Monitor fresh hosted checks at exact 2fc8b428; inspect any failure before review/merge. |
 | P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | codex-ar1796-integration-liveness | Keep autonomous development live during concurrent protected-main integration. | Implement candidate-bound publication admission before moving remote I/O outside the authority lock. |
 
 ### Open (2)
@@ -578,3 +576,5 @@
 | P0 | [AR-1514](../tasks/AR-1514-runtime-auth-reconciliation.md): Reconciled development auth handoff runtime | Unclaimed | Repair ASB development-runtime reconciliation between digest-only enrollment and helper invocation. | Complete; PR #386 merged at bf89a45ddd71af96e6d4b6954320e199e147f83e. Protected main tree equals reviewed topic and post-merge auth-focused ASB tests pass. Paired asb-tui AR-1323 qualification remains external. |
 | P0 | [AR-1515](../tasks/AR-1515-ar1307-runner-ci-oom-repair.md): AR-1307 runner CI repair | Unclaimed | Triage complete: AR-1307 runner admission and diagnostics are intact; remaining failure is workload capacity under the unchanged 3G/3G contract. | No runner source repair remains; AR-1309 owns the separately reviewed capacity/model-reduction decision. |
 | P0 | [AR-1516](../tasks/AR-1516-ar1308-qemu-fixture-evidence-repair.md): AR-1308 QEMU fixture repair | Unclaimed | Fixture repair passed boot/transient/JAR checks; full tier timed out at 1700s without attestation. | Close fixture repair; hand timeout to AR-1309 for capacity/model decision. |
+| P0 | [AR-1517](../tasks/AR-1517-ar1309-capacity-decision-unblock.md): AR-1309 capacity decision | Unclaimed | Select a reviewed AR-1309 capacity/model contract after runner failure. | Classify evidence and select AR-1309&#x27;s capacity/model contract. |
+| P0 | [AR-1519](../tasks/AR-1519.md): AR-1307/1308 reduced-model development profile | Unclaimed | Reduced development tier implemented with explicit 900s/1-worker/2G/2G/4G bounds and non-claiming attestation. | Independently review the exact head, then release this development-only repair; full AR-1307/1308 qualification remains separate. |

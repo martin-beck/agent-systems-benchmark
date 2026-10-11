@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #579 exact head 2fc8b428 shortens PID/sequence replay fixture roots to stay within AF_UNIX socket limits while preserving bounded cross-process isolation. Full CLI parallel and serial validation passed locally; fresh independent review and hosted checks are pending. | Independent-review exact head 2fc8b428 and monitor fresh hosted Policy/Credential-free/Rust/AArch64 checks; merge only after every required gate is green and exact-head evidence is reconciled. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
+| P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #579 exact head 2fc8b428; compact PID/sequence replay fixture roots preserve cross-process isolation and fit AF_UNIX relay path; serial asb-cli lib 376/376 green; exact replay regression passes. | Monitor fresh hosted checks at exact 2fc8b428; inspect any failure before review/merge. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | P0 | [AR-1796](tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Keep autonomous development live during concurrent protected-main integration. | Implement candidate-bound publication admission before moving remote I/O outside the authority lock. | codex-ar1796-integration-liveness |
 
 ## Open
