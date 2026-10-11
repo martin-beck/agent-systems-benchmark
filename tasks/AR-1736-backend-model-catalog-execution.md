@@ -1,22 +1,24 @@
 ---
 {
+  "branch": "",
+  "checkpoint_commit": "",
+  "claim_expires": "",
+  "depends_on": [
+    "AR-1733"
+  ],
   "id": "AR-1736",
-  "title": "Require model catalogs and execution parity for every backend",
-  "priority": "P0",
-  "depends_on": ["AR-1733"],
-  "plan": "../plans/AR-1736-backend-model-catalog-execution.md",
-  "summary": "Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution.",
-  "status": "planned",
   "next_action": "Promote after AR-1733; inventory the canonical backend registry and implement catalog, selection, run, and sweep parity with exhaustive fixtures.",
   "owner": "",
-  "claim_expires": "",
-  "checkpoint_commit": "",
-  "task_revision": 1,
+  "plan": "../plans/AR-1736-backend-model-catalog-execution.md",
+  "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1736.json",
   "spec_revision": 1,
-  "updated_at": "2026-10-08T06:30:00+00:00",
-  "branch": "",
+  "status": "open",
+  "summary": "Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution.",
+  "task_revision": 2,
+  "title": "Require model catalogs and execution parity for every backend",
+  "updated_at": "2026-10-11T06:25:24+00:00",
   "worktree_key": ""
 }
 ---
@@ -30,3 +32,6 @@ and remain covered by the same registry completeness gate; they may not be
 silently omitted. Development fixtures are authoritative for CI. Optional live
 checks may add evidence but missing credentials, authentication, signatures, or
 key services must not block this development AR.
+
+- 2026-10-11T06:25:24+00:00: Dependency AR-1733 is durably done; promote for backend model catalog
+  and execution parity implementation.
