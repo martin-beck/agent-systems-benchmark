@@ -94,6 +94,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1770-descriptor-safe-directory-race-hardening` | `feature/ar-1770-descriptor-safe-directory-race-hardening` | `6278fcd6720f` | 0 | behind 88, ahead 0 |
 | `agent-systems-benchmark-ar-1771-human-status-and-quiet-contract` | `feature/ar-1771-human-status-and-quiet-contract` | `4b86c4a7a099` | 0 | behind 31, ahead 0 |
 | `agent-systems-benchmark-ar-1791-tui-fixture-isolation` | `codex/ar-1791-tui-fixture-isolation` | `4dbf735db270` | 0 | behind 1, ahead 0 |
+| `agent-systems-benchmark-ar-1792-pty-fixture-determinism` | `codex/ar-1792-pty-fixture-determinism` | `16d8512debab` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar1575-qualification` | `DETACHED` | `f535e3cb327b` | 0 | behind 231, ahead 0 |
 | `agent-systems-benchmark-ar1575-requal-20261008` | `DETACHED` | `1a5888ce1c96` | 0 | behind 219, ahead 0 |
 | `agent-systems-benchmark-ar1647-final-comparison` | `codex/ar-1647-final-comparison` | `a65ebb560cf2` | 0 | behind 23, ahead 0 |
