@@ -8,9 +8,9 @@
   ],
   "id": "AR-1777",
   "next_action": "Monitor new PR #576 hosted checks at exact head 817de0ed to terminal result; preserve no-force policy.",
-  "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition",
+  "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
-  "observed_head": "eff009eeefb1b7c4c95217044ba44de5c4d44853",
+  "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
   "owner": "codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56",
   "plan": "../plans/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md",
   "priority": "P0",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #576 exact head 817de0ed; local workspace coverage 90.28%",
-  "task_revision": 103,
+  "task_revision": 104,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:11:01+00:00",
+  "updated_at": "2026-10-11T11:14:44+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---

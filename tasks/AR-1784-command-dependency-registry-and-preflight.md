@@ -9,8 +9,8 @@
   "id": "AR-1784",
   "next_action": "Monitor PR #575 exact-head hosted checks; if coverage passes, independently review and handoff. Preserve PR #573 as superseded.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
-  "observed_dirty": 6,
-  "observed_head": "fe7f1ce8b34d286ae7e0a83d1d64b2211e7302a5",
+  "observed_dirty": 1,
+  "observed_head": "e85e6872f055209fb54de3e4e5c3f62353db80f5",
   "owner": "coordinator",
   "plan": "../plans/AR-1784-command-dependency-registry-and-preflight.md",
   "priority": "P0",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "PR #575 coverage repair pushed at exact head e5f378aa",
-  "task_revision": 81,
+  "task_revision": 82,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:13:52+00:00",
+  "updated_at": "2026-10-11T11:14:44+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
