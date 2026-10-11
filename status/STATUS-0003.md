@@ -1470,7 +1470,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Coverage margin repair pushed at c5303c05. |
-| Next action | Monitor fresh exact-head CI for c5303c05 and obtain independent re-review; do not merge. |
+| Next action | Monitor PR #585 exact-head CI at 55a78934; request independent re-review after hosted coverage passes. |
 
 
 ## Dependency graph
