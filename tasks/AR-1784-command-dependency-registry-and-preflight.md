@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Repair hosted workspace coverage failure (89.96% versus 90% floor) with bounded dependency-registry and preflight tests; republish clean PR #575, rerun all checks, then signed local merge and exact-main verification.",
+  "next_action": "Await remaining exact-head checks for PR #575 at e5f378aa (Policy/coverage, Rust, Emulated AArch64, TLC/Alloy); then merge only through signed local merge-integrity and verify exact-main workflows.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 2,
   "observed_head": "9d729dd610d303b5ab5ba9815fff76bab1b917a7",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 226,
+  "task_revision": 227,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:43:06+00:00",
+  "updated_at": "2026-10-11T10:47:01+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -624,3 +624,7 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T10:43:06+00:00: PR #575 policy/coverage/supply-chain failed at hosted workspace line
   coverage 89.96% (97,647 total, 9,799 missed). Independent review identified uncovered
   dependency_registry and preflight branches; no gate weakening authorized.
+
+- 2026-10-11T10:47:01+00:00: Independent exact-head review at e5f378aa passed: scoped bounded
+  coverage tests, synthetic fixtures only, no credentials/network/unbounded evidence, linear base
+  af75cd06, SSH signature and DCO valid. Required hosted checks remain pending; no merge yet.

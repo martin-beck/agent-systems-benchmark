@@ -1274,7 +1274,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. |
-| Next action | Repair hosted workspace coverage failure (89.96&#37; versus 90&#37; floor) with bounded dependency-registry and preflight tests; republish clean PR #575, rerun all checks, then signed local merge and exact-main verification. |
+| Next action | Await remaining exact-head checks for PR #575 at e5f378aa (Policy/coverage, Rust, Emulated AArch64, TLC/Alloy); then merge only through signed local merge-integrity and verify exact-main workflows. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 
