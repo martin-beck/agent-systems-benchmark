@@ -20,9 +20,9 @@ Generated from local Git and GitHub. Do not edit.
 | #494 | `repair/ar-protected-provenance@26bdd021b0d3` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | repair: restore protected-main signed provenance |
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
-| #560 | `codex/ar-1736-backend-model-catalog@fa1940c0b9b1` | `main` | BLOCKED | QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, QUEUED:, IN_PROGRESS: | Bind backend model selections to catalog identity |
-| #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, IN_PROGRESS:, IN_PROGRESS:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | docs: add two-agent OpenRouter and TUI walkthrough |
-| #565 | `docs/ar-1725-quickstart-platform-install-v2@348488689ff0` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | docs: add two-agent OpenRouter and TUI walkthrough |
+| #560 | `codex/ar-1736-backend-model-catalog@fa1940c0b9b1` | `main` | BLOCKED | QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | Bind backend model selections to catalog identity |
+| #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, IN_PROGRESS:, COMPLETED:SUCCESS, QUEUED:, IN_PROGRESS:, QUEUED:, QUEUED: | docs: add two-agent OpenRouter and TUI walkthrough |
+| #565 | `docs/ar-1725-quickstart-platform-install-v2@348488689ff0` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, IN_PROGRESS:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | docs: add two-agent OpenRouter and TUI walkthrough |
 
 ## Recent workflows
 
@@ -34,7 +34,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38119903718 | `348488689ff0` | pull_request | Repository quality | queued:- |
 | 38119903708 | `348488689ff0` | pull_request | Credential-free benchmark path | queued:- |
 | 38119903704 | `348488689ff0` | pull_request | Emulated aarch64 portability | queued:- |
-| 38119903703 | `348488689ff0` | pull_request | Huawei MIT source headers | queued:- |
+| 38119903703 | `348488689ff0` | pull_request | Huawei MIT source headers | in_progress:- |
 | 38119903700 | `348488689ff0` | pull_request | Rust verification | queued:- |
 | 38119903688 | `348488689ff0` | pull_request | Fault assurance | queued:- |
 | 38119903678 | `348488689ff0` | pull_request | Portable protected-main provenance | queued:- |
