@@ -266,7 +266,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-ar1698-runtime-authority` | `codex-ar1698-runtime-authority` | `c5a7e64af8cd` | 0 | behind 284, ahead 1 |
 | `asb` | `DETACHED` | `457317b21dbe` | 0 | behind 262, ahead 0 |
 | `asb-ar1715-qualification` | `DETACHED` | `daae06efa2d7` | 0 | behind 32, ahead 0 |
-| `asb-ar1717-comparison-product` | `codex/ar-1717-comparison-product` | `f80ce42558c5` | 0 | behind 177, ahead 3 |
+| `asb-ar1717-comparison-product` | `DETACHED` | `c607bb0d2682` | 1 | behind 0, ahead 2 |
+| changed files | - | - | - | `docs/examples/asb-cli-workflow-v1.provenance.json` |
 | `asb-ar1721-qualification-20261009` | `DETACHED` | `31ca7a481fca` | 0 | behind 213, ahead 0 |
 | `asb-ar1721-tui-provider-router` | `repair/ar-1721-tui-provider-router` | `8345a9890e5b` | 0 | behind 283, ahead 0 |
 | `asb-ar1723-merge` | `DETACHED` | `f090de56710d` | 0 | behind 23, ahead 0 |
