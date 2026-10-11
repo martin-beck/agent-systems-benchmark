@@ -328,11 +328,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1717-comparison |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Require exact provider, model settings, and endpoint identity equality before comparison admits online/offline results. |
@@ -2163,7 +2163,7 @@ flowchart LR
         AR_1712["AR-1712 - Done"]:::status_done
         AR_1715["AR-1715 - Done"]:::status_done
         AR_1716["AR-1716 - Done"]:::status_done
-        AR_1717["AR-1717 - In progress"]:::status_in_progress
+        AR_1717["AR-1717 - Done"]:::status_done
         AR_1718["AR-1718 - Done"]:::status_done
         AR_1719["AR-1719 - Done"]:::status_done
         AR_1720["AR-1720 - Done"]:::status_done

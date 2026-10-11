@@ -7,7 +7,6 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1717](tasks/AR-1717.md): Comparison exact provider/settings/endpoint identity fences | Require exact provider, model settings, and endpoint identity equality before comparison admits online/offline results. | Monitor PR #567 exact head c0e3f8f4 for fresh required CI; independent review, protected merge, postmerge verify, then accept/release. | codex-ar1717-comparison |
 | P0 | [AR-1784](tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. | Derive a complete command-to-tool/host-capability dependency registry and fail-fast preflight from all ASB command paths, adapters, monitors, and build recipes. | ar1784_dependency_registry_luna56 |
 
 ## Open
