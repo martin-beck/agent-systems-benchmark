@@ -21,8 +21,7 @@ Generated from local Git and GitHub. Do not edit.
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #560 | `codex/ar-1736-backend-model-catalog@0b6e2ed1f92d` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | Bind backend model selections to catalog identity |
-| #561 | `codex/ar-1786-control-state-review-luna56@378787cdd6e4` | `main` | DIRTY | - | fix(control): repair state-root isolation lock ownership |
-| #562 | `codex/ar-1786-control-state-current@ee8fd37bc05f` | `main` | BEHIND | QUEUED:, QUEUED:, QUEUED:, QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, QUEUED:, IN_PROGRESS:, QUEUED:, IN_PROGRESS: | fix(control): use descriptor-scoped state locks |
+| #562 | `codex/ar-1786-control-state-current@ee8fd37bc05f` | `main` | BEHIND | QUEUED:, QUEUED:, QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, QUEUED:, IN_PROGRESS:, QUEUED:, IN_PROGRESS: | fix(control): use descriptor-scoped state locks |
 
 ## Recent workflows
 
@@ -36,7 +35,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38118959342 | `ee8fd37bc05f` | pull_request | Hosted portability and native qualification | queued:- |
 | 38118959340 | `ee8fd37bc05f` | pull_request | Emulated aarch64 portability | in_progress:- |
 | 38118959328 | `ee8fd37bc05f` | pull_request | Fault assurance | in_progress:- |
-| 38118959324 | `ee8fd37bc05f` | pull_request | Portable protected-main provenance | queued:- |
+| 38118959324 | `ee8fd37bc05f` | pull_request | Portable protected-main provenance | in_progress:- |
 | 38118959322 | `ee8fd37bc05f` | pull_request | Credential-free benchmark path | in_progress:- |
-| 38118959318 | `ee8fd37bc05f` | pull_request | Agent Workflow Quality shadow | in_progress:- |
+| 38118959318 | `ee8fd37bc05f` | pull_request | Agent Workflow Quality shadow | completed:success |
 | 38118935335 | `fa9e0c6c9e71` | push | Formal assurance | in_progress:- |
