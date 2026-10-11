@@ -9,7 +9,7 @@
     "AR-1784"
   ],
   "id": "AR-1779",
-  "next_action": "Make asb tool install supported-id resolve, acquire/build, validate, and register a usable project-local executable tool by default.",
+  "next_action": "Independent review and exact-head CI for PR #583 at 32cb692a; source-only fallback remains to be resolved before merge.",
   "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
   "observed_dirty": 0,
   "observed_head": "32cb692acebe3a9bd823d17b22cacc397124342b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 18,
+  "task_revision": 19,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-11T14:05:13+00:00",
+  "updated_at": "2026-10-11T14:05:22+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -100,3 +100,6 @@ the adapter smoke check failed.
 
 - 2026-10-11T14:04:44+00:00: Recorded command exit 0; command argv SHA-256
   cab79174958809e6e46c45ff4e7953c404de8b4e7dcba8de94d226f3ce8d4ac8.
+
+- 2026-10-11T14:05:22+00:00: Rustfmt repair 32cb692a pushed. Full cargo test -p asb-cli passed
+  before repair; repair is formatting-only. PR #583 exact head updated.
