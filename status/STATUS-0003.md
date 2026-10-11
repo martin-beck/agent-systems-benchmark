@@ -322,7 +322,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Bind every recording index insertion to the selected provider profile identity and reject mismatched cassette metadata before mutation. |
-| Next action | Add a focused RecordingIndex::insert identity fence and deterministic positive/mismatch tests, then qualify exact human/JSON diagnostics and receipt integrity. |
+| Next action | Independently review complete diff, run full required gates and privacy/formal checks, then publish exact clean PR for hosted green validation. |
 
 ### AR-1717 — Comparison exact provider/settings/endpoint identity fences
 
