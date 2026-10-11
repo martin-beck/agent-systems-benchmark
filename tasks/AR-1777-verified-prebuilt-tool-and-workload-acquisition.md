@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Repair remaining full asb-cli/credential-free failure at exact f299ef1c: opencode_opendesk_matrix_exercises_public_cli_routes reports development replay authority unavailable under full parallel test execution. Isolate the shared runtime/replay state, add regression coverage, then rerun exact hosted gates and review.",
+  "next_action": "Repair fixture socket path-length failure: PID-scoped /tmp/asb-dr-{pid}-{seq} makes relay path exceed AF_UNIX limit with replay digest socket names, yielding development replay authority unavailable. Shorten bounded fixture root identity while preserving cross-process isolation, add path-length regression, rerun full CLI and hosted checks.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #579 exact head f299ef1c passes focused allocator tests and runtime clippy, but independent full-review and hosted Credential-free benchmark both fail the same CLI replay-authority test (375 passed, 1 failed). No merge until this shared-state failure is repaired.",
-  "task_revision": 144,
+  "summary": "PR #579 exact head f299ef1c has bounded allocator/clippy fixes but full CLI and hosted Credential-free still fail replay authority. Investigation points to AF_UNIX path overflow from the new PID-scoped root plus digest-named relay socket; repair worker is validating and fixing this.",
+  "task_revision": 145,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:26:45+00:00",
+  "updated_at": "2026-10-11T12:27:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -514,3 +514,7 @@ reporting contract when available while keeping machine-mode output safe.
 - 2026-10-11T12:26:45+00:00: Fresh exact-head independent review FAIL: full cargo test --locked -p
   asb-cli reproduces development replay authority unavailable in openai/opencode matrix; hosted
   Credential-free path failed identically. Repair worker assigned; no floor weakening or merge.
+
+- 2026-10-11T12:27:50+00:00: Independent review and hosted Credential-free evidence agree on the
+  same failure. Measured current relay path at 112 bytes versus 108-byte Unix socket limit; no merge
+  or gate weakening.

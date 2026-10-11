@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #579 exact head f299ef1c passes focused allocator tests and runtime clippy, but independent full-review and hosted Credential-free benchmark both fail the same CLI replay-authority test (375 passed, 1 failed). No merge until this shared-state failure is repaired. |
-| Next action | Repair remaining full asb-cli/credential-free failure at exact f299ef1c: opencode_opendesk_matrix_exercises_public_cli_routes reports development replay authority unavailable under full parallel test execution. Isolate the shared runtime/replay state, add regression coverage, then rerun exact hosted gates and review. |
+| Summary | PR #579 exact head f299ef1c has bounded allocator/clippy fixes but full CLI and hosted Credential-free still fail replay authority. Investigation points to AF_UNIX path overflow from the new PID-scoped root plus digest-named relay socket; repair worker is validating and fixing this. |
+| Next action | Repair fixture socket path-length failure: PID-scoped /tmp/asb-dr-{pid}-{seq} makes relay path exceed AF_UNIX limit with replay digest socket names, yielding development replay authority unavailable. Shorten bounded fixture root identity while preserving cross-process isolation, add path-length regression, rerun full CLI and hosted checks. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
