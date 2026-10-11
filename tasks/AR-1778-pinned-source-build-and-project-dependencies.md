@@ -10,7 +10,7 @@
   "next_action": "Independent exact-head review and required CI for PR #568; merge only after separate review and all required checks pass.",
   "observed_branch": "feature/ar-1778-pinned-source-build-and-project-dependencies",
   "observed_dirty": 0,
-  "observed_head": "30d397f3b119b5a86b70eaf18fda2d188a645b12",
+  "observed_head": "1c11b88d2790447c6d277342c8233fdf245ba391",
   "owner": "codex-ar1778-luna56",
   "plan": "../plans/AR-1778-pinned-source-build-and-project-dependencies.md",
   "priority": "P0",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix.",
-  "task_revision": 29,
+  "task_revision": 30,
   "title": "Pinned source builds and project dependencies",
-  "updated_at": "2026-10-11T08:40:07+00:00",
+  "updated_at": "2026-10-11T08:43:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies"
 }
 ---
