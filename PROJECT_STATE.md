@@ -21,18 +21,18 @@ Generated from local Git and GitHub. Do not edit.
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
-| #566 | `codex/ar-1716-recording-fence@a8e615d02d71` | `main` | BEHIND | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS | fix(replay): fence recording provider identity diagnostics |
-| #567 | `codex/ar-1717-comparison-product@9f02f2a00b44` | `main` | BEHIND | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat: fence comparison provider identities |
+| #566 | `codex/ar-1716-recording-fence@58a445a5dd90` | `main` | BLOCKED | - | fix(replay): fence recording provider identity diagnostics |
+| #567 | `codex/ar-1717-comparison-product@9f02f2a00b44` | `main` | BEHIND | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat: fence comparison provider identities |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38122060615 | `7e795589fd4d` | push | Emulated aarch64 portability | queued:- |
+| 38122060615 | `7e795589fd4d` | push | Emulated aarch64 portability | in_progress:- |
 | 38122060591 | `7e795589fd4d` | push | Formal assurance | in_progress:- |
-| 38122060589 | `7e795589fd4d` | push | Fault assurance | queued:- |
+| 38122060589 | `7e795589fd4d` | push | Fault assurance | in_progress:- |
 | 38122060580 | `7e795589fd4d` | push | Rust verification | in_progress:- |
-| 38122060562 | `7e795589fd4d` | push | Repository quality | in_progress:- |
+| 38122060562 | `7e795589fd4d` | push | Repository quality | completed:failure |
 | 38122060554 | `7e795589fd4d` | push | Hosted portability and native qualification | in_progress:- |
 | 38122060550 | `7e795589fd4d` | push | Huawei MIT source headers | completed:success |
 | 38122060534 | `7e795589fd4d` | push | Portable protected-main provenance | completed:failure |
