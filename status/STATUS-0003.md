@@ -1274,7 +1274,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. |
-| Next action | Repair PR #573 exact-head human_cli diagnostic matrix failure, then rerun Rust/policy and all required gates before review/merge. |
+| Next action | Await required checks for PR #573 at d1b15fa7; then complete exact-head review, merge, post-merge assurance, and accept/release. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 
