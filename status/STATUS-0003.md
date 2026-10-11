@@ -1274,7 +1274,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. |
-| Next action | Repair PR #573 exact head 9d729dd6: add human-readable default asb preflight output with equivalent --json and scope dependency readiness to selected agent/runtime. Add positive/negative tests, signed DCO commit, push, and rerun applicable gates. |
+| Next action | Monitor PR #573 exact head e8e3b9e7 for hosted gates; repair only any exact-head failure, then perform independent review and handoff. Do not merge from this worktree. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 

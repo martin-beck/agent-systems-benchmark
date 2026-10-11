@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Repair PR #573 exact head 9d729dd6: add human-readable default asb preflight output with equivalent --json and scope dependency readiness to selected agent/runtime. Add positive/negative tests, signed DCO commit, push, and rerun applicable gates.",
+  "next_action": "Monitor PR #573 exact head e8e3b9e7 for hosted gates; repair only any exact-head failure, then perform independent review and handoff. Do not merge from this worktree.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 6,
   "observed_head": "fe7f1ce8b34d286ae7e0a83d1d64b2211e7302a5",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 69,
+  "task_revision": 70,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:09:33+00:00",
+  "updated_at": "2026-10-11T10:17:54+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -241,3 +241,9 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T10:09:33+00:00: Independent review P1 findings recorded: preflight currently lacks
   human-readable default output; readiness evaluates all 11 agent IDs instead of selected
   command/runtime scope. Preserve --json parity and fail-closed selected-scope checks.
+
+- 2026-10-11T10:17:54+00:00: Signed DCO checkpoint e8e3b9e7: asb preflight supports selected --agent
+  and --runtime host|local scopes, keeps --json equivalent, and executable default renders human
+  output. Added selected-scope positive/negative tests, human/JSON integration coverage, refreshed
+  448 reviewed diagnostic identities, and updated workflow provenance digest. Full asb-cli package
+  tests pass.
