@@ -18,13 +18,21 @@
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:ad3325bc51f7d5770343c780647e81efeffe3fa50f831cbec2aee3f1cff3ea8f",
+    "evidence_ref": "quality/AR-1785-openrouter-config-postmerge-receipt.json",
+    "spec_ref": "specs/AR-1785.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1785.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 199,
+  "task_revision": 200,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-11T00:37:33+00:00",
+  "updated_at": "2026-10-11T00:37:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -618,3 +626,6 @@ merging, and post-merge verification remain required.
 
 - 2026-10-11T00:37:33+00:00: Recorded command exit 0; command argv SHA-256
   6418b5ad6dd608fa8777a31de5f97361121ea054334c495bea3e5ea86b1b2942.
+
+- 2026-10-11T00:37:37+00:00: Accepted after signed merge daae06e, all ten exact-main workflows
+  green, and 341/341 post-merge asb-cli tests. No GitHub Reviews API approval object required.
