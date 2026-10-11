@@ -1,6 +1,5 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
-| [AR-0519](../tasks/AR-0519-gemini-thinking-config-contract.md) | [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md) | None |
 | [AR-0520](../tasks/AR-0520-interaction-aware-redaction.md) | [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md) | None |
 | [AR-0521](../tasks/AR-0521-openhands-environment-pin.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md) | None |
 | [AR-0601](../tasks/AR-0601-csb-integration.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0104](../tasks/AR-0104-durable-results.md), [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0603](../tasks/AR-0603-csb-execution-assurance.md) | [AR-0405](../tasks/AR-0405-performance-workloads.md), [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md), [AR-0604](../tasks/AR-0604-csb-native-qualification.md), [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
@@ -580,3 +579,4 @@
 | [AR-1628](../tasks/AR-1628.md) | [AR-1615](../tasks/AR-1615.md), [AR-1626](../tasks/AR-1626.md) | [AR-1629](../tasks/AR-1629.md), [AR-1630](../tasks/AR-1630.md) |
 | [AR-1629](../tasks/AR-1629.md) | [AR-1628](../tasks/AR-1628.md) | None |
 | [AR-1630](../tasks/AR-1630.md) | [AR-1628](../tasks/AR-1628.md) | None |
+| [AR-1631](../tasks/AR-1631.md) | [AR-1563](../tasks/AR-1563.md), [AR-1564](../tasks/AR-1564.md), [AR-1588](../tasks/AR-1588.md), [AR-1604](../tasks/AR-1604.md) | [AR-1632](../tasks/AR-1632.md), [AR-1633](../tasks/AR-1633.md), [AR-1634](../tasks/AR-1634.md) |

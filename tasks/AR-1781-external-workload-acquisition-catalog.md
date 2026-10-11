@@ -7,7 +7,7 @@
     "AR-1760"
   ],
   "id": "AR-1781",
-  "next_action": "Obtain independent review and green exact-head checks for PR #577, then publish its signed two-parent merge with tools/integration/merge_pr.py and verify exact-main workflows.",
+  "next_action": "Wait for all exact-main workflows at 4a8f0925 to finish green, then post-merge verify and close AR-1781.",
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "observed_dirty": 0,
   "observed_head": "286cccd6d7c0337fe19fbfba4aadacfa0c8b40f5",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1781.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "Post-merge provenance repair PR #577 open at signed DCO head 198bf869; historical af75cd06 preserved.",
-  "task_revision": 37,
+  "summary": "PR #578 merged at signed local merge 4a8f0925.",
+  "task_revision": 38,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T11:45:13+00:00",
+  "updated_at": "2026-10-11T11:45:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -154,3 +154,6 @@ labelled.
 
 - 2026-10-11T11:45:13+00:00: Recorded command exit 0; command argv SHA-256
   37a53e9bd33eda1a473c3c0349e2fe71b8a062faa0536cf32374dda1be27fd72.
+
+- 2026-10-11T11:45:28+00:00: PR #578 exact head 323aa8c2 passed all hosted checks and independent
+  review; merged with base 14de8bce and unchanged tree b4ca9f20.

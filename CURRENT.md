@@ -8,7 +8,7 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #576 exact head ec566dfd; fail-closed source/archive repair pushed; focused/full tests and 90.28% workspace coverage pass | Monitor PR #576 hosted checks at exact head ec566dfd to terminal result; repair only concrete failures. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
-| P0 | [AR-1781](tasks/AR-1781-external-workload-acquisition-catalog.md): External workload acquisition catalog | Post-merge provenance repair PR #577 open at signed DCO head 198bf869; historical af75cd06 preserved. | Obtain independent review and green exact-head checks for PR #577, then publish its signed two-parent merge with tools/integration/merge_pr.py and verify exact-main workflows. | coordinator |
+| P0 | [AR-1781](tasks/AR-1781-external-workload-acquisition-catalog.md): External workload acquisition catalog | PR #578 merged at signed local merge 4a8f0925. | Wait for all exact-main workflows at 4a8f0925 to finish green, then post-merge verify and close AR-1781. | coordinator |
 
 ## Open
 

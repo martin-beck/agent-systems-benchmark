@@ -1231,8 +1231,8 @@
 | Owner | coordinator |
 | Parent | None |
 | Children | None |
-| Summary | Post-merge provenance repair PR #577 open at signed DCO head 198bf869; historical af75cd06 preserved. |
-| Next action | Obtain independent review and green exact-head checks for PR #577, then publish its signed two-parent merge with tools/integration/merge_pr.py and verify exact-main workflows. |
+| Summary | PR #578 merged at signed local merge 4a8f0925. |
+| Next action | Wait for all exact-main workflows at 4a8f0925 to finish green, then post-merge verify and close AR-1781. |
 
 ### AR-1782 — Verified asb workload installation
 
@@ -4320,3 +4320,4 @@ flowchart LR
 | [AR-0516](../tasks/AR-0516-opendesk-strict-replay-http-compatibility.md) | [AR-0302](../tasks/AR-0302-agent-opendesk.md), [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | None |
 | [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md), [AR-0520](../tasks/AR-0520-interaction-aware-redaction.md) |
 | [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md) | [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md) | [AR-0519](../tasks/AR-0519-gemini-thinking-config-contract.md) |
+| [AR-0519](../tasks/AR-0519-gemini-thinking-config-contract.md) | [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md) | None |
