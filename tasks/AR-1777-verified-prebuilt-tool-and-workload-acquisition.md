@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head b8cf6cb3: forwards only explicit LLVM_PROFILE_FILE into scrubbed development child, preserving hosted child coverage attribution; sandbox helper positive/negative test passes; clean local workspace coverage 90.28%.",
-  "task_revision": 159,
+  "task_revision": 160,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:49:03+00:00",
+  "updated_at": "2026-10-11T12:49:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -566,3 +566,6 @@ reporting contract when available while keeping machine-mode output safe.
   b8cf6cb3 forwards only that explicit coverage variable; all other environment remains scrubbed.
   Focused sandbox tests 24/24 and runtime clippy pass; clean local coverage 98342 lines/9563 missed
   = 90.28%.
+
+- 2026-10-11T12:49:08+00:00: Recorded command exit 0; command argv SHA-256
+  422de929f35a13a7206d8a95352061502a93f1785f7694e5184458196cd08b15.
