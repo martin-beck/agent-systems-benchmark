@@ -1273,8 +1273,8 @@
 | Owner | coordinator |
 | Parent | None |
 | Children | None |
-| Summary | Host-runtime dependency contract repaired on PR #575. |
-| Next action | Run full local coverage and await all exact-head hosted checks for PR #575 at b8a1d6a1; obtain a new independent review, then merge only through signed local merge-integrity and verify exact-main workflows. |
+| Summary | Host-runtime dependency repair reviewed and full local coverage passes. |
+| Next action | Await all required exact-head hosted checks for PR #575 at b8a1d6a1; independent review passes. After every required check is green, merge only through signed local merge-integrity and verify exact-main workflows. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 

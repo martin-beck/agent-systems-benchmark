@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Run full local coverage and await all exact-head hosted checks for PR #575 at b8a1d6a1; obtain a new independent review, then merge only through signed local merge-integrity and verify exact-main workflows.",
+  "next_action": "Await all required exact-head hosted checks for PR #575 at b8a1d6a1; independent review passes. After every required check is green, merge only through signed local merge-integrity and verify exact-main workflows.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 1,
   "observed_head": "e85e6872f055209fb54de3e4e5c3f62353db80f5",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1784.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "Host-runtime dependency contract repaired on PR #575.",
-  "task_revision": 93,
+  "summary": "Host-runtime dependency repair reviewed and full local coverage passes.",
+  "task_revision": 94,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:19:14+00:00",
+  "updated_at": "2026-10-11T11:19:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -324,3 +324,7 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T11:19:14+00:00: Recorded command exit 0; command argv SHA-256
   a0c780a3386af68b0d1556fb27352dc1f3e6cc8f01d7e0b6fb6367eedddbaa99.
+
+- 2026-10-11T11:19:37+00:00: Fresh independent review PASS: host IDs present in
+  run/sweep/benchmark-live and tests non-vacuous. Full workspace cargo llvm-cov passed at 90.29%;
+  focused PTY and tool-discovery reruns passed. No merge until hosted gates are green.
