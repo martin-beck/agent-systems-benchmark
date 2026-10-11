@@ -1190,7 +1190,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix. |
-| Next action | Independent exact-head review and required CI for PR #568; merge only after separate review and all required checks pass. |
+| Next action | Await remaining exact-head AArch64, Rust, and policy checks plus independent review decision for PR #568; then protected merge and postmerge verification. |
 
 ### AR-1779 — Default usable tool-install command
 
