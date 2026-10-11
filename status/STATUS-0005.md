@@ -146,19 +146,19 @@
 
 ## Complete AR inventory
 
-### In progress (3)
+### In progress (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md): Require model catalogs and execution parity for every backend | codex-asb-ar1736-catalog-luna56-20261011 | Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution. | Promote after AR-1733; inventory the canonical backend registry and implement catalog, selection, run, and sweep parity with exhaustive fixtures. |
 | P0 | [AR-1776](../tasks/AR-1776-supported-tool-acquisition-catalog.md): Supported-tool acquisition catalog | codex-ar1776-tool-catalog-luna56 | Define pinned official acquisition and build recipes for every ASB-supported executable tool. | Define the authoritative supported executable-tool acquisition catalog, official primary sources, binary/source alternatives, verification identities, and build recipes. |
-| P0 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | codex-ar1786-repair-luna56 | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. |
 
-### Open (1)
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
+| P0 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Unclaimed | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. |
 
 ### Blocked (85)
 
