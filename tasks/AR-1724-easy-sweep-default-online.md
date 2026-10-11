@@ -17,9 +17,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Extend the simple default-online journey to bounded selected/all agent and workload sweeps with explicit mock and replay alternatives.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Make the easy sweep default to online provider execution",
-  "updated_at": "2026-10-11T01:38:46+00:00",
+  "updated_at": "2026-10-11T01:38:52+00:00",
   "worktree_key": ""
 }
 ---
@@ -33,3 +33,6 @@ management remain warning-only and never block setup.
   required.
 
 - 2026-10-11T01:38:46+00:00: Claimed by codex-ar1724-online-sweep.
+
+- 2026-10-11T01:38:52+00:00: Recorded command exit 0; command argv SHA-256
+  7e3fd5fe835fd95a2f3e78b0f0f8360951d32181f945987a156b545fe37a699f.
