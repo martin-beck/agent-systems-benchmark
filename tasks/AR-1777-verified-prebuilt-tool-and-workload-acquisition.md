@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T14:34:50+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1776"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
-  "owner": "codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56",
+  "owner": "",
   "plan": "../plans/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "PR #579 exact head d30079b7: credential-channel command construction is tested even when hosted bwrap is unavailable; source/archive validation remains hardened.",
-  "task_revision": 180,
+  "task_revision": 181,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T13:51:33+00:00",
+  "updated_at": "2026-10-11T13:51:40+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -637,3 +637,7 @@ reporting contract when available while keeping machine-mode output safe.
 - 2026-10-11T13:51:33+00:00: AR-1777 PR #579 content is included in signed local forward-repair
   lineage; acquisition review and gates passed, exact-main workflows all passed at a89dd44e, with
   parents 06514c06/f20f7bf2 and reviewed tree 7a5efc6b.
+
+- 2026-10-11T13:51:40+00:00: Closed after PR #579 implementation and hardening, independent review
+  PASS, signed local forward repair a89dd44e, exact parents/tree/signature/DCO, and all exact-main
+  workflows green.
