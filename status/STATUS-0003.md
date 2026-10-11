@@ -1273,8 +1273,8 @@
 | Owner | ar1784_dependency_registry_luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Clean superseding PR #575 published at exact head 5cabf776 |
-| Next action | Monitor PR #575 exact-head hosted checks; independently review and handoff after all required gates pass. Preserve PR #573 as superseded. |
+| Summary | PR #575 coverage repair pushed at exact head e5f378aa |
+| Next action | Monitor PR #575 exact-head hosted checks; if coverage passes, independently review and handoff. Preserve PR #573 as superseded. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 
