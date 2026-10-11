@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Repair hosted Policy coverage floor at exact 2fc8b428: all tests pass but hosted workspace is 89.98% lines (9848 missed of 98330; required 90%). Add meaningful coverage for uncovered behavior, rerun exact hosted gates and review; do not weaken the floor.",
+  "next_action": "Monitor fresh hosted Policy coverage and all required checks at exact b8cf6cb3; inspect any remaining failures before review/merge.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #579 exact head 2fc8b428 fixes replay fixture isolation and passes full CLI/runtime validation plus independent review. Hosted Credential-free and AArch64 pass, but Policy coverage is 89.98% lines with all tests green, so a legitimate coverage repair remains before merge.",
-  "task_revision": 158,
+  "summary": "PR #579 exact head b8cf6cb3: forwards only explicit LLVM_PROFILE_FILE into scrubbed development child, preserving hosted child coverage attribution; sandbox helper positive/negative test passes; clean local workspace coverage 90.28%.",
+  "task_revision": 159,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:48:55+00:00",
+  "updated_at": "2026-10-11T12:49:03+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -560,3 +560,9 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T12:48:55+00:00: Recorded command exit 0; command argv SHA-256
   15ba3a41c837c91311303c22c83caea2bb631caad71ee2ce32f5d07adb9f5e8b.
+
+- 2026-10-11T12:49:03+00:00: Hosted/local comparison showed hosted misses +238 sandbox.rs and +34
+  sandbox_credential.rs because development child env_clear dropped LLVM_PROFILE_FILE. Signed DCO
+  b8cf6cb3 forwards only that explicit coverage variable; all other environment remains scrubbed.
+  Focused sandbox tests 24/24 and runtime clippy pass; clean local coverage 98342 lines/9563 missed
+  = 90.28%.

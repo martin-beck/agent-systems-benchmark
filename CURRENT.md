@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #579 exact head 2fc8b428 fixes replay fixture isolation and passes full CLI/runtime validation plus independent review. Hosted Credential-free and AArch64 pass, but Policy coverage is 89.98% lines with all tests green, so a legitimate coverage repair remains before merge. | Repair hosted Policy coverage floor at exact 2fc8b428: all tests pass but hosted workspace is 89.98% lines (9848 missed of 98330; required 90%). Add meaningful coverage for uncovered behavior, rerun exact hosted gates and review; do not weaken the floor. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
+| P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #579 exact head b8cf6cb3: forwards only explicit LLVM_PROFILE_FILE into scrubbed development child, preserving hosted child coverage attribution; sandbox helper positive/negative test passes; clean local workspace coverage 90.28%. | Monitor fresh hosted Policy coverage and all required checks at exact b8cf6cb3; inspect any remaining failures before review/merge. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | P0 | [AR-1796](tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Keep autonomous development live during concurrent protected-main integration. | Wire the reviewed publication-job primitive into the fast publisher, then run independent and formal verification. | codex-ar1796-integration-liveness |
 
 ## Open
