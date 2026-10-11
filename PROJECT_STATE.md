@@ -20,21 +20,21 @@ Generated from local Git and GitHub. Do not edit.
 | #494 | `repair/ar-protected-provenance@26bdd021b0d3` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | repair: restore protected-main signed provenance |
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
-| #558 | `codex/ar-1754-online-integration@ba12e5da038e` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, IN_PROGRESS:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | feat(cli): make configured benchmark execution online by default |
+| #558 | `codex/ar-1754-online-integration@ba12e5da038e` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS: | feat(cli): make configured benchmark execution online by default |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38105343004 | `ba12e5da038e` | pull_request | Hosted portability and native qualification | queued:- |
-| 38105342971 | `ba12e5da038e` | pull_request | Agent Workflow Quality shadow | queued:- |
-| 38105342964 | `ba12e5da038e` | pull_request | Credential-free benchmark path | queued:- |
-| 38105342961 | `ba12e5da038e` | pull_request | Emulated aarch64 portability | queued:- |
-| 38105342959 | `ba12e5da038e` | pull_request | Huawei MIT source headers | queued:- |
-| 38105342958 | `ba12e5da038e` | pull_request | Formal assurance | queued:- |
-| 38105342951 | `ba12e5da038e` | pull_request | Rust verification | queued:- |
-| 38105342950 | `ba12e5da038e` | pull_request | Portable protected-main provenance | queued:- |
-| 38105342949 | `ba12e5da038e` | pull_request | Cross-repository development broker qualification | queued:- |
-| 38105342939 | `ba12e5da038e` | pull_request | Repository quality | queued:- |
-| 38105342937 | `ba12e5da038e` | pull_request | Fault assurance | queued:- |
+| 38105343004 | `ba12e5da038e` | pull_request | Hosted portability and native qualification | in_progress:- |
+| 38105342971 | `ba12e5da038e` | pull_request | Agent Workflow Quality shadow | completed:success |
+| 38105342964 | `ba12e5da038e` | pull_request | Credential-free benchmark path | in_progress:- |
+| 38105342961 | `ba12e5da038e` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38105342959 | `ba12e5da038e` | pull_request | Huawei MIT source headers | completed:success |
+| 38105342958 | `ba12e5da038e` | pull_request | Formal assurance | in_progress:- |
+| 38105342951 | `ba12e5da038e` | pull_request | Rust verification | in_progress:- |
+| 38105342950 | `ba12e5da038e` | pull_request | Portable protected-main provenance | completed:success |
+| 38105342949 | `ba12e5da038e` | pull_request | Cross-repository development broker qualification | in_progress:- |
+| 38105342939 | `ba12e5da038e` | pull_request | Repository quality | in_progress:- |
+| 38105342937 | `ba12e5da038e` | pull_request | Fault assurance | in_progress:- |
 | 38104013799 | `a31232f40146` | push | Cross-repository development broker qualification | completed:success |
