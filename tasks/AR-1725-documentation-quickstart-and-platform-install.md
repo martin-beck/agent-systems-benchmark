@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 14,
+  "task_revision": 15,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T06:54:23+00:00",
+  "updated_at": "2026-10-11T06:55:10+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
@@ -89,3 +89,6 @@ gates, independent review, and exact-head hosted CI.
 - 2026-10-11T06:53:26+00:00: Full workspace gate attempted through handoffctl: 221 passed, 1
   ignored, 1 pre-existing environment failure in
   mini_swe::cancellation_leaves_no_runnable_owned_descendant; no product files changed.
+
+- 2026-10-11T06:55:10+00:00: Recorded command exit 101; command argv SHA-256
+  534f8613e1c316db8f0f46dd989e44e14a8ca74304a94791b4e4a1c59b2fbb1d.
