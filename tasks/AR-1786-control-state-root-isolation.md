@@ -16,13 +16,21 @@
   "plan": "../plans/AR-1786-control-state-root-isolation.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:c78f4667e56e7261535af56bc746333eb7f7edc992f1e1f8980f6305de0e6876",
+    "evidence_ref": "github/pr563/c059e9a63dbc73f40020dd2da4d48a02c9958362/exact-main-control-diagnostic",
+    "spec_ref": "specs/AR-1786.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1786.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 141,
+  "task_revision": 142,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T07:00:29+00:00",
+  "updated_at": "2026-10-11T07:01:30+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -468,3 +476,9 @@ gate into a serial-only or exclusion-based check.
 
 - 2026-10-11T07:00:29+00:00: Recorded command exit 0; command argv SHA-256
   1f2271826d10c0d9f7054c946268c96f84ed17eba8ed3348bd74aa04a1fb10a4.
+
+- 2026-10-11T07:01:30+00:00: Accepted exact protected-main merge
+  c059e9a63dbc73f40020dd2da4d48a02c9958362 for PR #563. Post-merge detached exact-main verification
+  at c059e9a6: diagnostic_contract 9/9 and
+  rejected_same_process_contender_preserves_owner_lock_for_other_processes with external probe pass.
+  Hosted PR checks terminal green; SSH-signed DCO candidate a5e58954 merged by protected workflow.
