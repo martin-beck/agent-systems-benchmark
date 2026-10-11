@@ -16,20 +16,20 @@
   "priority": "P0",
   "schema_version": 1,
   "spec_acceptance": {
-    "evidence_class": "property-or-fuzz",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_class": "mechanical",
+    "evidence_digest": "sha256:b1515b297f4836576e897f53f1d8cc224353dc1f632593d415034623fb6df507",
+    "evidence_ref": "https://github.com/martin-beck/agent-systems-benchmark/pull/568",
     "spec_ref": "specs/AR-1778.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1778.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix.",
-  "task_revision": 36,
+  "task_revision": 37,
   "title": "Pinned source builds and project dependencies",
-  "updated_at": "2026-10-11T08:55:03+00:00",
+  "updated_at": "2026-10-11T08:55:27+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies"
 }
 ---
@@ -135,3 +135,7 @@ limit are distinct actionable outcomes.
   d64ac90ad96a0941ddf6acb2d60ffe7b2ab5f948 with reviewed tree
   3d60069e79c6bf725de3dac489acc27cdf320fc2. Exact-main worktree clean; asb-cli lib 235/235 passed,
   source-builder 3/3 passed, workflow transcript 3/3 passed; merge commit SSH signature verified.
+
+- 2026-10-11T08:55:27+00:00: Accepted exact-main postmerge evidence at
+  d64ac90ad96a0941ddf6acb2d60ffe7b2ab5f948: clean worktree, signed merge, 235/235 asb-cli library
+  tests, 3/3 source-builder tests, and 3/3 workflow-transcript tests.
