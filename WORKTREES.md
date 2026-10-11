@@ -56,8 +56,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1698-current-head` | `codex/ar-1698-current-head` | `f090de56710d` | 0 | behind 23, ahead 0 |
 | `agent-systems-benchmark-ar-1701-recording` | `codex/ar-1701-recording` | `f090de56710d` | 0 | behind 23, ahead 0 |
 | `agent-systems-benchmark-ar-1712-handoff` | `codex/ar-1712-handoff` | `f090de56710d` | 0 | behind 23, ahead 0 |
-| `agent-systems-benchmark-ar-1716-recording-fence` | `codex/ar-1716-recording-fence` | `65ff69bbed88` | 1 | behind 0, ahead 1 |
-| changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
+| `agent-systems-benchmark-ar-1716-recording-fence` | `codex/ar-1716-recording-fence` | `436f49cf5954` | 1 | behind 0, ahead 2 |
+| changed files | - | - | - | `docs/examples/asb-cli-workflow-v1.provenance.json` |
 | `agent-systems-benchmark-ar-1723` | `codex/ar-1723-easy-online` | `5739f6674cc5` | 0 | behind 24, ahead 0 |
 | `agent-systems-benchmark-ar-1724-easy-sweep` | `codex/ar-1724-easy-sweep-online` | `70f20a9f1f5d` | 0 | behind 20, ahead 0 |
 | `agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install` | `docs/ar-1725-quickstart-platform-install` | `695f1335c4ed` | 0 | behind 4, ahead 2 |
@@ -266,8 +266,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-ar1698-runtime-authority` | `codex-ar1698-runtime-authority` | `c5a7e64af8cd` | 0 | behind 284, ahead 1 |
 | `asb` | `DETACHED` | `457317b21dbe` | 0 | behind 262, ahead 0 |
 | `asb-ar1715-qualification` | `DETACHED` | `daae06efa2d7` | 0 | behind 32, ahead 0 |
-| `asb-ar1717-comparison-product` | `DETACHED` | `c607bb0d2682` | 1 | behind 0, ahead 2 |
-| changed files | - | - | - | `docs/examples/asb-cli-workflow-v1.provenance.json` |
+| `asb-ar1717-comparison-product` | `codex/ar-1717-comparison-product` | `7de3c1c5a7b9` | 1 | behind 0, ahead 4 |
+| changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
 | `asb-ar1721-qualification-20261009` | `DETACHED` | `31ca7a481fca` | 0 | behind 213, ahead 0 |
 | `asb-ar1721-tui-provider-router` | `repair/ar-1721-tui-provider-router` | `8345a9890e5b` | 0 | behind 283, ahead 0 |
 | `asb-ar1723-merge` | `DETACHED` | `f090de56710d` | 0 | behind 23, ahead 0 |
