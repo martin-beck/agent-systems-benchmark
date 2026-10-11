@@ -68,7 +68,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1754-merge` | `DETACHED` | `8e4dc926d4b8` | 0 | behind 52, ahead 0 |
 | `agent-systems-benchmark-ar-1754-online` | `codex/ar-1754-online-integration` | `0dcd147261d4` | 0 | behind 53, ahead 0 |
 | `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `2521df12cc31` | 0 | behind 50, ahead 0 |
-| `agent-systems-benchmark-ar-1777-current` | `feature/ar-1777-verified-tool-current` | `67d28a610016` | 0 | behind 2, ahead 25 |
+| `agent-systems-benchmark-ar-1777-current` | `feature/ar-1777-verified-tool-current` | `d30079b7188e` | 0 | behind 2, ahead 26 |
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2` | `0a389a2f8aa3` | 0 | behind 18, ahead 15 |
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `ec566dfdcde2` | 0 | behind 18, ahead 18 |
 | `agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies` | `feature/ar-1778-pinned-source-build-and-project-dependencies` | `1c11b88d2790` | 0 | behind 26, ahead 0 |
@@ -299,6 +299,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-goose-repair` | `repair/ar-1730-goose-aarch64-diagnostic` | `71b48057cd03` | 0 | behind 313, ahead 0 |
 | `asb-merge-575` | `DETACHED` | `14de8bce040e` | 0 | behind 2, ahead 0 |
 | `asb-post-568` | `DETACHED` | `d64ac90ad96a` | 0 | behind 25, ahead 0 |
+| `asb-pr1777-review.pqgKnj` | `DETACHED` | `d30079b7188e` | 0 | behind 2, ahead 26 |
 | `asb-pr492-review` | `repair/pr492-coverage-cleanup` | `358bd9a2816f` | 0 | behind 323, ahead 0 |
 | `asb-pr499-rereview-d9ef0bc` | `DETACHED` | `d9ef0bce9bf6` | 0 | behind 310, ahead 0 |
 | `asb-pr500-rereview-420b57d` | `DETACHED` | `420b57d20a6c` | 0 | behind 310, ahead 0 |
@@ -306,6 +307,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-pr502-review-40f618b` | `DETACHED` | `40f618b9389c` | 0 | behind 301, ahead 0 |
 | `asb-pr509-integration` | `DETACHED` | `9aeea48c4041` | 0 | behind 289, ahead 0 |
 | `asb-pr509-postmerge` | `DETACHED` | `9aeea48c4041` | 0 | behind 289, ahead 0 |
+| `asb-pr579-review-new` | `DETACHED` | `67d28a610016` | 0 | behind 2, ahead 25 |
 | `asb218-asb` | `DETACHED` | `62fda2f3417b` | 0 | behind 494, ahead 0 |
 | `agent-systems-benchmark-ar-1498` | `feature/ar-1498-authenticated-lifecycle-executor` | `55ff13fb6cb2` | 0 | behind 594, ahead 1275 |
 | `agent-systems-benchmark-ar-1499` | `feature/ar-1499-development-credential-enrollment` | `0a2f6e9c74f9` | 0 | behind 594, ahead 1280 |
@@ -332,4 +334,5 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-pr509-review.r2gLtk` | `DETACHED` | `bb9c35cdea59` | 0 | behind 293, ahead 1 |
 | `asb-pr512-integration` | `DETACHED` | `1ab175c30eb0` | 0 | behind 277, ahead 0 |
 | `asb-pr513-integration` | `DETACHED` | `5e8e5b7fdb04` | 0 | behind 266, ahead 0 |
+| `asb-pr579-review.dr6fId` | `DETACHED` | `67d28a610016` | 0 | behind 2, ahead 25 |
 | `policy-asb-review` | `codex/development-review-identity-asb` | `589e218f64a4` | 0 | behind 342, ahead 0 |
