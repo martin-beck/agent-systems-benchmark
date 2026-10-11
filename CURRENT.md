@@ -18,6 +18,7 @@ Never edit this file directly.
 | P0 | [AR-1781](tasks/AR-1781-external-workload-acquisition-catalog.md): External workload acquisition catalog | Post-merge provenance repair PR #577 open at signed DCO head 198bf869; historical af75cd06 preserved. | Obtain independent review and green exact-head checks for PR #577, then publish its signed two-parent merge with tools/integration/merge_pr.py and verify exact-main workflows. | - |
 | P0 | [AR-1794](tasks/AR-1794-protected-main-merge-path-repair.md): Protected-main merge-path repair | Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity. | Keep open pending a clean signed local merge and green exact-main provenance receipt; do not use GitHub web merge. | - |
 | P0 | [AR-1795](tasks/AR-1795-coordinator-v051-adoption.md): Coordinator v0.5.1 adoption | Adopt v0.5.1 with strict coverage repair. | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. | - |
+| P0 | [AR-1796](tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Keep autonomous development live during concurrent protected-main integration. | Publish the bounded policy repair, then add enforceable integration-queue and evidence-reuse controls without weakening merge-result assurance. | - |
 
 ## Blocked
 

@@ -1430,6 +1430,20 @@
 | Summary | Adopt v0.5.1 with strict coverage repair. |
 | Next action | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. |
 
+### AR-1796 — Concurrent integration liveness
+
+| Field | Value |
+| --- | --- |
+| Status | open |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Keep autonomous development live during concurrent protected-main integration. |
+| Next action | Publish the bounded policy repair, then add enforceable integration-queue and evidence-reuse controls without weakening merge-result assurance. |
+
 
 ## Dependency graph
 
@@ -2284,6 +2298,7 @@ flowchart LR
         AR_1793["AR-1793 - Planned"]:::status_planned
         AR_1794["AR-1794 - Open"]:::status_open
         AR_1795["AR-1795 - Open"]:::status_open
+        AR_1796["AR-1796 - Open"]:::status_open
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4305,6 +4320,3 @@ flowchart LR
 | [AR-0516](../tasks/AR-0516-opendesk-strict-replay-http-compatibility.md) | [AR-0302](../tasks/AR-0302-agent-opendesk.md), [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | None |
 | [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md), [AR-0520](../tasks/AR-0520-interaction-aware-redaction.md) |
 | [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md) | [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md) | [AR-0519](../tasks/AR-0519-gemini-thinking-config-contract.md) |
-| [AR-0519](../tasks/AR-0519-gemini-thinking-config-contract.md) | [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md) | None |
-| [AR-0520](../tasks/AR-0520-interaction-aware-redaction.md) | [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md) | None |
-| [AR-0521](../tasks/AR-0521-openhands-environment-pin.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md) | None |
