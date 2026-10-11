@@ -150,10 +150,78 @@ pub const DEPENDENCIES: &[Dependency] = &[
 /// this mapping separate from the inventory makes command coverage explicit
 /// without allowing a command to silently inherit an ambient tool.
 pub const DEPENDENCY_SCOPES: &[(&str, &[&str])] = &[
-    ("run", &["aider", "codex", "gemini", "goose", "mini-swe", "opencode", "opendesk", "openhands", "openjiuwen", "qwen-code", "cli2key"]),
-    ("sweep", &["aider", "codex", "gemini", "goose", "mini-swe", "opencode", "opendesk", "openhands", "openjiuwen", "qwen-code", "cli2key"]),
-    ("benchmark-live", &["aider", "codex", "gemini", "goose", "mini-swe", "opencode", "opendesk", "openhands", "openjiuwen", "qwen-code", "cli2key"]),
-    ("preflight", &["aider", "codex", "gemini", "goose", "mini-swe", "opencode", "opendesk", "openhands", "openjiuwen", "qwen-code", "cli2key", "perf", "bpftool", "linux", "cgroup-v2", "user-systemd", "bubblewrap", "kernel-btf", "kernel-pmu"]),
+    (
+        "run",
+        &[
+            "aider",
+            "codex",
+            "gemini",
+            "goose",
+            "mini-swe",
+            "opencode",
+            "opendesk",
+            "openhands",
+            "openjiuwen",
+            "qwen-code",
+            "cli2key",
+        ],
+    ),
+    (
+        "sweep",
+        &[
+            "aider",
+            "codex",
+            "gemini",
+            "goose",
+            "mini-swe",
+            "opencode",
+            "opendesk",
+            "openhands",
+            "openjiuwen",
+            "qwen-code",
+            "cli2key",
+        ],
+    ),
+    (
+        "benchmark-live",
+        &[
+            "aider",
+            "codex",
+            "gemini",
+            "goose",
+            "mini-swe",
+            "opencode",
+            "opendesk",
+            "openhands",
+            "openjiuwen",
+            "qwen-code",
+            "cli2key",
+        ],
+    ),
+    (
+        "preflight",
+        &[
+            "aider",
+            "codex",
+            "gemini",
+            "goose",
+            "mini-swe",
+            "opencode",
+            "opendesk",
+            "openhands",
+            "openjiuwen",
+            "qwen-code",
+            "cli2key",
+            "perf",
+            "bpftool",
+            "linux",
+            "cgroup-v2",
+            "user-systemd",
+            "bubblewrap",
+            "kernel-btf",
+            "kernel-pmu",
+        ],
+    ),
 ];
 
 #[derive(Serialize)]
@@ -173,6 +241,15 @@ pub struct Check<'a> {
 }
 
 pub fn preflight(project: &Path) -> Result<ResultView<'static>, String> {
+    preflight_for("preflight", project)
+}
+
+pub fn preflight_for(command: &str, project: &Path) -> Result<ResultView<'static>, String> {
+    let scope = DEPENDENCY_SCOPES
+        .iter()
+        .find(|(name, _)| *name == command)
+        .map(|(_, ids)| *ids)
+        .ok_or_else(|| "dependency scope is unknown".to_owned())?;
     let catalog = tool_catalog::catalog();
     tool_catalog::validate(&catalog).map_err(str::to_owned)?;
     let config_path = project.join(".asb/project.json");
@@ -188,6 +265,7 @@ pub fn preflight(project: &Path) -> Result<ResultView<'static>, String> {
     };
     let checks = DEPENDENCIES
         .iter()
+        .filter(|d| scope.contains(&d.id))
         .map(|d| {
             let available = match d.kind {
                 DependencyKind::Tool => {
@@ -213,13 +291,6 @@ pub fn preflight(project: &Path) -> Result<ResultView<'static>, String> {
         ready,
         dependencies: checks,
     })
-}
-
-pub fn preflight_for(command: &str, project: &Path) -> Result<ResultView<'static>, String> {
-    if !DEPENDENCY_SCOPES.iter().any(|(name, _)| *name == command) {
-        return Err("dependency scope is unknown".to_owned());
-    }
-    preflight(project)
 }
 
 fn tool_available(config: &asb_config::ProjectConfigV1, id: &str) -> bool {
@@ -292,6 +363,18 @@ mod tests {
                 .filter(|d| d.kind == DependencyKind::Host)
                 .any(|d| d.remediation.starts_with("asb tool install"))
         );
+        assert_eq!(
+            DEPENDENCIES.iter().find(|d| d.id == "perf").unwrap().kind,
+            DependencyKind::Host
+        );
+        assert_eq!(
+            DEPENDENCIES
+                .iter()
+                .find(|d| d.id == "bpftool")
+                .unwrap()
+                .kind,
+            DependencyKind::Host
+        );
     }
     #[test]
     fn tool_remediation_is_exactly_installable() {
@@ -308,5 +391,13 @@ mod tests {
         let result = preflight(Path::new("/nonexistent")).unwrap();
         assert_eq!(result.schema_version, VERSION);
         assert!(!result.ready);
+    }
+
+    #[test]
+    fn unknown_scope_is_rejected_and_known_scope_is_filtered() {
+        assert!(preflight_for("not-a-command", Path::new("/nonexistent")).is_err());
+        let result = preflight_for("run", Path::new("/nonexistent")).unwrap();
+        assert!(result.dependencies.iter().all(|d| d.id != "linux"));
+        assert!(result.dependencies.iter().any(|d| d.id == "aider"));
     }
 }
