@@ -15,7 +15,7 @@
   "next_action": "Focused tutorial tests, guide_examples, link audit, and diff review pass. Full workspace cargo test has one unrelated mini_swe cancellation failure because handoffctl runs from state root and the temp product path overlaps the detected repository; rerun from product-bound wrapper or record as environment blocker. Platform validator independently fails baseline stale native report ancestry/tree.",
   "observed_branch": "docs/ar-1725-quickstart-platform-install",
   "observed_dirty": 0,
-  "observed_head": "d77230ae46ce2a4a4b35a47b7f2ee9f7bc9b677b",
+  "observed_head": "695f1335c4ede05b174cb6f369c4415ec1556fcf",
   "owner": "ar1725-docs-luna56",
   "plan": "../plans/AR-1725-documentation-quickstart-and-platform-install.md",
   "priority": "P1",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 20,
+  "task_revision": 21,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T06:59:39+00:00",
+  "updated_at": "2026-10-11T07:00:10+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
