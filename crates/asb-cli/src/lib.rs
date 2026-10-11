@@ -2545,7 +2545,7 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     .map_err(output_error)?;
     writeln!(
         output,
-        "  asb tool install ID --kind agent|harness|benchmark|workload|support [--source PATH] [--version VERSION] [--project PATH] [--dry-run]\n  asb tool select ID --kind agent|harness|benchmark|workload [--project PATH]\n  asb tool list|status|remove ID [--project PATH]\n  asb run|sweep PLAN.toml --project PATH [--local-mock]\n  asb compare RUN... --project PATH\n  asb report RUN... --project PATH"
+        "  asb tool install SUPPORTED-ID [--project PATH] [--dry-run]\n  asb tool install ID --kind agent|harness|benchmark|workload|support --source PATH|fixture://ID [--version VERSION] [--project PATH]\n  asb tool repair|update SUPPORTED-ID [--project PATH]\n  asb tool select ID --kind agent|harness|benchmark|workload [--project PATH]\n  asb tool list|status|remove ID [--project PATH]\n  asb run|sweep PLAN.toml --project PATH [--local-mock]\n  asb compare RUN... --project PATH\n  asb report RUN... --project PATH"
     )
     .map_err(output_error)?;
     writeln!(
@@ -3972,13 +3972,14 @@ fn tool_with_progress(
     })?;
     match operation {
         "install" => tool_install_with_progress(&args[1..], output, progress, human),
+        "repair" | "update" => tool_install_with_progress(&args[1..], output, progress, human),
         "list" => tool_inventory(&args[1..], output),
         "discover" => tool_discovery(&args[1..], output),
         "status" => tool_status(&args[1..], output),
         "select" => tool_select(&args[1..], output),
         "remove" => tool_remove(&args[1..], output),
         _ => Err(CliError::legacy_usage(
-            "tool requires install|list|status|select|remove|discover",
+            "tool requires install|repair|update|list|status|select|remove|discover",
         )),
     }
 }
@@ -4301,22 +4302,38 @@ fn tool_install_with_progress(
             }
         }
     }
-    let kind = kind.ok_or_else(|| CliError::legacy_usage("tool install requires --kind"))?;
     let fixture_source = source.as_deref().and_then(tool_acquisition::fixture);
+    let local_source = source
+        .as_deref()
+        .is_some_and(|value| !value.contains("://"));
+    // Supported catalog IDs are self-describing. Explicit development/import
+    // sources retain a mandatory kind so they cannot masquerade as a catalog
+    // installation.
+    if (fixture_source.is_some() || local_source) && kind.is_none() {
+        return Err(CliError::legacy_usage(
+            "development/import tool installs require --kind",
+        ));
+    }
     if fixture_source.is_some() && version.is_none() {
         return Err(CliError::legacy_usage(
             "fixture tool installs require --version",
         ));
     }
-    let local_source = source
-        .as_deref()
-        .is_some_and(|value| !value.contains("://"));
     let (catalog_entry, catalog_artifact) = if fixture_source.is_some() || local_source {
         (None, None)
     } else {
         let (entry, artifact) = tool_acquisition::resolve(id)
             .map_err(|error| CliError::legacy_validation(error.message()))?;
         (Some(entry), Some(artifact))
+    };
+    let kind = match kind {
+        Some(kind) => kind,
+        None => tool_kind(
+            &catalog_entry
+                .as_ref()
+                .expect("catalog install has an entry")
+                .kind,
+        )?,
     };
     let version = version.unwrap_or_else(|| {
         catalog_entry
@@ -11492,6 +11509,47 @@ pub(crate) mod tests {
             0
         );
         assert!(!project.join(".asb/tools/matrix").exists());
+
+        // Supported IDs resolve their catalog kind automatically. Explicit
+        // development/import sources remain kinded and cannot masquerade as
+        // supported installations.
+        let supported_default = vec![
+            OsString::from("tool"),
+            OsString::from("install"),
+            OsString::from("codex"),
+            OsString::from("--project"),
+            project.clone().into_os_string(),
+            OsString::from("--dry-run"),
+        ];
+        assert_eq!(
+            run_with_default_mode(
+                &supported_default,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                false
+            ),
+            0
+        );
+        let import_without_kind = vec![
+            OsString::from("tool"),
+            OsString::from("install"),
+            OsString::from("matrix"),
+            OsString::from("--source"),
+            OsString::from("fixture://matrix"),
+            OsString::from("--version"),
+            OsString::from("1"),
+            OsString::from("--project"),
+            project.clone().into_os_string(),
+        ];
+        assert_ne!(
+            run_with_default_mode(
+                &import_without_kind,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                false
+            ),
+            0
+        );
 
         let catalog_dry_run = vec![
             OsString::from("tool"),
