@@ -7,7 +7,7 @@
     "AR-1760"
   ],
   "id": "AR-1781",
-  "next_action": "Monitor PR #572 exact-head checks for 7271331b; parent merges only after all required checks pass.",
+  "next_action": "Monitor PR #572 exact-head checks for 286cccd6; parent merges only after all required checks pass.",
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "observed_dirty": 0,
   "observed_head": "0db5831b7e6d87bf0993fcfd38889abc19595b6f",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests.",
-  "task_revision": 23,
+  "task_revision": 24,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T10:02:25+00:00",
+  "updated_at": "2026-10-11T10:02:29+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -114,3 +114,9 @@ labelled.
   open and unmerged; rerun hosted gates on 7271331b.
 
 - 2026-10-11T10:02:25+00:00: Heartbeat by ar1781-luna56.
+
+- 2026-10-11T10:02:29+00:00: Workflow provenance repair complete on signed DCO product head
+  286cccd6. Refreshed docs/examples/asb-cli-workflow-v1.provenance.json cli_source_sha256 from stale
+  3021fc... to actual 8d69d7f1c010bb9b3e70570f10e186a9473e2a8bec35846008508e06375aab70; all other
+  pinned digests unchanged. Focused workflow_transcript: 3 passed. PR remains open and unmerged;
+  hosted gates rerun on 286cccd6.
