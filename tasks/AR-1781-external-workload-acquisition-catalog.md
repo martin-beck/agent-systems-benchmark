@@ -9,8 +9,8 @@
   "id": "AR-1781",
   "next_action": "Define the authoritative development external-workload catalog and make every documented suite installable, selectable, and executable through its pinned official source.",
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
-  "observed_dirty": 15,
-  "observed_head": "d64ac90ad96a0941ddf6acb2d60ffe7b2ab5f948",
+  "observed_dirty": 0,
+  "observed_head": "0db5831b7e6d87bf0993fcfd38889abc19595b6f",
   "owner": "ar1781-luna56",
   "plan": "../plans/AR-1781-external-workload-acquisition-catalog.md",
   "priority": "P0",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T09:17:53+00:00",
+  "updated_at": "2026-10-11T09:18:10+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
