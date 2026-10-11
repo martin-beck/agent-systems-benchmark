@@ -30,7 +30,7 @@ Generated from local Git and GitHub. Do not edit.
 | #581 | `dependabot/github_actions/taiki-e/install-action-2.87.24@0fd474355762` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | chore(deps): bump taiki-e/install-action from 2.87.14 to 2.87.24 |
 | #583 | `feature/ar-1779-default-usable-tool-install-command@7c08cfb019ee` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): default supported tool installation |
 | #584 | `feature/ar-1782-verified-asb-workload-installation@722b259cd257` | `main` | BLOCKED | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add verified workload lifecycle |
-| #585 | `feature/ar-1798-pinned-source-checkout-acquisition@bb9bde856d69` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS | feat(cli): add pinned source checkout provider |
+| #585 | `feature/ar-1798-pinned-source-checkout-acquisition@bb9bde856d69` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS | feat(cli): add pinned source checkout provider |
 
 ## Recent workflows
 
@@ -44,7 +44,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38151604746 | `bb9bde856d69` | pull_request | Repository quality | in_progress:- |
 | 38151604742 | `bb9bde856d69` | pull_request | Huawei MIT source headers | completed:success |
 | 38151604739 | `bb9bde856d69` | pull_request | Emulated aarch64 portability | in_progress:- |
-| 38151604737 | `bb9bde856d69` | pull_request | Cross-repository development broker qualification | in_progress:- |
+| 38151604737 | `bb9bde856d69` | pull_request | Cross-repository development broker qualification | completed:success |
 | 38151604729 | `bb9bde856d69` | pull_request | Rust verification | in_progress:- |
 | 38151604721 | `bb9bde856d69` | pull_request | Hosted portability and native qualification | completed:success |
 | 38151402747 | `722b259cd257` | pull_request | Cross-repository development broker qualification | completed:success |
