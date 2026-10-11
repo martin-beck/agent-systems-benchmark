@@ -426,11 +426,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | codex-ar1724-online-sweep |
 | Parent | None |
 | Children | None |
 | Summary | Extend the simple default-online journey to bounded selected/all agent and workload sweeps with explicit mock and replay alternatives. |
@@ -2170,7 +2170,7 @@ flowchart LR
         AR_1721["AR-1721 - Done"]:::status_done
         AR_1722["AR-1722 - Done"]:::status_done
         AR_1723["AR-1723 - Done"]:::status_done
-        AR_1724["AR-1724 - Open"]:::status_open
+        AR_1724["AR-1724 - In progress"]:::status_in_progress
         AR_1725["AR-1725 - Planned"]:::status_planned
         AR_1726["AR-1726 - Done"]:::status_done
         AR_1727["AR-1727 - Done"]:::status_done
