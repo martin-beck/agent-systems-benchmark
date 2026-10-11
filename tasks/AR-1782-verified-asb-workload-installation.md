@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "PR #584 exact remote head fdb1e4bc; hostile archive and stale-proof lifecycle matrices pass, workspace line coverage 90.17% locally (99587 lines, 9794 missed). Focused diagnostic/workflow gates pass; poll fresh exact-head CI, do not merge.",
+  "next_action": "PR #584 rebased onto origin/main 24cb72d; exact remote head 96ea497a. Credential-free workload matrix, diagnostic contract, provenance, resolver, and clippy focused gates pass. Poll fresh exact-head CI; do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
   "observed_head": "12fbe26399975e9114a451ddee632bdadb65b820",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 131,
+  "task_revision": 132,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T17:28:19+00:00",
+  "updated_at": "2026-10-11T17:28:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -396,3 +396,6 @@ remain mandatory.
   293c2148a179cf191174557f643f16f9891d390fd73eaa6feadfba1fcb474444.
 
 - 2026-10-11T17:28:19+00:00: Heartbeat by ar1782_workload_install_luna56.
+
+- 2026-10-11T17:28:26+00:00: Rebase completed with signed repair 96ea497a; preserved arXiv v1
+  bounded validation and credential-free network deny boundary.

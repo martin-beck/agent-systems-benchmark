@@ -1246,7 +1246,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement dedicated verified remote external workload installation and lifecycle through asb workload. |
-| Next action | PR #584 exact remote head fdb1e4bc; hostile archive and stale-proof lifecycle matrices pass, workspace line coverage 90.17&#37; locally (99587 lines, 9794 missed). Focused diagnostic/workflow gates pass; poll fresh exact-head CI, do not merge. |
+| Next action | PR #584 rebased onto origin/main 24cb72d; exact remote head 96ea497a. Credential-free workload matrix, diagnostic contract, provenance, resolver, and clippy focused gates pass. Poll fresh exact-head CI; do not merge. |
 
 ### AR-1783 — Installed workload selection and execution
 
