@@ -336,7 +336,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Require exact provider, model settings, and endpoint identity equality before comparison admits online/offline results. |
-| Next action | Run independent full review and full gates, publish exact PR, await exact-head hosted CI and protected merge. |
+| Next action | Monitor PR #567 exact head 7de3c1c5 to terminal green; obtain independent review, protected merge, postmerge verification, then accept/release. |
 
 ### AR-1718 — Portable fault-matrix network isolation repair
 
