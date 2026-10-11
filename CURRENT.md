@@ -3,12 +3,6 @@
 This file is generated. Read `README.md`, then use `tools/handoffctl snapshot`.
 Never edit this file directly.
 
-## In Progress
-
-| Priority | Task | Summary | Next action | Owner |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1785](tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | Monitor exact-main post-merge workflows for daae06efa2d78b11acd6902c5ac6958091bfe546; after terminal success, run post-merge verification, accept, release, and requalify AR-1715. No GitHub Reviews API approval object required. | codex-ar1785-integration |
-
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |

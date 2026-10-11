@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1785-openrouter-config",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T00:56:55+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -14,7 +14,7 @@
   "observed_branch": "codex/ar-1785-openrouter-config",
   "observed_dirty": 0,
   "observed_head": "dd1930684ca8fbe13ff0c0cdc6964ae862ff0edf",
-  "owner": "codex-ar1785-integration",
+  "owner": "",
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
   "priority": "P0",
   "schema_version": 1,
@@ -28,11 +28,11 @@
   },
   "spec_ref": "specs/AR-1785.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 200,
+  "task_revision": 201,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-11T00:37:37+00:00",
+  "updated_at": "2026-10-11T00:37:42+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -629,3 +629,6 @@ merging, and post-merge verification remain required.
 
 - 2026-10-11T00:37:37+00:00: Accepted after signed merge daae06e, all ten exact-main workflows
   green, and 341/341 post-merge asb-cli tests. No GitHub Reviews API approval object required.
+
+- 2026-10-11T00:37:42+00:00: AR-1785 complete: PR #555 merged as daae06e; exact-main workflows and
+  post-merge tests green; release requalification dependency AR-1715 may proceed.
