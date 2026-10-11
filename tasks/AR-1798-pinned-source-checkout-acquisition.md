@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1798",
-  "next_action": "Independent review repairs pushed at ba981448; monitor exact-head CI and re-review.",
+  "next_action": "Review repair pushed at 33567324; await fresh exact-head CI and independent re-review.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "observed_dirty": 0,
   "observed_head": "b305ff826c1f06da84205e2f32899291b976ebc7",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance.",
-  "task_revision": 47,
+  "task_revision": 48,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:31:34+00:00",
+  "updated_at": "2026-10-11T14:31:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -176,3 +176,6 @@ protected merge, and post-merge evidence path.
   8e7ad2e1157441140c544316fb3631277cea7d1b12d36633f955101fe28350c6.
 
 - 2026-10-11T14:31:34+00:00: Heartbeat by ar1798-source-checkout-luna56.
+
+- 2026-10-11T14:31:37+00:00: One acquisition deadline and live clone/fetch bounds added; five
+  deterministic checkout tests pass.

@@ -1470,7 +1470,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance. |
-| Next action | Independent review repairs pushed at ba981448; monitor exact-head CI and re-review. |
+| Next action | Review repair pushed at 33567324; await fresh exact-head CI and independent re-review. |
 
 
 ## Dependency graph
