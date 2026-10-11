@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root.",
-  "task_revision": 28,
+  "task_revision": 29,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T08:57:21+00:00",
+  "updated_at": "2026-10-11T08:57:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -112,3 +112,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T08:57:21+00:00: Recorded command exit 0; command argv SHA-256
   5c8c2b57164656b7b9dc47db58a13f4f84aef17ff2dcb9d0e5aa63ce3daa0be8.
+
+- 2026-10-11T08:57:43+00:00: Recorded command exit 0; command argv SHA-256
+  a5d8928bac41f8c30d18988880639b39b1c8761f78d5cb8b6b1b434c70fcf507.
