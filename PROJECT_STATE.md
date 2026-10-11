@@ -22,20 +22,21 @@ Generated from local Git and GitHub. Do not edit.
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #560 | `codex/ar-1736-backend-model-catalog@89852e60c5bf` | `main` | CLEAN | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | Bind backend model selections to catalog identity |
 | #563 | `codex/ar-1786-control-state-protected-current@a5e589544f6d` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(control): use descriptor-scoped state locks |
+| #564 | `docs/ar-1725-quickstart-platform-install@d77230ae46ce` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | docs: add two-agent OpenRouter and TUI walkthrough |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
+| 38119658779 | `d77230ae46ce` | pull_request | Fault assurance | queued:- |
+| 38119658764 | `d77230ae46ce` | pull_request | Cross-repository development broker qualification | queued:- |
+| 38119658749 | `d77230ae46ce` | pull_request | Credential-free benchmark path | queued:- |
+| 38119658706 | `d77230ae46ce` | pull_request | Rust verification | queued:- |
+| 38119658704 | `d77230ae46ce` | pull_request | Emulated aarch64 portability | queued:- |
+| 38119658703 | `d77230ae46ce` | pull_request | Repository quality | queued:- |
+| 38119658700 | `d77230ae46ce` | pull_request | Agent Workflow Quality shadow | queued:- |
+| 38119658690 | `d77230ae46ce` | pull_request | Hosted portability and native qualification | queued:- |
+| 38119658688 | `d77230ae46ce` | pull_request | Portable protected-main provenance | queued:- |
+| 38119658681 | `d77230ae46ce` | pull_request | Huawei MIT source headers | queued:- |
+| 38119658674 | `d77230ae46ce` | pull_request | Formal assurance | queued:- |
 | 38119108610 | `a5e589544f6d` | pull_request | Huawei MIT source headers | completed:success |
-| 38119108607 | `a5e589544f6d` | pull_request | Credential-free benchmark path | completed:success |
-| 38119108604 | `a5e589544f6d` | pull_request | Repository quality | in_progress:- |
-| 38119108599 | `a5e589544f6d` | pull_request | Hosted portability and native qualification | completed:success |
-| 38119108592 | `a5e589544f6d` | pull_request | Fault assurance | completed:success |
-| 38119108589 | `a5e589544f6d` | pull_request | Cross-repository development broker qualification | completed:success |
-| 38119108588 | `a5e589544f6d` | pull_request | Portable protected-main provenance | completed:success |
-| 38119108576 | `a5e589544f6d` | pull_request | Formal assurance | completed:success |
-| 38119108573 | `a5e589544f6d` | pull_request | Agent Workflow Quality shadow | completed:success |
-| 38119108571 | `a5e589544f6d` | pull_request | Rust verification | completed:success |
-| 38119108570 | `a5e589544f6d` | pull_request | Emulated aarch64 portability | in_progress:- |
-| 38118987052 | `89852e60c5bf` | pull_request | Emulated aarch64 portability | completed:success |
