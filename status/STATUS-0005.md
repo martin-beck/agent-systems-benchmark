@@ -146,11 +146,12 @@
 
 ## Complete AR inventory
 
-### Open (2)
+### Open (3)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
+| P0 | [AR-1712](../tasks/AR-1712.md): Live result, recording, and comparison handoff contract | Unclaimed | Define the ASB live-run result and selected/all recording handoff consumed by TUI for offline replay and comparison. | PR #484 merged at ASB 972a29f provides selected 2x2 and full 9x27 deterministic local-mock recording with offline_ready=true; still qualify strict network-denied replay, comparison, and paired TUI handoff before closure. |
 | P0 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Unclaimed | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. |
 
 ### Blocked (85)
@@ -243,7 +244,7 @@
 | P2 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md): Provide native openEuler capacity | Unclaimed | Qualify booted openEuler on native x86_64 and applicable QEMU AArch64; keep native ARM64 optional. | Qualify native x86_64 openEuler and required applicable pinned QEMU AArch64 behavior; document genuine native ARM64 as optional future evidence. |
 | P2 | [AR-1444](../tasks/AR-1444-first-class-journey-qualification.md): First-class journey qualification | Unclaimed | Optional cross-repository journey evidence; never an ASB release blocker. | Optional cross-repository qualification only: wait for external asb-tui AR-1327 to provide an exact pinned acceptance revision and credential-free journey transcript; this AR is not an ASB release or first-customer blocker. Do not modify asb-tui from this repository. |
 
-### Planned (101)
+### Planned (100)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -288,7 +289,6 @@
 | P0 | [AR-1697](../tasks/AR-1697.md): Channel specification and current-head qualification repair | Unclaimed | Repair the missing authoritative channel specs and requalify ASB/TUI channel propagation, manifest provenance, compatibility, and default-dev quickstart at current main heads. | Complete valid AR-1674/1675-compatible state specifications, then run the current-head channel and quickstart matrix against ASB ad43609b and TUI 1cf4b43d without closing predecessor ARs from stale receipts. |
 | P0 | [AR-1703](../tasks/AR-1703.md): Current-main TUI live-control qualification | Unclaimed | Qualify and repair the exact current asb-tui main PTY/control journey against ASB development live recording without pinning an older frontend or weakening live semantics. | Reproduce the current-main PTY action gap, repair the owning boundary, then run the exact paired live/offline journey with a real OpenRouter key when supplied and credential-free negative checks otherwise. |
 | P0 | [AR-1710](../tasks/AR-1710.md): Wizard provider-model selection and warning-only readiness | Unclaimed | Make provider, authentication mode, API-key readiness, agent defaults, and supported-model selection explicit and non-blocking in development setup. | Expose the connected provider/model catalog and readiness diagnostics to the setup/materialization boundary; qualify shared defaults, per-agent overrides, unavailable models, and warning-only development auth. |
-| P0 | [AR-1712](../tasks/AR-1712.md): Live result, recording, and comparison handoff contract | Unclaimed | Define the ASB live-run result and selected/all recording handoff consumed by TUI for offline replay and comparison. | PR #484 merged at ASB 972a29f provides selected 2x2 and full 9x27 deterministic local-mock recording with offline_ready=true; still qualify strict network-denied replay, comparison, and paired TUI handoff before closure. |
 | P0 | [AR-1716](../tasks/AR-1716.md): Cassette provider-profile identity binding | Unclaimed | Bind every recording index insertion to the selected provider profile identity and reject mismatched cassette metadata before mutation. | Add a focused RecordingIndex::insert identity fence and deterministic positive/mismatch tests, then qualify exact human/JSON diagnostics and receipt integrity. |
 | P0 | [AR-1717](../tasks/AR-1717.md): Comparison exact provider/settings/endpoint identity fences | Unclaimed | Require exact provider, model settings, and endpoint identity equality before comparison admits online/offline results. | Add focused comparison admission fences for provider, model/settings digest, endpoint identity, and generation; qualify symmetric/asymmetric mismatch diagnostics without weakening development setup. |
 | P0 | [AR-1724](../tasks/AR-1724-easy-sweep-default-online.md): Make the easy sweep default to online provider execution | Unclaimed | Extend the simple default-online journey to bounded selected/all agent and workload sweeps with explicit mock and replay alternatives. | Promote after AR-1723 and recording/comparison dependencies are current; implement and qualify the bounded online sweep. |
