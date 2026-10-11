@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1798",
-  "next_action": "Review repair pushed at 33567324; await fresh exact-head CI and independent re-review.",
+  "next_action": "Monitor fresh exact-head CI for e25983f6 and obtain independent re-review; do not merge.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "observed_dirty": 0,
   "observed_head": "b305ff826c1f06da84205e2f32899291b976ebc7",
@@ -27,10 +27,10 @@
   "spec_ref": "specs/AR-1798.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance.",
-  "task_revision": 54,
+  "summary": "Repair pushed at e25983f6; regenerated 270 reviewed legacy diagnostic callsite identities and passed diagnostic contract.",
+  "task_revision": 55,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:51:21+00:00",
+  "updated_at": "2026-10-11T14:51:49+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -195,3 +195,7 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T14:51:21+00:00: Recorded command exit 1; command argv SHA-256
   13feac61902929353f82e778f4e95bb4a70bcc913d699e9cf960e9aaa310820f.
+
+- 2026-10-11T14:51:49+00:00: Exact product head e25983f6; clean worktree. Focused source-checkout
+  tests 7 passed; diagnostic contract 9 passed; cargo clippy asb-cli all targets offline with
+  warnings denied passed; git diff --check passed. Fresh exact-head CI pending.
