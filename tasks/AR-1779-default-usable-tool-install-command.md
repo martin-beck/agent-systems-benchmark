@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 19,
+  "task_revision": 20,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-11T14:05:22+00:00",
+  "updated_at": "2026-10-11T14:08:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -103,3 +103,6 @@ the adapter smoke check failed.
 
 - 2026-10-11T14:05:22+00:00: Rustfmt repair 32cb692a pushed. Full cargo test -p asb-cli passed
   before repair; repair is formatting-only. PR #583 exact head updated.
+
+- 2026-10-11T14:08:25+00:00: Recorded command exit 0; command argv SHA-256
+  cfddfc1b8766f37e6aede838c174f3c1396c0e28ea1eae79d472cf1b97a74f13.
