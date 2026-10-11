@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 81,
+  "task_revision": 82,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T06:32:41+00:00",
+  "updated_at": "2026-10-11T06:32:53+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -279,3 +279,6 @@ gate into a serial-only or exclusion-based check.
   catalog IDs and causes. Committed as SSH-signed DCO commit 378787cd. Focused diagnostic_contract
   passes 9/9; state-lock child-inheritance test passes. Candidate now requires independent review at
   exact head 378787cd.
+
+- 2026-10-11T06:32:53+00:00: Recorded command exit 0; command argv SHA-256
+  2df5b4f3585972c2df80b3e2269e46ae2dac0e14e9f6751b0e520054c3448f80.
