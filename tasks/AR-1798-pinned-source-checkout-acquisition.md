@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1798",
-  "next_action": "Monitor fresh exact-head CI for dfe6fe70 and obtain independent re-review; do not merge.",
+  "next_action": "Monitor fresh exact-head CI for 2c2f429d and obtain independent re-review; do not merge.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "observed_dirty": 0,
   "observed_head": "89ce603c9aa0a44dc10e52a0ab5dd5654682eeeb",
@@ -27,10 +27,10 @@
   "spec_ref": "specs/AR-1798.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "Exact fixture checkout repair pushed at dfe6fe70.",
-  "task_revision": 104,
+  "summary": "Coverage repair pushed at 2c2f429d with checkout output failure test.",
+  "task_revision": 105,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:56:52+00:00",
+  "updated_at": "2026-10-11T15:59:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -337,3 +337,9 @@ protected merge, and post-merge evidence path.
   changes.
 
 - 2026-10-11T15:56:52+00:00: Heartbeat by ar1798-source-checkout-luna56.
+
+- 2026-10-11T15:59:51+00:00: Exact product head 2c2f429d6a1110e1094dfd632383ba90767c9562; product
+  worktree clean. Added missing-output-parent capture failure test. Focused source_checkout tests 13
+  passed; fmt, clippy, diff-check passed. Hosted-equivalent locked workspace llvm-cov
+  --fail-under-lines 90 passed locally: TOTAL lines 90.23%, regions 88.71%, exit 0. No threshold
+  changes. Live projection remains blocked by unrelated expired AR-1796 claim.
