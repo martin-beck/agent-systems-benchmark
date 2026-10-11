@@ -7,7 +7,7 @@
     "AR-1760"
   ],
   "id": "AR-1781",
-  "next_action": "Monitor PR #572 exact-head checks for c4cd8ea6; do not merge from this worker.",
+  "next_action": "Continue monitoring PR #572 exact-head checks for c4cd8ea6; parent merges only after all required checks pass.",
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "observed_dirty": 0,
   "observed_head": "0db5831b7e6d87bf0993fcfd38889abc19595b6f",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests.",
-  "task_revision": 19,
+  "task_revision": 20,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T09:46:51+00:00",
+  "updated_at": "2026-10-11T09:48:01+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -99,3 +99,8 @@ labelled.
   ai-agents-that-matter, helm, inspect-ai, harbor, hal, and swe-mini. Local gates: pytest 40 passed;
   cargo test --locked -p asb-workloads passed 43 unit + 4 integration + 5 validity + 2 doctests;
   cargo test --locked -p asb-cli passed 348. PR #572 remains open; parent must merge.
+
+- 2026-10-11T09:48:01+00:00: Hosted exact-head check-runs for c4cd8ea6 are active: 15 total, 3
+  completed success (headers, AWQ, provenance), 12 in_progress including Rust, emulated AArch64,
+  policy/supply-chain, fuzz, Kani, Loom, TLC, platform, retained faults, credential-free, exact TUI,
+  and matcher/SLO. No failures observed; PR remains open and unmerged.

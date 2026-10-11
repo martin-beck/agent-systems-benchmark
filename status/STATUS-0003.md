@@ -1232,7 +1232,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests. |
-| Next action | Monitor PR #572 exact-head checks for c4cd8ea6; do not merge from this worker. |
+| Next action | Continue monitoring PR #572 exact-head checks for c4cd8ea6; parent merges only after all required checks pass. |
 
 ### AR-1782 — Verified asb workload installation
 
