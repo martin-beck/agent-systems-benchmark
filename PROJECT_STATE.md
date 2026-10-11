@@ -22,7 +22,7 @@ Generated from local Git and GitHub. Do not edit.
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
 | #569 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition@8d3d85f72d99` | `main` | BLOCKED | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat: verified prebuilt tool acquisition |
-| #570 | `feature/ar-1784-command-dependency-registry@da5cf1154f06` | `main` | BLOCKED | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS | feat(cli): add command dependency preflight registry |
+| #570 | `feature/ar-1784-command-dependency-registry@da5cf1154f06` | `main` | BLOCKED | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS | feat(cli): add command dependency preflight registry |
 
 ## Recent workflows
 
@@ -38,5 +38,5 @@ Generated from local Git and GitHub. Do not edit.
 | 38127164341 | `da5cf1154f06` | pull_request | Portable protected-main provenance | completed:failure |
 | 38127164334 | `da5cf1154f06` | pull_request | Hosted portability and native qualification | completed:success |
 | 38127164333 | `da5cf1154f06` | pull_request | Fault assurance | in_progress:- |
-| 38127164332 | `da5cf1154f06` | pull_request | Cross-repository development broker qualification | in_progress:- |
+| 38127164332 | `da5cf1154f06` | pull_request | Cross-repository development broker qualification | completed:success |
 | 38127013889 | `8d3d85f72d99` | pull_request | Cross-repository development broker qualification | completed:success |
