@@ -2,8 +2,8 @@
 
 Generated from local Git and GitHub. Do not edit.
 
-- Product remote main: `4245b4a1046cdb6f0eb82bf8d4742f5049ee1405`
-- Local origin/main: `4245b4a1046cdb6f0eb82bf8d4742f5049ee1405`
+- Product remote main: `af75cd06a2addbfd33fe8d3035dc80b20ce89c75`
+- Local origin/main: `af75cd06a2addbfd33fe8d3035dc80b20ce89c75`
 - Primary worktree head: `a9abcf2e63f761e314593e9abc6bf074b7418e5e`
 
 ## Open pull requests
@@ -21,22 +21,28 @@ Generated from local Git and GitHub. Do not edit.
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
-| #568 | `feature/ar-1778-pinned-source-build-and-project-dependencies@1c11b88d2790` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded pinned source builder |
-| #569 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition@eff009eeefb1` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | feat: verified prebuilt tool acquisition |
+| #569 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition@8d3d85f72d99` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat: verified prebuilt tool acquisition |
+| #570 | `feature/ar-1784-command-dependency-registry@13cc2fb461fb` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add command dependency preflight registry |
+| #571 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair@37fcf2697dd8` | `main` | DIRTY | - | AR-1777: verified prebuilt tool acquisition repair |
+| #573 | `feature/ar-1784-command-dependency-registry-and-preflight@e85e6872f055` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add command dependency preflight registry |
+| #574 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2@0a389a2f8aa3` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | AR-1777: verified prebuilt tool acquisition (superseding repair) |
+| #575 | `feature/ar-1784-command-dependency-registry-clean@2b909bea13cc` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | fix(cli): enforce command dependency preflight before execution |
+| #576 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean@817de0ed846f` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS | AR-1777: verified prebuilt tool and workload acquisition (coverage continuation) |
+| #577 | `repair/ar-1794-protected-main-merge-path@198bf86975f6` | `main` | CLEAN | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | chore: certify AR-1781 merge provenance |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38126023093 | `eff009eeefb1` | pull_request | Cross-repository development broker qualification | in_progress:- |
-| 38126023091 | `eff009eeefb1` | pull_request | Repository quality | in_progress:- |
-| 38126023088 | `eff009eeefb1` | pull_request | Credential-free benchmark path | in_progress:- |
-| 38126023085 | `eff009eeefb1` | pull_request | Huawei MIT source headers | completed:success |
-| 38126023084 | `eff009eeefb1` | pull_request | Agent Workflow Quality shadow | completed:success |
-| 38126023083 | `eff009eeefb1` | pull_request | Portable protected-main provenance | completed:success |
-| 38126023081 | `eff009eeefb1` | pull_request | Formal assurance | in_progress:- |
-| 38126023078 | `eff009eeefb1` | pull_request | Hosted portability and native qualification | in_progress:- |
-| 38126023077 | `eff009eeefb1` | pull_request | Emulated aarch64 portability | queued:- |
-| 38126023076 | `eff009eeefb1` | pull_request | Rust verification | in_progress:- |
-| 38126023075 | `eff009eeefb1` | pull_request | Fault assurance | in_progress:- |
-| 38125615487 | `b76706944d38` | pull_request | Formal assurance | completed:success |
+| 38134399802 | `817de0ed846f` | pull_request | Hosted portability and native qualification | completed:success |
+| 38134399780 | `817de0ed846f` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38134399772 | `817de0ed846f` | pull_request | Portable protected-main provenance | completed:success |
+| 38134399770 | `817de0ed846f` | pull_request | Huawei MIT source headers | completed:success |
+| 38134399769 | `817de0ed846f` | pull_request | Credential-free benchmark path | completed:success |
+| 38134399763 | `817de0ed846f` | pull_request | Agent Workflow Quality shadow | completed:success |
+| 38134399761 | `817de0ed846f` | pull_request | Fault assurance | in_progress:- |
+| 38134399755 | `817de0ed846f` | pull_request | Cross-repository development broker qualification | in_progress:- |
+| 38134399754 | `817de0ed846f` | pull_request | Rust verification | in_progress:- |
+| 38134399751 | `817de0ed846f` | pull_request | Formal assurance | in_progress:- |
+| 38134399750 | `817de0ed846f` | pull_request | Repository quality | in_progress:- |
+| 38134156481 | `d974297a6fd7` | pull_request | Huawei MIT source headers | completed:success |

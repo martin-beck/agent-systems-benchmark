@@ -1175,22 +1175,22 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #576 exact head 817de0ed; local workspace coverage 90.28&#37; |
-| Next action | Monitor new PR #576 hosted checks at exact head 817de0ed to terminal result; preserve no-force policy. |
+| Summary | Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root. |
+| Next action | Await required checks for PR #574 at 0a389a2f (coverage repaired to 90.28&#37;); then obtain independent exact-head review, merge only through signed local merge-integrity, and verify exact-main workflows. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1778-luna56 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix. |
-| Next action | Implement catalog-pinned source fallback builds and project-local dependency materialization for supported tools without root or ambient package-manager mutation. |
+| Next action | Accept AR-1778 with exact-main postmerge evidence at d64ac90a; then release done after durable acceptance. |
 
 ### AR-1779 — Default usable tool-install command
 
@@ -1224,15 +1224,15 @@
 
 | Field | Value |
 | --- | --- |
-| Status | planned |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | ar1781-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini. |
-| Next action | Define the authoritative development external-workload catalog and make every documented suite installable, selectable, and executable through its pinned official source. |
+| Summary | Post-merge provenance repair PR #577 open at signed DCO head 198bf869; historical af75cd06 preserved. |
+| Next action | Obtain independent review and green exact-head checks for PR #577, then publish its signed two-parent merge with tools/integration/merge_pr.py and verify exact-main workflows. |
 
 ### AR-1782 — Verified asb workload installation
 
@@ -1270,11 +1270,11 @@
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1784_dependency_registry_luna56 |
+| Owner | coordinator |
 | Parent | None |
 | Children | None |
-| Summary | PR #575 coverage repair pushed at exact head e5f378aa |
-| Next action | Monitor PR #575 exact-head hosted checks; if coverage passes, independently review and handoff. Preserve PR #573 as superseded. |
+| Summary | Command dependency registry implemented; PR #575 coverage repair pushed. |
+| Next action | Obtain independent exact-head review and green required checks for PR #575 at 2b909bea, then merge only through signed local merge-integrity and verify exact-main workflows. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 
@@ -1388,19 +1388,33 @@
 | Summary | Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage. |
 | Next action | Release AR-1792 as done ownerless after independent review; no source changes. |
 
-### AR-1793 — Coordinator v0.5.1 adoption
+### AR-1793 — Repair human diagnostic output-parent contract
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | planned |
+| Priority | P1 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Repair the legacy human diagnostic output-parent wording contract exposed by the full ASB CLI suite. |
+| Next action | Repair the legacy human diagnostic output-parent wording contract and add focused positive/negative coverage; do not publish AR-1784 until green. |
+
+### AR-1794 — Protected-main merge-path repair
+
+| Field | Value |
+| --- | --- |
+| Status | open |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1793-awc-v051 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
-| Summary | Adopt v0.5.1 with strict coverage repair. |
-| Next action | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. |
+| Summary | Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity. |
+| Next action | Keep open pending a clean signed local merge and green exact-main provenance receipt; do not use GitHub web merge. |
 
 
 ## Dependency graph
@@ -2238,10 +2252,10 @@ flowchart LR
         AR_1775["AR-1775 - Planned"]:::status_planned
         AR_1776["AR-1776 - Done"]:::status_done
         AR_1777["AR-1777 - In progress"]:::status_in_progress
-        AR_1778["AR-1778 - In progress"]:::status_in_progress
+        AR_1778["AR-1778 - Done"]:::status_done
         AR_1779["AR-1779 - Planned"]:::status_planned
         AR_1780["AR-1780 - Planned"]:::status_planned
-        AR_1781["AR-1781 - Planned"]:::status_planned
+        AR_1781["AR-1781 - In progress"]:::status_in_progress
         AR_1782["AR-1782 - Planned"]:::status_planned
         AR_1783["AR-1783 - Planned"]:::status_planned
         AR_1784["AR-1784 - In progress"]:::status_in_progress
@@ -2253,7 +2267,8 @@ flowchart LR
         AR_1790["AR-1790 - Done"]:::status_done
         AR_1791["AR-1791 - Done"]:::status_done
         AR_1792["AR-1792 - Done"]:::status_done
-        AR_1793["AR-1793 - In progress"]:::status_in_progress
+        AR_1793["AR-1793 - Planned"]:::status_planned
+        AR_1794["AR-1794 - Open"]:::status_open
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4142,7 +4157,6 @@ flowchart LR
     AR_1749 --> AR_1753
     AR_1750 --> AR_1748
     AR_1753 --> AR_1756
-    AR_1756 --> AR_1793
     AR_1757 --> AR_1766
     AR_1759 --> AR_1760
     AR_1759 --> AR_1761
@@ -4190,9 +4204,11 @@ flowchart LR
     AR_1778 --> AR_1779
     AR_1779 --> AR_1780
     AR_1781 --> AR_1782
+    AR_1781 --> AR_1794
     AR_1782 --> AR_1783
     AR_1783 --> AR_1780
     AR_1784 --> AR_1779
+    AR_1784 --> AR_1793
     AR_1787 --> AR_1785
     AR_1788 --> AR_1785
     AR_1788 --> AR_1791
@@ -4276,6 +4292,3 @@ flowchart LR
 | [AR-0519](../tasks/AR-0519-gemini-thinking-config-contract.md) | [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md) | None |
 | [AR-0520](../tasks/AR-0520-interaction-aware-redaction.md) | [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md) | None |
 | [AR-0521](../tasks/AR-0521-openhands-environment-pin.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md) | None |
-| [AR-0601](../tasks/AR-0601-csb-integration.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0104](../tasks/AR-0104-durable-results.md), [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0603](../tasks/AR-0603-csb-execution-assurance.md) | [AR-0405](../tasks/AR-0405-performance-workloads.md), [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md), [AR-0604](../tasks/AR-0604-csb-native-qualification.md), [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
-| [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0202](../tasks/AR-0202-kernel-diagnostics.md), [AR-0601](../tasks/AR-0601-csb-integration.md), [AR-0604](../tasks/AR-0604-csb-native-qualification.md) | [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
-| [AR-0603](../tasks/AR-0603-csb-execution-assurance.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0104](../tasks/AR-0104-durable-results.md) | [AR-0601](../tasks/AR-0601-csb-integration.md) |
