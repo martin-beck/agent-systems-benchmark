@@ -62,7 +62,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | changed files | - | - | - | `crates/asb-control/src/provider.rs` |
 | `agent-systems-benchmark-ar-1754-merge` | `DETACHED` | `8e4dc926d4b8` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar-1754-online` | `codex/ar-1754-online-integration` | `0dcd147261d4` | 0 | behind 1, ahead 0 |
-| `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `e5cd4b4ff49c` | 0 | behind 0, ahead 1 |
+| `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `dd4cef2716da` | 0 | behind 0, ahead 1 |
 | `agent-systems-benchmark-ar1786-repair-luna56` | `DETACHED` | `db3dfad83c51` | 0 | behind 38, ahead 2 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 542, ahead 326 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
