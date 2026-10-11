@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head 7019409f on protected-main base 14de8bce; bounded gzip extraction, diagnostic identities, provenance refreshed; local full coverage passes; hosted required checks pending",
-  "task_revision": 114,
+  "task_revision": 115,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:48:06+00:00",
+  "updated_at": "2026-10-11T11:48:14+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -410,3 +410,6 @@ reporting contract when available while keeping machine-mode output safe.
   transcript 3/3, fmt and workspace coverage pass. Hosted green: credential-free, provenance,
   TUI/PT​​Y, fuzz, platform, formal subchecks; Policy/Rust/AArch64/TLC pending. Lease renewed 120
   minutes.
+
+- 2026-10-11T11:48:14+00:00: Recorded command exit 0; command argv SHA-256
+  77cac378957e00babd3a9cb1a1c6eb7659ae69cc850db3ad873428ee265c81ff.
