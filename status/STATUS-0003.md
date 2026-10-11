@@ -1288,7 +1288,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. |
-| Next action | Independently review rebased candidate dd1930684ca8fbe13ff0c0cdc6964ae862ff0edf, publish exact-head CI, merge, and requalify AR-1715. AR-1791 is complete; no GitHub Reviews API approval object is required. |
+| Next action | Monitor exact-main post-merge workflows for daae06efa2d78b11acd6902c5ac6958091bfe546; after terminal success, run post-merge verification, accept, release, and requalify AR-1715. No GitHub Reviews API approval object required. |
 
 ### AR-1786 — Repair control state-root isolation race
 

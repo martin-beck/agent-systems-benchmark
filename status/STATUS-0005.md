@@ -150,7 +150,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | codex-ar1785-integration | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | Independently review rebased candidate dd1930684ca8fbe13ff0c0cdc6964ae862ff0edf, publish exact-head CI, merge, and requalify AR-1715. AR-1791 is complete; no GitHub Reviews API approval object is required. |
+| P0 | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | codex-ar1785-integration | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | Monitor exact-main post-merge workflows for daae06efa2d78b11acd6902c5ac6958091bfe546; after terminal success, run post-merge verification, accept, release, and requalify AR-1715. No GitHub Reviews API approval object required. |
 | P0 | [AR-1792](../tasks/AR-1792-pty-fixture-determinism.md): Make development broker PTY fixture deterministic | codex-ar1792-pty-repair | Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage. | Obtain the hosted coverage failure artifact or independent reproduction before changing the PTY fixture; current-main candidate remains unchanged and clean. |
 
 ### Open (2)
