@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T06:49:01+00:00",
+  "updated_at": "2026-10-11T06:49:31+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
@@ -57,3 +57,6 @@ gates, independent review, and exact-head hosted CI.
   are done with checkpoints; promote documentation work.
 
 - 2026-10-11T06:49:01+00:00: Claimed by ar1725-docs-luna56.
+
+- 2026-10-11T06:49:31+00:00: Recorded command exit 0; command argv SHA-256
+  d37193f8b9ad44178b3bff0cac7209222030e84fb25b93f00b19c585f8613a80.
