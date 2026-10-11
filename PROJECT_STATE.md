@@ -22,7 +22,7 @@ Generated from local Git and GitHub. Do not edit.
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #560 | `codex/ar-1736-backend-model-catalog@89852e60c5bf` | `main` | CLEAN | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | Bind backend model selections to catalog identity |
 | #563 | `codex/ar-1786-control-state-protected-current@a5e589544f6d` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(control): use descriptor-scoped state locks |
-| #564 | `docs/ar-1725-quickstart-platform-install@d77230ae46ce` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, QUEUED:, IN_PROGRESS: | docs: add two-agent OpenRouter and TUI walkthrough |
+| #564 | `docs/ar-1725-quickstart-platform-install@d77230ae46ce` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | docs: add two-agent OpenRouter and TUI walkthrough |
 
 ## Recent workflows
 
@@ -34,9 +34,9 @@ Generated from local Git and GitHub. Do not edit.
 | 38119658706 | `d77230ae46ce` | pull_request | Rust verification | in_progress:- |
 | 38119658704 | `d77230ae46ce` | pull_request | Emulated aarch64 portability | in_progress:- |
 | 38119658703 | `d77230ae46ce` | pull_request | Repository quality | in_progress:- |
-| 38119658700 | `d77230ae46ce` | pull_request | Agent Workflow Quality shadow | in_progress:- |
+| 38119658700 | `d77230ae46ce` | pull_request | Agent Workflow Quality shadow | completed:success |
 | 38119658690 | `d77230ae46ce` | pull_request | Hosted portability and native qualification | in_progress:- |
-| 38119658688 | `d77230ae46ce` | pull_request | Portable protected-main provenance | in_progress:- |
-| 38119658681 | `d77230ae46ce` | pull_request | Huawei MIT source headers | in_progress:- |
-| 38119658674 | `d77230ae46ce` | pull_request | Formal assurance | queued:- |
+| 38119658688 | `d77230ae46ce` | pull_request | Portable protected-main provenance | completed:success |
+| 38119658681 | `d77230ae46ce` | pull_request | Huawei MIT source headers | completed:success |
+| 38119658674 | `d77230ae46ce` | pull_request | Formal assurance | in_progress:- |
 | 38119108610 | `a5e589544f6d` | pull_request | Huawei MIT source headers | completed:success |
