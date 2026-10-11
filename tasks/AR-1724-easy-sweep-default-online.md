@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Extend the simple default-online journey to bounded selected/all agent and workload sweeps with explicit mock and replay alternatives.",
-  "task_revision": 24,
+  "task_revision": 25,
   "title": "Make the easy sweep default to online provider execution",
-  "updated_at": "2026-10-11T01:48:13+00:00",
+  "updated_at": "2026-10-11T01:48:23+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1724-easy-sweep"
 }
 ---
@@ -87,3 +87,6 @@ management remain warning-only and never block setup.
 
 - 2026-10-11T01:48:13+00:00: Recorded command exit 0; command argv SHA-256
   71d364ef68c3183b858bb075a50eaba7e74a346af67b4adbbd5e020b5fa2608e.
+
+- 2026-10-11T01:48:23+00:00: Recorded command exit 0; command argv SHA-256
+  5ff12e0c05ce9de4b57eebe6cf3ee2961ebfce73215ca70edd1b3ba6f6caa87e.
