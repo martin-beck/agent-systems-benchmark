@@ -1,7 +1,7 @@
 ---
 {
   "branch": "feature/ar-1782-verified-asb-workload-installation",
-  "checkpoint_commit": "8371090f1446f7191739a80415db7860911b62ef",
+  "checkpoint_commit": "c5154b12fc85bf356ce61d746c56b83d856ff502",
   "claim_expires": "2026-10-11T18:01:44+00:00",
   "depends_on": [
     "AR-1781"
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 93,
+  "task_revision": 94,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T16:01:44+00:00",
+  "updated_at": "2026-10-11T16:01:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -285,3 +285,5 @@ remain mandatory.
   pushed c5154b12.
 
 - 2026-10-11T16:01:44+00:00: Heartbeat by ar1782_workload_install_luna56.
+
+- 2026-10-11T16:01:51+00:00: Checkpointed source commit c5154b12fc85bf356ce61d746c56b83d856ff502.
