@@ -3,7 +3,11 @@
   "branch": "feature/ar-1779-default-usable-tool-install-command",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1777", "AR-1778", "AR-1784"],
+  "depends_on": [
+    "AR-1777",
+    "AR-1778",
+    "AR-1784"
+  ],
   "id": "AR-1779",
   "next_action": "Make asb tool install supported-id resolve, acquire/build, validate, and register a usable project-local executable tool by default.",
   "observed_branch": "",
@@ -13,14 +17,21 @@
   "plan": "../plans/AR-1779-default-usable-tool-install-command.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "integration-test", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1779.json", "spec_revision": 1, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "integration-test",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1779.json",
+    "spec_revision": 1,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1779.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-10T09:49:36+00:00",
+  "updated_at": "2026-10-11T13:53:29+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -42,3 +53,6 @@ created dependencies, result location, and next action; JSON retains its stable
 machine contract and never includes secrets. The command must not silently use a
 wrong binary, silently fall back to an unrelated tool, or claim installation when
 the adapter smoke check failed.
+
+- 2026-10-11T13:53:29+00:00: Promote dependency-safe AR-1779 now that AR-1777, AR-1778, and AR-1784
+  are durably done.
