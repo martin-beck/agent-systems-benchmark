@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T16:55:07+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1784"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "codex-ar1793-diagnostic-repair-luna56",
+  "owner": "",
   "plan": "../plans/AR-1793-human-diagnostic-output-parent.md",
   "priority": "P1",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1793.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Repair the legacy human diagnostic output-parent wording contract exposed by the full ASB CLI suite.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "Repair human diagnostic output-parent contract",
-  "updated_at": "2026-10-11T14:30:59+00:00",
+  "updated_at": "2026-10-11T14:31:02+00:00",
   "worktree_key": ""
 }
 ---
@@ -53,3 +53,6 @@ AR-1793 is a narrowly scoped dependent repair for the deterministic human diagno
 
 - 2026-10-11T14:30:59+00:00: Signed protected merge 24f1872c; PR #582 exact-head checks and all 14
   exact-main workflows green; focused diagnostic contract passes.
+
+- 2026-10-11T14:31:02+00:00: AR complete: PR #582 merged as signed local merge 24f1872c; exact-main
+  signature/DCO/tree and all 14 required checks green.

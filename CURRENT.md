@@ -11,7 +11,6 @@ Never edit this file directly.
 | P0 | [AR-1782](tasks/AR-1782-verified-asb-workload-installation.md): Verified asb workload installation | Implement dedicated verified remote external workload installation and lifecycle through asb workload. | Wait for AR-1793 diagnostic identity repair to merge; then rebase PR #584 a1090297 onto updated main, rerun exact-head CI, and review. | ar1782_workload_install_luna56 |
 | P0 | [AR-1796](tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. | codex-ar1796-release-path |
 | P0 | [AR-1798](tasks/AR-1798-pinned-source-checkout-acquisition.md): Pinned source-checkout acquisition | Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance. | Independent review repairs pushed at ba981448; monitor exact-head CI and re-review. | ar1798-source-checkout-luna56 |
-| P1 | [AR-1793](tasks/AR-1793-human-diagnostic-output-parent.md): Repair human diagnostic output-parent contract | Repair the legacy human diagnostic output-parent wording contract exposed by the full ASB CLI suite. | Repair the legacy human diagnostic output-parent wording contract and add focused positive/negative coverage; do not publish AR-1784 until green. | codex-ar1793-diagnostic-repair-luna56 |
 
 ## Open
 

@@ -1392,11 +1392,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P1 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1793-diagnostic-repair-luna56 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Repair the legacy human diagnostic output-parent wording contract exposed by the full ASB CLI suite. |
@@ -2323,7 +2323,7 @@ flowchart LR
         AR_1790["AR-1790 - Done"]:::status_done
         AR_1791["AR-1791 - Done"]:::status_done
         AR_1792["AR-1792 - Done"]:::status_done
-        AR_1793["AR-1793 - In progress"]:::status_in_progress
+        AR_1793["AR-1793 - Done"]:::status_done
         AR_1794["AR-1794 - Done"]:::status_done
         AR_1795["AR-1795 - Done"]:::status_done
         AR_1796["AR-1796 - In progress"]:::status_in_progress
