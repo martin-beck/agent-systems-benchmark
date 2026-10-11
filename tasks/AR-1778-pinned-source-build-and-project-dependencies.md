@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1778-pinned-source-build-and-project-dependencies",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T10:14:52+00:00",
   "depends_on": [
     "AR-1776"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "codex-ar1778-luna56",
   "plan": "../plans/AR-1778-pinned-source-build-and-project-dependencies.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1778.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Pinned source builds and project dependencies",
-  "updated_at": "2026-10-11T08:14:46+00:00",
+  "updated_at": "2026-10-11T08:14:52+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies"
 }
 ---
@@ -53,3 +53,5 @@ limit are distinct actionable outcomes.
 
 - 2026-10-11T08:14:46+00:00: Dependency AR-1776 is complete; opening AR-1778 for implementation per
   coordinated plan.
+
+- 2026-10-11T08:14:52+00:00: Claimed by codex-ar1778-luna56.

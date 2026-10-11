@@ -7,6 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
+| P0 | [AR-1778](tasks/AR-1778-pinned-source-build-and-project-dependencies.md): Pinned source builds and project dependencies | Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix. | Implement catalog-pinned source fallback builds and project-local dependency materialization for supported tools without root or ambient package-manager mutation. | codex-ar1778-luna56 |
 | P0 | [AR-1784](tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. | Derive a complete command-to-tool/host-capability dependency registry and fail-fast preflight from all ASB command paths, adapters, monitors, and build recipes. | ar1784_dependency_registry_luna56 |
 
 ## Open
@@ -14,7 +15,6 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. | - |
-| P0 | [AR-1778](tasks/AR-1778-pinned-source-build-and-project-dependencies.md): Pinned source builds and project dependencies | Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix. | Implement catalog-pinned source fallback builds and project-local dependency materialization for supported tools without root or ambient package-manager mutation. | - |
 
 ## Blocked
 
