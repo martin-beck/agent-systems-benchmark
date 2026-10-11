@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Monitor exact-head PR #573 hosted checks and review; do not merge from this worktree.",
+  "next_action": "Create fresh clean topic from protected main, cherry-pick signed AR-1784 product/repair commits, refresh diagnostics/provenance, publish replacement PR without force-push.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 6,
   "observed_head": "fe7f1ce8b34d286ae7e0a83d1d64b2211e7302a5",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1784.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "Mandatory execution preflight repair pushed at exact head e85e6872",
-  "task_revision": 72,
+  "summary": "e85e6872 pushed; hosted provenance rejects non-tip sync merge topology",
+  "task_revision": 73,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:28:29+00:00",
+  "updated_at": "2026-10-11T10:29:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -257,3 +257,8 @@ and end-to-end development-run tests in the same change.
   provenance CLI digest to 89aa603de1ba5a23b2dab766fec5852ecfb1bec8e988441293dc0ee196ceb28f. Focused
   diagnostic/provenance gates, cargo fmt, and full asb-cli package tests pass. Pushed exact PR #573
   head e85e6872c0e2dd9bfaa94ea7fc1e3b7178baf005.
+
+- 2026-10-11T10:29:25+00:00: PR #573 exact head e85e6872 has all checks queued; local focused/full
+  gates pass. Portable protected-main provenance failed because existing merge 80062618 is followed
+  by regular e85e6872, violating synchronization-merge-must-be-topic-tip. Existing branch/PR is
+  preserved; no force-push or merge. Fresh clean superseding topic is required.
