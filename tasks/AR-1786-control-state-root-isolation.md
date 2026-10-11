@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 74,
+  "task_revision": 75,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T06:29:52+00:00",
+  "updated_at": "2026-10-11T06:30:59+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -255,3 +255,6 @@ gate into a serial-only or exclusion-based check.
   catalog identities are repaired.
 
 - 2026-10-11T06:29:52+00:00: Heartbeat by codex-ar1786-review-merge-luna56.
+
+- 2026-10-11T06:30:59+00:00: Recorded command exit 0; command argv SHA-256
+  a2ae8499d4ead7710b77bfd594e50500ebf3445b07b753cf0548c8f80f92df62.
