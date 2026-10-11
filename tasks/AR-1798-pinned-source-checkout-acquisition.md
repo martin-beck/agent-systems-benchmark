@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Exact fixture checkout repair pushed at dfe6fe70.",
-  "task_revision": 92,
+  "task_revision": 93,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:51:48+00:00",
+  "updated_at": "2026-10-11T15:51:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -302,3 +302,6 @@ protected merge, and post-merge evidence path.
   136bdf016b1dbf80b2796688fd0d48b86a813dcdd4e9e8d2e4d16beb2cd6c67c.
 
 - 2026-10-11T15:51:48+00:00: Heartbeat by ar1798-source-checkout-luna56.
+
+- 2026-10-11T15:51:50+00:00: Recorded command exit 0; command argv SHA-256
+  77a8c0061a15da8e262c091591b5b47fb2462b72dfc188c1db50b63e85f2dc85.
