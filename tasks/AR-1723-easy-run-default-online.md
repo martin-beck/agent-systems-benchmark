@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1723-easy-online",
   "checkpoint_commit": "daae06efa2d78b11acd6902c5ac6958091bfe546",
-  "claim_expires": "2026-10-11T01:55:40+00:00",
+  "claim_expires": "2026-10-11T02:08:28+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1715"
@@ -17,9 +17,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only.",
-  "task_revision": 28,
+  "task_revision": 29,
   "title": "Make the easy run default to online provider execution",
-  "updated_at": "2026-10-11T01:04:21+00:00",
+  "updated_at": "2026-10-11T01:08:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1723"
 }
 ---
@@ -107,3 +107,5 @@ requested; live failures never silently select mock or replay.
 
 - 2026-10-11T01:04:21+00:00: Recorded command exit 0; command argv SHA-256
   d49f406d52c1bc511b827cb7d4de12400fc31f65bb8e568939ef4f03358e2def.
+
+- 2026-10-11T01:08:28+00:00: Heartbeat by codex-ar1723-online-default.
