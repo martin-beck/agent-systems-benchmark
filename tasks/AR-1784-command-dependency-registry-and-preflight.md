@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Repair the human command taxonomy compile error (stale CommandKind::Preflight arm), then run focused preflight tests; prior focused checks failed only on non-exhaustive human.rs matches.",
+  "next_action": "Run focused dependency and human contract tests after adding the preflight golden row; then rerun the complete asb-cli suite and review the exact signed diff.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 1,
   "observed_head": "c152ce98917ad9f3f4f40f339900979b5f30e6c2",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 29,
+  "task_revision": 30,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T08:22:14+00:00",
+  "updated_at": "2026-10-11T08:23:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -125,3 +125,9 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T08:21:51+00:00: Recorded command exit 101; command argv SHA-256
   770ef66e05618edaf585abd6d89f8f4b9cea6dae022116745e9147ef57d01a1d.
+
+- 2026-10-11T08:23:11+00:00: Complete asb-cli suite exposed three concrete failures: optional
+  perf/bpftool host-tool remediation was incorrectly asserted as ASB-installable (test fixed to
+  require install syntax only for mandatory tools); public command inventory lacked its preflight
+  golden fixture (fixture row added); one existing human error-presentation assertion was
+  environment/baseline-sensitive and showed output-parent wording, to be rechecked independently.

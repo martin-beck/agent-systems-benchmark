@@ -1274,7 +1274,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. |
-| Next action | Repair the human command taxonomy compile error (stale CommandKind::Preflight arm), then run focused preflight tests; prior focused checks failed only on non-exhaustive human.rs matches. |
+| Next action | Run focused dependency and human contract tests after adding the preflight golden row; then rerun the complete asb-cli suite and review the exact signed diff. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 
