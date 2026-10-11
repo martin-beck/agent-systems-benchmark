@@ -10,7 +10,7 @@
   "next_action": "Keep open pending a clean signed local merge and green exact-main provenance receipt; do not use GitHub web merge.",
   "observed_branch": "repair/ar-1794-protected-main-merge-path",
   "observed_dirty": 0,
-  "observed_head": "",
+  "observed_head": "198bf86975f64450440e0a30332f732a2233e92e",
   "owner": "ar1794-protected-merge-repair-luna56",
   "plan": "../plans/AR-1794-protected-main-merge-path-repair.md",
   "priority": "P0",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "Protected-main merge-path repair",
-  "updated_at": "2026-10-11T13:39:24+00:00",
+  "updated_at": "2026-10-11T13:39:30+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1794-protected-main-merge-path"
 }
 ---
