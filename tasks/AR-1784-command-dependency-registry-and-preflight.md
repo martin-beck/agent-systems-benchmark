@@ -9,7 +9,7 @@
   "id": "AR-1784",
   "next_action": "Derive a complete command-to-tool/host-capability dependency registry and fail-fast preflight from all ASB command paths, adapters, monitors, and build recipes.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
-  "observed_dirty": 0,
+  "observed_dirty": 3,
   "observed_head": "3031428aab47be95943b75cd753b0b5e3aeb4f6b",
   "owner": "ar1784_dependency_registry_luna56",
   "plan": "../plans/AR-1784-command-dependency-registry-and-preflight.md",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 10,
+  "task_revision": 11,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T08:12:46+00:00",
+  "updated_at": "2026-10-11T08:12:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
