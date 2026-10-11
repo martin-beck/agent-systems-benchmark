@@ -56,7 +56,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1698-current-head` | `codex/ar-1698-current-head` | `f090de56710d` | 0 | behind 29, ahead 0 |
 | `agent-systems-benchmark-ar-1701-recording` | `codex/ar-1701-recording` | `f090de56710d` | 0 | behind 29, ahead 0 |
 | `agent-systems-benchmark-ar-1712-handoff` | `codex/ar-1712-handoff` | `f090de56710d` | 0 | behind 29, ahead 0 |
-| `agent-systems-benchmark-ar-1716-recording-fence` | `codex/ar-1716-recording-fence` | `58a445a5dd90` | 0 | behind 1, ahead 0 |
+| `agent-systems-benchmark-ar-1716-recording-fence` | `DETACHED` | `3031428aab47` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar-1723` | `codex/ar-1723-easy-online` | `5739f6674cc5` | 0 | behind 30, ahead 0 |
 | `agent-systems-benchmark-ar-1724-easy-sweep` | `codex/ar-1724-easy-sweep-online` | `70f20a9f1f5d` | 0 | behind 26, ahead 0 |
 | `agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install` | `docs/ar-1725-quickstart-platform-install` | `695f1335c4ed` | 0 | behind 10, ahead 2 |
@@ -265,8 +265,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-ar1698-runtime-authority` | `codex-ar1698-runtime-authority` | `c5a7e64af8cd` | 0 | behind 290, ahead 1 |
 | `asb` | `DETACHED` | `457317b21dbe` | 0 | behind 268, ahead 0 |
 | `asb-ar1715-qualification` | `DETACHED` | `daae06efa2d7` | 0 | behind 38, ahead 0 |
-| `asb-ar1717-comparison-product` | `codex/ar-1717-comparison-product` | `a454f5483b60` | 2 | behind 4, ahead 5 |
-| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog.rs`, `docs/examples/asb-cli-workflow-v1.provenance.json` |
+| `asb-ar1717-comparison-product` | `codex/ar-1717-comparison-product` | `c3d2f3c09bb5` | 0 | behind 4, ahead 6 |
 | `asb-ar1721-qualification-20261009` | `DETACHED` | `31ca7a481fca` | 0 | behind 219, ahead 0 |
 | `asb-ar1721-tui-provider-router` | `repair/ar-1721-tui-provider-router` | `8345a9890e5b` | 0 | behind 289, ahead 0 |
 | `asb-ar1723-merge` | `DETACHED` | `f090de56710d` | 0 | behind 29, ahead 0 |
