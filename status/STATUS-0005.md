@@ -1,5 +1,9 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1632](../tasks/AR-1632.md) | [AR-1622](../tasks/AR-1622.md), [AR-1631](../tasks/AR-1631.md), [AR-1633](../tasks/AR-1633.md), [AR-1634](../tasks/AR-1634.md), [AR-1635](../tasks/AR-1635.md), [AR-1636](../tasks/AR-1636.md), [AR-1637](../tasks/AR-1637.md), [AR-1638](../tasks/AR-1638.md), [AR-1639](../tasks/AR-1639.md), [AR-1640](../tasks/AR-1640.md) | [AR-1623](../tasks/AR-1623.md), [AR-1644](../tasks/AR-1644.md) |
+| [AR-1633](../tasks/AR-1633.md) | [AR-1604](../tasks/AR-1604.md), [AR-1631](../tasks/AR-1631.md) | [AR-1632](../tasks/AR-1632.md), [AR-1634](../tasks/AR-1634.md) |
+| [AR-1634](../tasks/AR-1634.md) | [AR-1567](../tasks/AR-1567.md), [AR-1631](../tasks/AR-1631.md), [AR-1633](../tasks/AR-1633.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1635](../tasks/AR-1635.md), [AR-1636](../tasks/AR-1636.md), [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md) |
+| [AR-1635](../tasks/AR-1635.md) | [AR-1634](../tasks/AR-1634.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1636](../tasks/AR-1636.md) |
 | [AR-1636](../tasks/AR-1636.md) | [AR-1634](../tasks/AR-1634.md), [AR-1635](../tasks/AR-1635.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1637](../tasks/AR-1637.md), [AR-1638](../tasks/AR-1638.md), [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md) |
 | [AR-1637](../tasks/AR-1637.md) | [AR-1636](../tasks/AR-1636.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1638](../tasks/AR-1638.md), [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md) |
 | [AR-1638](../tasks/AR-1638.md) | [AR-1636](../tasks/AR-1636.md), [AR-1637](../tasks/AR-1637.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1639](../tasks/AR-1639.md) |
@@ -134,7 +138,7 @@
 | [AR-1778](../tasks/AR-1778-pinned-source-build-and-project-dependencies.md) | [AR-1776](../tasks/AR-1776-supported-tool-acquisition-catalog.md) | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md) |
 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md) | [AR-1777](../tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md), [AR-1778](../tasks/AR-1778-pinned-source-build-and-project-dependencies.md), [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md) | [AR-1780](../tasks/AR-1780-installed-tool-workload-execution-qualification.md) |
 | [AR-1780](../tasks/AR-1780-installed-tool-workload-execution-qualification.md) | [AR-1764](../tasks/AR-1764-project-run-integration.md), [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md), [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md) | None |
-| [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md) | [AR-1760](../tasks/AR-1760-project-init-workspace.md) | [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md) |
+| [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md) | [AR-1760](../tasks/AR-1760-project-init-workspace.md) | [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md), [AR-1794](../tasks/AR-1794-protected-main-merge-path-repair.md) |
 | [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md) | [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md) | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md) |
 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md) | [AR-1763](../tasks/AR-1763-generated-catalog-selection.md), [AR-1764](../tasks/AR-1764-project-run-integration.md), [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md) | [AR-1780](../tasks/AR-1780-installed-tool-workload-execution-qualification.md) |
 | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md) | [AR-1776](../tasks/AR-1776-supported-tool-acquisition-catalog.md) | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md), [AR-1793](../tasks/AR-1793-human-diagnostic-output-parent.md) |
@@ -147,6 +151,7 @@
 | [AR-1791](../tasks/AR-1791-tui-fixture-isolation.md) | [AR-1770](../tasks/AR-1770-descriptor-safe-directory-race-hardening.md), [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md), [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md), [AR-1790](../tasks/AR-1790-metrics-retry-budget.md) | [AR-1792](../tasks/AR-1792-pty-fixture-determinism.md) |
 | [AR-1792](../tasks/AR-1792-pty-fixture-determinism.md) | [AR-1770](../tasks/AR-1770-descriptor-safe-directory-race-hardening.md), [AR-1791](../tasks/AR-1791-tui-fixture-isolation.md) | None |
 | [AR-1793](../tasks/AR-1793-human-diagnostic-output-parent.md) | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md) | None |
+| [AR-1794](../tasks/AR-1794-protected-main-merge-path-repair.md) | [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md) | None |
 
 ## Complete AR inventory
 
@@ -158,11 +163,12 @@
 | P0 | [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md): External workload acquisition catalog | ar1781-luna56 | Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests. | Repair post-merge provenance for merge af75cd06: protected-main verifier rejected GitHub merge committer; do not accept/release until exact-main provenance is green. |
 | P0 | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | coordinator | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. | Await required checks for PR #573 at 9d729dd6; then complete independent exact-head review, merge, post-merge assurance, and accept/release. |
 
-### Open (1)
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
+| P0 | [AR-1794](../tasks/AR-1794-protected-main-merge-path-repair.md): Protected-main merge-path repair | Unclaimed | Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity. | Keep open pending a clean signed local merge and green exact-main provenance receipt; do not use GitHub web merge. |
 
 ### Blocked (85)
 
@@ -566,7 +572,3 @@
 | P0 | [AR-1523](../tasks/AR-1523.md): Platform authority deployment adapter | Unclaimed | Qualify the central orchestration path with deterministic local/mock and strict-replay authority; deployment-owned live authority is optional future hardening, not a development prerequisite. | Development path is unblocked: promote and claim this AR, qualify the existing central orchestrator with deterministic local/mock and strict-replay authority, and run exact-head gates. A deployment-owned authenticated source is optional future production hardening and must not block development qualification. |
 | P0 | [AR-1524](../tasks/AR-1524.md): Repair live-dispatch dependency graph | Unclaimed | Repair the stale AR-1374/1375 dependency cycle and make AR-1523 the canonical live-dispatch successor. | Promote after dependency verification; supersede the stale AR-1375 cycle and route AR-1374 to AR-1523 without changing product code. |
 | P0 | [AR-1526](../tasks/AR-1526.md): First-customer local/replay qualification | Unclaimed | Qualify the merged ASB production-shaped local/mock and strict-replay customer path with sanitized evidence. | No development action remains. Preserve the exact-main first-customer local/mock and strict-replay receipt; live-provider deployment remains optional future hardening. |
-| P0 | [AR-1527](../tasks/AR-1527.md): Normalize AR-1307/1308 development seed policy | Unclaimed | Remove reviewed seed and digest prerequisites from the AR-1307/1308 development path while preserving separate formal and release evidence gates. | Promote after state review; audit AR-1307/1308 and every active dependent for development-only seed/digest prerequisites, then normalize their task and plan language without changing formal gates. |
-| P0 | [AR-1528](../tasks/AR-1528.md): Rerun AR-1307/1308 development fixtures | Unclaimed | Run the repaired AR-1307/1308 unsigned-development fixture path and preserve separate formal qualification blockers. | No further action: development fixture rerun is complete; retain its non-qualifying evidence while formal work proceeds separately. |
-| P0 | [AR-1529](../tasks/AR-1529.md): AR-1307/1308 formal capacity decision successor | Unclaimed | Replace the stale AR-1309 dependency with a reviewed formal capacity/model decision grounded in the completed capacity and reduced-profile evidence. | No further action: the 8 GiB/8 GiB signed-capacity contract is recorded; AR-1530 owns implementation. |
-| P0 | [AR-1530](../tasks/AR-1530.md): State formal capacity profile for AR-1307/1308 | Unclaimed | Implement the state-owned 8G/8G formal capacity profile selected by AR-1529 and route it to AR-1522. | No further action: merged PR #31 provides the signed-capacity-8g profile; AR-1531 owns disposable fixture provisioning. |
