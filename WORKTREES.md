@@ -69,7 +69,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1754-online` | `codex/ar-1754-online-integration` | `0dcd147261d4` | 0 | behind 53, ahead 0 |
 | `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `2521df12cc31` | 0 | behind 50, ahead 0 |
 | `agent-systems-benchmark-ar-1777-current` | `feature/ar-1777-verified-tool-current` | `7019409f45a7` | 3 | behind 2, ahead 16 |
-| changed files | - | - | - | `crates/asb-cli/src/diagnostic.rs`, `crates/asb-cli/tests/diagnostic_contract.rs`, `crates/asb-cli/src/diagnostic_legacy_catalog_compact.rs` |
+| changed files | - | - | - | `crates/asb-cli/src/diagnostic.rs`, `crates/asb-cli/src/diagnostic_legacy_catalog_compact.rs`, `crates/asb-cli/tests/diagnostic_contract.rs` |
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2` | `0a389a2f8aa3` | 0 | behind 18, ahead 15 |
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `ec566dfdcde2` | 0 | behind 18, ahead 18 |
 | `agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies` | `feature/ar-1778-pinned-source-build-and-project-dependencies` | `1c11b88d2790` | 0 | behind 26, ahead 0 |

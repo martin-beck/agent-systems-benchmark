@@ -40,7 +40,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38136713136 | `4a8f0925f438` | push | Repository quality | completed:success |
 | 38136713131 | `4a8f0925f438` | push | Portable protected-main provenance | completed:success |
 | 38136713130 | `4a8f0925f438` | push | Credential-free benchmark path | completed:success |
-| 38136713128 | `4a8f0925f438` | push | Rust verification | in_progress:- |
+| 38136713128 | `4a8f0925f438` | push | Rust verification | completed:success |
 | 38136713126 | `4a8f0925f438` | push | Cross-repository development broker qualification | completed:success |
 | 38136713121 | `4a8f0925f438` | push | Formal assurance | completed:success |
 | 38136713117 | `4a8f0925f438` | push | Fault assurance | completed:success |
