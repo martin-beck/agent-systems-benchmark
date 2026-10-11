@@ -56,8 +56,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1698-current-head` | `codex/ar-1698-current-head` | `f090de56710d` | 0 | behind 23, ahead 0 |
 | `agent-systems-benchmark-ar-1701-recording` | `codex/ar-1701-recording` | `f090de56710d` | 0 | behind 23, ahead 0 |
 | `agent-systems-benchmark-ar-1712-handoff` | `codex/ar-1712-handoff` | `f090de56710d` | 0 | behind 23, ahead 0 |
-| `agent-systems-benchmark-ar-1716-recording-fence` | `codex/ar-1716-recording-fence` | `436f49cf5954` | 1 | behind 0, ahead 2 |
-| changed files | - | - | - | `docs/examples/asb-cli-workflow-v1.provenance.json` |
+| `agent-systems-benchmark-ar-1716-recording-fence` | `codex/ar-1716-recording-fence` | `a8e615d02d71` | 0 | behind 0, ahead 3 |
 | `agent-systems-benchmark-ar-1723` | `codex/ar-1723-easy-online` | `5739f6674cc5` | 0 | behind 24, ahead 0 |
 | `agent-systems-benchmark-ar-1724-easy-sweep` | `codex/ar-1724-easy-sweep-online` | `70f20a9f1f5d` | 0 | behind 20, ahead 0 |
 | `agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install` | `docs/ar-1725-quickstart-platform-install` | `695f1335c4ed` | 0 | behind 4, ahead 2 |
