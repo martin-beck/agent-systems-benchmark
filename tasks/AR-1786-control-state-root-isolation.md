@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1786",
-  "next_action": "Repair diagnostic_contract legacy control.rs call-site identities shifted by the added regression, rerun focused exact-head review, then rerun full gates; no PR or merge.",
+  "next_action": "Independent exact-head review of 378787cd after diagnostic catalog repair, then full applicable gates; publish only from clean exact tree.",
   "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
   "observed_head": "7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 80,
+  "task_revision": 81,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T06:32:23+00:00",
+  "updated_at": "2026-10-11T06:32:41+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -273,3 +273,9 @@ gate into a serial-only or exclusion-based check.
 
 - 2026-10-11T06:32:23+00:00: Recorded command exit 0; command argv SHA-256
   73ef1c0a9100922c4432b95185fed0b6fbe3526cbff6a0a5f30c434eeb5c115b.
+
+- 2026-10-11T06:32:41+00:00: Repaired diagnostic_legacy_catalog.rs identities for the five
+  intentional control.rs producer shifts (9768, 11387, 11392, 11394, 11409), preserving stable
+  catalog IDs and causes. Committed as SSH-signed DCO commit 378787cd. Focused diagnostic_contract
+  passes 9/9; state-lock child-inheritance test passes. Candidate now requires independent review at
+  exact head 378787cd.

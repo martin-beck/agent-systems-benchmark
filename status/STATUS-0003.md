@@ -1302,7 +1302,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. |
-| Next action | Repair diagnostic_contract legacy control.rs call-site identities shifted by the added regression, rerun focused exact-head review, then rerun full gates; no PR or merge. |
+| Next action | Independent exact-head review of 378787cd after diagnostic catalog repair, then full applicable gates; publish only from clean exact tree. |
 
 ### AR-1787 — Repair control lock lifetime semantics
 

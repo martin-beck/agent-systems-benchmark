@@ -152,7 +152,7 @@
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md): Require model catalogs and execution parity for every backend | codex-asb-ar1736-catalog-luna56-20261011 | Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution. | Promote after AR-1733; inventory the canonical backend registry and implement catalog, selection, run, and sweep parity with exhaustive fixtures. |
 | P0 | [AR-1776](../tasks/AR-1776-supported-tool-acquisition-catalog.md): Supported-tool acquisition catalog | codex-ar1776-tool-catalog-luna56 | Define pinned official acquisition and build recipes for every ASB-supported executable tool. | Define the authoritative supported executable-tool acquisition catalog, official primary sources, binary/source alternatives, verification identities, and build recipes. |
-| P0 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | codex-ar1786-review-merge-luna56 | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Repair diagnostic_contract legacy control.rs call-site identities shifted by the added regression, rerun focused exact-head review, then rerun full gates; no PR or merge. |
+| P0 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | codex-ar1786-review-merge-luna56 | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 378787cd after diagnostic catalog repair, then full applicable gates; publish only from clean exact tree. |
 
 ### Open (1)
 
