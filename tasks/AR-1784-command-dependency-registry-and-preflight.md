@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "PR #575 merged at signed local merge 14de8bce.",
-  "task_revision": 103,
+  "task_revision": 104,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:43:56+00:00",
+  "updated_at": "2026-10-11T11:43:58+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -354,3 +354,6 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T11:43:56+00:00: All exact-main workflows passed at 14de8bce, including repository
   quality.
+
+- 2026-10-11T11:43:58+00:00: Recorded command exit 0; command argv SHA-256
+  b4269758b07783f61eb48e766ffbed9792b63410e1f57f15d2455b63f13e5b36.
