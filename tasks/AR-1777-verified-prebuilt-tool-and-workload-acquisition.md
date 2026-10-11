@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Monitor PR #576 hosted checks at exact head ec566dfd to terminal result; repair only concrete failures.",
+  "next_action": "Monitor PR #579 hosted checks at exact head 7019409f to terminal result; merge only after independent review and all required checks green.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #576 exact head ec566dfd; fail-closed source/archive repair pushed; focused/full tests and 90.28% workspace coverage pass",
-  "task_revision": 113,
+  "summary": "PR #579 exact head 7019409f on protected-main base 14de8bce; bounded gzip extraction, diagnostic identities, provenance refreshed; local full coverage passes; hosted required checks pending",
+  "task_revision": 114,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:48:01+00:00",
+  "updated_at": "2026-10-11T11:48:06+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -403,3 +403,10 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T11:48:01+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T11:48:06+00:00: 2026-10-11T13:35Z release-state reconciliation: PR576/ec566dfd is
+  superseded. PR579 exact head 7019409f is pushed on feature/ar-1777-verified-tool-current from
+  protected main 14de8bce. Local focused acquisition 14/14, diagnostic contract 9/9, workflow
+  transcript 3/3, fmt and workspace coverage pass. Hosted green: credential-free, provenance,
+  TUI/PT​​Y, fuzz, platform, formal subchecks; Policy/Rust/AArch64/TLC pending. Lease renewed 120
+  minutes.

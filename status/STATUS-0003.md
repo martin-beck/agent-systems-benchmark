@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #576 exact head ec566dfd; fail-closed source/archive repair pushed; focused/full tests and 90.28&#37; workspace coverage pass |
-| Next action | Monitor PR #576 hosted checks at exact head ec566dfd to terminal result; repair only concrete failures. |
+| Summary | PR #579 exact head 7019409f on protected-main base 14de8bce; bounded gzip extraction, diagnostic identities, provenance refreshed; local full coverage passes; hosted required checks pending |
+| Next action | Monitor PR #579 hosted checks at exact head 7019409f to terminal result; merge only after independent review and all required checks green. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
@@ -4320,4 +4320,3 @@ flowchart LR
 | [AR-0516](../tasks/AR-0516-opendesk-strict-replay-http-compatibility.md) | [AR-0302](../tasks/AR-0302-agent-opendesk.md), [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | None |
 | [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md), [AR-0520](../tasks/AR-0520-interaction-aware-redaction.md) |
 | [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md) | [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md) | [AR-0519](../tasks/AR-0519-gemini-thinking-config-contract.md) |
-| [AR-0519](../tasks/AR-0519-gemini-thinking-config-contract.md) | [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md) | None |
