@@ -28,9 +28,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Define pinned official acquisition and build recipes for every ASB-supported executable tool.",
-  "task_revision": 8,
+  "task_revision": 9,
   "title": "Supported-tool acquisition catalog",
-  "updated_at": "2026-10-11T06:27:35+00:00",
+  "updated_at": "2026-10-11T06:28:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1776-supported-tool-acquisition-catalog"
 }
 ---
@@ -77,3 +77,6 @@ tools.
   b086d913d703881849313a9683ca8c6ccc15d9d8bdba2668d9f37be1fb35d81f.
 
 - 2026-10-11T06:27:35+00:00: Heartbeat by codex-ar1776-tool-catalog-luna56.
+
+- 2026-10-11T06:28:33+00:00: Recorded command exit 101; command argv SHA-256
+  6ab752c743a2104a0d04dfacc5323060ecf9f4afaac0448a6dc52830788c517b.
