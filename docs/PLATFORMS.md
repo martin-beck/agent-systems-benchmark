@@ -62,6 +62,30 @@ means an immutable package exists but its dependency/runtime closure was not pro
 The manifests preserve npm SRI or PyPI SHA-256 integrity for every listed package
 and variant. Package publication does not prove installation on any distribution.
 
+## Install prerequisites and diagnostics
+
+The release/toolchain boundary is the pinned `rust-toolchain.toml`; use
+`rustup show active-toolchain` and `cargo --version` to diagnose a mismatch.
+The commands below install required compiler/build utilities. They do not
+install ASB agents or sandbox policy, and package managers may require local
+administrator approval.
+
+| Distribution family | Required package command | Optional sandbox packages | Architecture boundary |
+| --- | --- | --- | --- |
+| Ubuntu/Debian | `sudo apt install build-essential pkg-config libssl-dev` | `bubblewrap systemd util-linux` | amd64 and arm64 user-space manifests; native status remains above |
+| Fedora/RHEL-compatible | `sudo dnf groupinstall "Development Tools" && sudo dnf install openssl-devel` | `bubblewrap systemd util-linux` | amd64 and arm64 user-space manifests; no native claim from an image |
+| openSUSE | `sudo zypper install -t pattern devel_basis && sudo zypper install libopenssl-devel` | `bubblewrap systemd util-linux` | Leap and Tumbleweed are separate pinned snapshots |
+| Arch Linux | `sudo pacman -S --needed base-devel openssl` | `bubblewrap systemd util-linux` | amd64 only in the pinned Arch image; arm64 is unsupported |
+| Alpine | `sudo apk add build-base openssl-dev` | `bubblewrap util-linux` | musl is a manifest user-space target; agent package closure is unverified |
+| openEuler | `sudo dnf group install "Development Tools" && sudo dnf install openssl-devel` | `bubblewrap systemd util-linux` | amd64 and arm64 user-space manifests; native status remains planned |
+
+After installation, run `asb doctor`. A missing `rustc`, linker, OpenSSL
+development package, or sandbox executable is a dependency diagnostic—not
+permission to substitute a floating tool or claim native support. Run
+`python3 tools/platforms/validate_manifests.py` when reviewing a manifest
+change. The [platform manifest](../platforms/v1/platforms.json) remains the
+source of truth for release, libc, architecture, and evidence labels.
+
 ## Reproducible inspection boundary
 
 Registry indexes and child manifests were inspected with Docker buildx 0.36.1.

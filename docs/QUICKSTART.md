@@ -1,5 +1,8 @@
 # Benchmark quickstart: offline first, live by explicit opt-in
 
+For the install-to-compare beginner route, including the equivalent TUI
+journey, see the [two-agent OpenRouter walkthrough](workflows/two-agent-openrouter-tui.md).
+
 This quickstart exercises the released command boundary without credentials,
 downloads, provider traffic, or paid API calls. Use the pinned Rust toolchain
 from the repository root:

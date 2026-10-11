@@ -1,5 +1,9 @@
 # Operator quickstart
 
+The linked [two-agent OpenRouter and TUI walkthrough](workflows/two-agent-openrouter-tui.md)
+combines this local-mock path with catalog selection, live opt-in, and TUI
+recovery semantics.
+
 This is the shortest supported path from an installed development build to a
 benchmark result. It is intentionally credential-free: the local fixture route
 does not contact a provider, download a workload, or incur cost.

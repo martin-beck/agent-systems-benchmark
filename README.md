@@ -42,6 +42,7 @@ fail as a whole; per-agent overrides are deliberately a separate choice.
 - [Offline quickstart](docs/QUICKSTART.md)
 - [Project workspace initialization](docs/PROJECT_WORKSPACES.md)
 - [Operator quickstart](docs/OPERATOR_QUICKSTART.md)
+- [Two-agent OpenRouter and TUI walkthrough](docs/workflows/two-agent-openrouter-tui.md)
 - [Agent and workload extensions](docs/EXTENSIONS.md)
 - [Authenticated process-owner material](docs/PROCESS_OWNER_MATERIAL.md)
 - [Provider authentication enrollment](docs/AUTH_ENROLLMENT.md)

@@ -21,6 +21,7 @@ workflow pages below provide the contracts and recovery details.
 | Compare multiple agents | [Result comparison](result-comparison.md) | [TUI first run](tui-first-run.md#follow-finish-and-compare) |
 | Capture and replay provider responses | [Record and replay](record-replay.md) | Same page, `RecordingWorkflow` |
 | Recover from a failed or stale run | [Troubleshooting](troubleshooting.md) | [TUI recovery](tui-first-run.md#reconnect-and-recover) |
+| Two-agent OpenRouter and install-to-compare route | [Walkthrough](two-agent-openrouter-tui.md) | [Negotiated TUI journey](two-agent-openrouter-tui.md#equivalent-tui-journey) |
 | Qualify the owner-backed first-customer path | [Owner-backed journey](owner-backed-first-customer-journey.md) | ASB CLI/runtime only |
 | Consume a first-customer release package | [Package consumption](first-customer-package-consumption.md) | ASB release/runtime only |
 | Qualify without an external package | [Self-contained package qualification](self-contained-package-qualification.md) | Non-production fixture only |

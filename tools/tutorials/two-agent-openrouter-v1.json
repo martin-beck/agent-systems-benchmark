@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "tutorial_id": "two-agent-openrouter",
+  "title": "Two-agent OpenRouter selection and bounded offline run",
+  "steps": [
+    {"id": "catalog", "command": ["asb", "provider-catalog"], "expect": {"exit_code": 0, "stdout_shape": "provider-catalog-v1"}, "network": "denied", "credentials": "none"},
+    {"id": "select-two-agents", "command": ["asb", "provider-plan", "--catalog-sha256", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", "--provider-profile", "openrouter", "--credential-reference-sha256", "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789", "--agent", "codex", "--agent", "opendesk"], "expect": {"exit_code": 0, "stdout_shape": "provider-plan-v1"}, "references": [{"path": "selection.json", "kind": "output"}], "network": "denied", "credentials": "none"},
+    {"id": "setup", "command": ["asb", "setup", "--provider-profile", "openrouter", "--model", "cohere/north-mini-code:free", "--output", "config.json"], "expect": {"exit_code": 0, "stdout_shape": "setup-v1"}, "references": [{"path": "config.json", "kind": "output"}], "network": "denied", "credentials": "none"},
+    {"id": "plan", "command": ["asb", "plan", "experiment.toml", "--provider-selection", "selection.json"], "expect": {"exit_code": 0, "stdout_shape": "plan-v1"}, "references": [{"path": "experiment.toml", "kind": "input"}, {"path": "selection.json", "kind": "input"}], "network": "denied", "credentials": "none"}
+  ]
+}
