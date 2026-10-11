@@ -28,9 +28,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Define pinned official acquisition and build recipes for every ASB-supported executable tool.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "Supported-tool acquisition catalog",
-  "updated_at": "2026-10-11T06:27:02+00:00",
+  "updated_at": "2026-10-11T06:27:06+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1776-supported-tool-acquisition-catalog"
 }
 ---
@@ -69,3 +69,6 @@ tools.
 
 - 2026-10-11T06:27:02+00:00: Recorded command exit 1; command argv SHA-256
   a9dbdcac7cd706eebbafcd3cc86d85708ca25d0df1fc27f3b3bc2da8385daae0.
+
+- 2026-10-11T06:27:06+00:00: Recorded command exit 1; command argv SHA-256
+  1d96f512ae699afbb6c512f04aca299d54e0f23c55966ae09f00de84476ab946.
