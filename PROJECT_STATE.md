@@ -25,20 +25,21 @@ Generated from local Git and GitHub. Do not edit.
 | #570 | `feature/ar-1784-command-dependency-registry@13cc2fb461fb` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add command dependency preflight registry |
 | #571 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair@60486e095e04` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | AR-1777: verified prebuilt tool acquisition repair |
 | #572 | `feature/ar-1781-external-workload-acquisition-catalog@0db5831b7e6d` | `main` | BLOCKED | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(workloads): publish development external workload catalog |
+| #573 | `feature/ar-1784-command-dependency-registry-and-preflight@85daea11134c` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | feat(cli): add command dependency preflight registry |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
+| 38128224975 | `85daea11134c` | pull_request | Cross-repository development broker qualification | queued:- |
+| 38128224958 | `85daea11134c` | pull_request | Formal assurance | queued:- |
+| 38128224950 | `85daea11134c` | pull_request | Rust verification | queued:- |
+| 38128224944 | `85daea11134c` | pull_request | Huawei MIT source headers | queued:- |
+| 38128224939 | `85daea11134c` | pull_request | Emulated aarch64 portability | queued:- |
+| 38128224938 | `85daea11134c` | pull_request | Agent Workflow Quality shadow | queued:- |
+| 38128224932 | `85daea11134c` | pull_request | Credential-free benchmark path | queued:- |
+| 38128224927 | `85daea11134c` | pull_request | Portable protected-main provenance | queued:- |
+| 38128224909 | `85daea11134c` | pull_request | Repository quality | queued:- |
+| 38128224905 | `85daea11134c` | pull_request | Hosted portability and native qualification | queued:- |
+| 38128224885 | `85daea11134c` | pull_request | Fault assurance | queued:- |
 | 38127982624 | `60486e095e04` | pull_request | Portable protected-main provenance | completed:success |
-| 38127982600 | `60486e095e04` | pull_request | Formal assurance | completed:success |
-| 38127982597 | `60486e095e04` | pull_request | Fault assurance | completed:success |
-| 38127982596 | `60486e095e04` | pull_request | Repository quality | in_progress:- |
-| 38127982594 | `60486e095e04` | pull_request | Rust verification | in_progress:- |
-| 38127982590 | `60486e095e04` | pull_request | Emulated aarch64 portability | in_progress:- |
-| 38127982589 | `60486e095e04` | pull_request | Huawei MIT source headers | completed:success |
-| 38127982588 | `60486e095e04` | pull_request | Agent Workflow Quality shadow | completed:success |
-| 38127982582 | `60486e095e04` | pull_request | Hosted portability and native qualification | completed:success |
-| 38127982579 | `60486e095e04` | pull_request | Cross-repository development broker qualification | completed:success |
-| 38127982575 | `60486e095e04` | pull_request | Credential-free benchmark path | completed:success |
-| 38127888676 | `0db5831b7e6d` | pull_request | Agent Workflow Quality shadow | completed:success |
