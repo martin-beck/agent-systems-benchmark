@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head 7019409f on protected-main base 14de8bce; bounded gzip extraction, diagnostic identities, provenance refreshed; local full coverage passes; hosted required checks pending",
-  "task_revision": 115,
+  "task_revision": 116,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:48:14+00:00",
+  "updated_at": "2026-10-11T11:56:06+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -413,3 +413,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T11:48:14+00:00: Recorded command exit 0; command argv SHA-256
   77cac378957e00babd3a9cb1a1c6eb7659ae69cc850db3ad873428ee265c81ff.
+
+- 2026-10-11T11:56:06+00:00: Recorded command exit 0; command argv SHA-256
+  ab2142064e40666f368cf29828b89e03ec6e71782231ec16fd99302be9a5c13c.
