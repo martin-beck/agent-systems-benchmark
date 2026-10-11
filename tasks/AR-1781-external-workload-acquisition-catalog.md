@@ -7,7 +7,7 @@
     "AR-1760"
   ],
   "id": "AR-1781",
-  "next_action": "Repair post-merge provenance for merge af75cd06: protected-main verifier rejected GitHub merge committer; do not accept/release until exact-main provenance is green.",
+  "next_action": "Obtain independent review and green exact-head checks for PR #577, then publish its signed two-parent merge with tools/integration/merge_pr.py and verify exact-main workflows.",
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "observed_dirty": 0,
   "observed_head": "286cccd6d7c0337fe19fbfba4aadacfa0c8b40f5",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1781.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests.",
-  "task_revision": 28,
+  "summary": "Post-merge provenance repair PR #577 open at signed DCO head 198bf869; historical af75cd06 preserved.",
+  "task_revision": 29,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T10:57:23+00:00",
+  "updated_at": "2026-10-11T10:58:31+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -130,3 +130,7 @@ labelled.
   identity. Preserve failure; no acceptance/release yet.
 
 - 2026-10-11T10:57:23+00:00: Heartbeat by ar1781-luna56.
+
+- 2026-10-11T10:58:31+00:00: Created repair PR #577 from af75cd06 with empty signed+DCO commit
+  198bf869; local merge integrity/signature tests: 54 passed, 23 subtests passed. Historical
+  GitHub-committer failure remains preserved; no web merge or history rewrite.

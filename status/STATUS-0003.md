@@ -1231,8 +1231,8 @@
 | Owner | ar1781-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests. |
-| Next action | Repair post-merge provenance for merge af75cd06: protected-main verifier rejected GitHub merge committer; do not accept/release until exact-main provenance is green. |
+| Summary | Post-merge provenance repair PR #577 open at signed DCO head 198bf869; historical af75cd06 preserved. |
+| Next action | Obtain independent review and green exact-head checks for PR #577, then publish its signed two-parent merge with tools/integration/merge_pr.py and verify exact-main workflows. |
 
 ### AR-1782 — Verified asb workload installation
 
