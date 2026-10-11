@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "PR #584 exact remote head 8371090f; signed+DCO refresh of reviewed diagnostic catalog for lifecycle/extraction callsites after hosted Rust failure. Substantive digests, arXiv source, bounded extraction, adapter-ready receipt, rollback, and PTY serialization remain in 12fbe263. Local diagnostic contract and clippy pass. Poll fresh exact-head checks; do not merge.",
+  "next_action": "PR #584 exact remote head 8371090f; signed+DCO diagnostic catalog refresh repairs hosted Rust producer identity failure. Local exact diagnostic identity and all 9 diagnostic contract tests pass; lifecycle/extraction and PTY repairs remain. Fresh exact-head CI is running; do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
   "observed_head": "12fbe26399975e9114a451ddee632bdadb65b820",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 85,
+  "task_revision": 86,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T15:51:43+00:00",
+  "updated_at": "2026-10-11T15:52:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -264,3 +264,6 @@ remain mandatory.
 
 - 2026-10-11T15:51:43+00:00: Repaired generated diagnostic identity catalog after exact hosted
   failure; fresh CI required.
+
+- 2026-10-11T15:52:16+00:00: Observed exact pushed head 8371090f and renewed test evidence after
+  catalog repair.
