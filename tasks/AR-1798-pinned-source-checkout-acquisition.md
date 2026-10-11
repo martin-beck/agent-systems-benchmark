@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Coverage repair pushed at 176e4e1e with hostile output/revision/symlink branch tests.",
-  "task_revision": 68,
+  "task_revision": 69,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:16:51+00:00",
+  "updated_at": "2026-10-11T15:16:53+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -236,3 +236,6 @@ protected merge, and post-merge evidence path.
   worktree. Source-checkout focused tests 10 passed; hosted-equivalent locked workspace llvm-cov
   --fail-under-lines 90 passed: 90.23% lines (88.69% regions). Clippy all asb-cli targets offline
   and diff-check passed. No threshold changes.
+
+- 2026-10-11T15:16:53+00:00: Recorded command exit 0; command argv SHA-256
+  52fc5259f34b543f553f2c091abd5fdf4b8cacc310963ae50b74a74d4576816c.
