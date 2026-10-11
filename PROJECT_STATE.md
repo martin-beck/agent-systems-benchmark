@@ -21,22 +21,22 @@ Generated from local Git and GitHub. Do not edit.
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
-| #568 | `feature/ar-1778-pinned-source-build-and-project-dependencies@1c11b88d2790` | `main` | BLOCKED | IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded pinned source builder |
-| #569 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition@6c4f9768caa0` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | feat: verified prebuilt tool acquisition |
+| #568 | `feature/ar-1778-pinned-source-build-and-project-dependencies@1c11b88d2790` | `main` | CLEAN | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded pinned source builder |
+| #569 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition@6c4f9768caa0` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | feat: verified prebuilt tool acquisition |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38126188742 | `6c4f9768caa0` | pull_request | Cross-repository development broker qualification | queued:- |
-| 38126188729 | `6c4f9768caa0` | pull_request | Huawei MIT source headers | queued:- |
-| 38126188706 | `6c4f9768caa0` | pull_request | Hosted portability and native qualification | queued:- |
-| 38126188702 | `6c4f9768caa0` | pull_request | Rust verification | queued:- |
-| 38126188697 | `6c4f9768caa0` | pull_request | Emulated aarch64 portability | pending:- |
-| 38126188690 | `6c4f9768caa0` | pull_request | Formal assurance | pending:- |
-| 38126188689 | `6c4f9768caa0` | pull_request | Agent Workflow Quality shadow | queued:- |
-| 38126188687 | `6c4f9768caa0` | pull_request | Credential-free benchmark path | queued:- |
-| 38126188684 | `6c4f9768caa0` | pull_request | Fault assurance | queued:- |
-| 38126188678 | `6c4f9768caa0` | pull_request | Portable protected-main provenance | queued:- |
-| 38126188674 | `6c4f9768caa0` | pull_request | Repository quality | pending:- |
+| 38126188742 | `6c4f9768caa0` | pull_request | Cross-repository development broker qualification | in_progress:- |
+| 38126188729 | `6c4f9768caa0` | pull_request | Huawei MIT source headers | completed:success |
+| 38126188706 | `6c4f9768caa0` | pull_request | Hosted portability and native qualification | in_progress:- |
+| 38126188702 | `6c4f9768caa0` | pull_request | Rust verification | in_progress:- |
+| 38126188697 | `6c4f9768caa0` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38126188690 | `6c4f9768caa0` | pull_request | Formal assurance | in_progress:- |
+| 38126188689 | `6c4f9768caa0` | pull_request | Agent Workflow Quality shadow | completed:success |
+| 38126188687 | `6c4f9768caa0` | pull_request | Credential-free benchmark path | in_progress:- |
+| 38126188684 | `6c4f9768caa0` | pull_request | Fault assurance | in_progress:- |
+| 38126188678 | `6c4f9768caa0` | pull_request | Portable protected-main provenance | completed:success |
+| 38126188674 | `6c4f9768caa0` | pull_request | Repository quality | in_progress:- |
 | 38126023093 | `eff009eeefb1` | pull_request | Cross-repository development broker qualification | completed:success |
