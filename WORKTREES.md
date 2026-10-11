@@ -68,7 +68,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1754-merge` | `DETACHED` | `8e4dc926d4b8` | 0 | behind 52, ahead 0 |
 | `agent-systems-benchmark-ar-1754-online` | `codex/ar-1754-online-integration` | `0dcd147261d4` | 0 | behind 53, ahead 0 |
 | `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `2521df12cc31` | 0 | behind 50, ahead 0 |
-| `agent-systems-benchmark-ar-1777-current` | `feature/ar-1777-verified-tool-current` | `79c21f62b68e` | 0 | behind 2, ahead 17 |
+| `agent-systems-benchmark-ar-1777-current` | `feature/ar-1777-verified-tool-current` | `56ca12a79ec3` | 0 | behind 2, ahead 18 |
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2` | `0a389a2f8aa3` | 0 | behind 18, ahead 15 |
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `ec566dfdcde2` | 0 | behind 18, ahead 18 |
 | `agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies` | `feature/ar-1778-pinned-source-build-and-project-dependencies` | `1c11b88d2790` | 0 | behind 26, ahead 0 |
@@ -262,6 +262,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `ar1689-asb-fix` | `repair/ar-1678-tui-host-preflight` | `a186357977ad` | 0 | behind 423, ahead 0 |
 | `ar1777-review-0efe01f7` | `DETACHED` | `0efe01f79342` | 0 | behind 2, ahead 15 |
 | `ar1777-review-7019409f` | `DETACHED` | `7019409f45a7` | 0 | behind 2, ahead 16 |
+| `ar1777-review-79c21f62` | `DETACHED` | `79c21f62b68e` | 0 | behind 2, ahead 17 |
 | `ar1781-review-198bf869` | `DETACHED` | `198bf86975f6` | 0 | behind 18, ahead 1 |
 | `ar1781-review-323aa8c2` | `DETACHED` | `323aa8c26374` | 0 | behind 1, ahead 0 |
 | `ar442-review` | `DETACHED` | `1f86b19fb9a1` | 0 | behind 477, ahead 0 |
