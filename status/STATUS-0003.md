@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #576 exact head 817de0ed adds malformed archive coverage after hosted 89.99&#37; |
-| Next action | Confirm local coverage margin, then monitor new PR #576 hosted checks at exact head 817de0ed to terminal result. |
+| Summary | PR #576 exact head 817de0ed; local workspace coverage 90.28&#37; |
+| Next action | Monitor new PR #576 hosted checks at exact head 817de0ed to terminal result; preserve no-force policy. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 

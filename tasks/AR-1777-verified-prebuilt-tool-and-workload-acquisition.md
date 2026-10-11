@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Confirm local coverage margin, then monitor new PR #576 hosted checks at exact head 817de0ed to terminal result.",
+  "next_action": "Monitor new PR #576 hosted checks at exact head 817de0ed to terminal result; preserve no-force policy.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition",
   "observed_dirty": 0,
   "observed_head": "eff009eeefb1b7c4c95217044ba44de5c4d44853",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #576 exact head 817de0ed adds malformed archive coverage after hosted 89.99%",
-  "task_revision": 101,
+  "summary": "PR #576 exact head 817de0ed; local workspace coverage 90.28%",
+  "task_revision": 102,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:07:49+00:00",
+  "updated_at": "2026-10-11T11:09:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -364,3 +364,8 @@ reporting contract when available while keeping machine-mode output safe.
   817de0ed846f03aaea62c3643a3011de08b498c0. It covers malformed tar member names, invalid octal size
   metadata, and truncated archive members with bounded negative assertions. Pushed through
   handoffctl to PR #576; previous a666bfda evidence is superseded by this exact head.
+
+- 2026-10-11T11:09:28+00:00: Local tools/quality/check_coverage.py now passes workspace line
+  coverage at 90.28% (97663 covered / 9490 missed), with focused tool_acquisition tests 11/11 and
+  cargo fmt passing. Hosted PR #576 checks were triggered for exact signed DCO head 817de0ed after
+  prior rerun reached 89.99%; await terminal hosted Policy result.
