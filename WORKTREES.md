@@ -74,7 +74,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies` | `feature/ar-1778-pinned-source-build-and-project-dependencies` | `1c11b88d2790` | 0 | behind 55, ahead 0 |
 | `agent-systems-benchmark-ar-1779-default-usable-tool-install-command` | `feature/ar-1779-default-usable-tool-install-command` | `7c08cfb019ee` | 0 | behind 0, ahead 3 |
 | `agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog` | `feature/ar-1781-external-workload-acquisition-catalog` | `286cccd6d7c0` | 0 | behind 48, ahead 0 |
-| `agent-systems-benchmark-ar-1782-verified-asb-workload-installation` | `feature/ar-1782-verified-asb-workload-installation` | `a1090297dede` | 0 | behind 0, ahead 1 |
+| `agent-systems-benchmark-ar-1782-verified-asb-workload-installation` | `feature/ar-1782-verified-asb-workload-installation` | `a1090297dede` | 1 | behind 0, ahead 1 |
+| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog_compact.rs` |
 | `agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight` | `feature/ar-1784-command-dependency-registry-and-preflight` | `e85e6872f055` | 1 | behind 47, ahead 11 |
 | changed files | - | - | - | `docs/examples/asb-cli-workflow-v1.provenance.json` |
 | `agent-systems-benchmark-ar-1784-command-dependency-registry-clean` | `feature/ar-1784-command-dependency-registry-clean` | `b8a1d6a14cea` | 0 | behind 32, ahead 0 |

@@ -9,7 +9,7 @@
   "id": "AR-1782",
   "next_action": "Wait for AR-1793 diagnostic identity repair to merge; then rebase PR #584 a1090297 onto updated main, rerun exact-head CI, and review.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
-  "observed_dirty": 0,
+  "observed_dirty": 1,
   "observed_head": "a1090297dede4412bcf1487d2d7bc00315c69dc5",
   "owner": "ar1782_workload_install_luna56",
   "plan": "../plans/AR-1782-verified-asb-workload-installation.md",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 24,
+  "task_revision": 25,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T14:12:45+00:00",
+  "updated_at": "2026-10-11T14:15:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
