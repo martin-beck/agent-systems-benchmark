@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "PR #584 exact remote head 6fb228a2; added workload lifecycle read-only/proof matrix coverage. Local quality coverage was 90.02% before matrix; clippy, diagnostic, provenance, and diff checks pass. Poll fresh exact-head coverage; independently review; do not merge.",
+  "next_action": "PR #584 exact remote head b53a929e; added workload lifecycle success-path coverage for list/status/select/remove plus proof negatives. Local clippy, focused tests, provenance, and diff checks pass. Poll fresh exact-head coverage; independently review; do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
   "observed_head": "6fb228a26b95fa505a8a38618db9c373f0226510",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 65,
+  "task_revision": 66,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T15:18:23+00:00",
+  "updated_at": "2026-10-11T15:18:48+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -219,3 +219,6 @@ remain mandatory.
 
 - 2026-10-11T15:18:23+00:00: Recorded command exit 0; command argv SHA-256
   ac3e505f30fd620a7c294d45f78bcf244146c7ac1be401dd8c78fa01c13f8abb.
+
+- 2026-10-11T15:18:48+00:00: Hosted coverage was 89.87%; success-path matrix now exercises installed
+  record lifecycle and should clear unchanged 90% floor.
