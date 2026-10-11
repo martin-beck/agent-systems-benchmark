@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Synchronize PR #573 repair head e8e3b9e7 with current protected main af75cd06 using signed topic-sync, refresh identities/provenance, then await exact-head checks and independent review before local signed merge.",
+  "next_action": "Repair PR #573 beyond e8e3b9e7: integrate mandatory fail-fast dependency preflight into run/sweep/benchmark-live, add tests, sync current main af75cd06, refresh identities/provenance, then rerun CI and review.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 2,
   "observed_head": "9d729dd610d303b5ab5ba9815fff76bab1b917a7",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 220,
+  "task_revision": 221,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:20:07+00:00",
+  "updated_at": "2026-10-11T10:20:59+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -604,3 +604,7 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T10:20:07+00:00: PR #573 currently has no checks and mergeState DIRTY because main
   advanced when PR #572 merged; branch synchronization is required before publication.
+
+- 2026-10-11T10:20:59+00:00: Independent exact-head review passed prior P1s but found new P1:
+  standalone preflight is never invoked by execution paths, so missing tools can still fail at
+  runtime. Hosted checks are absent until the next pushed head.
