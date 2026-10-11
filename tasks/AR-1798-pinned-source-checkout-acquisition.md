@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1798",
-  "next_action": "Monitor fresh exact-head CI for 89ce603c and obtain independent re-review; do not merge.",
+  "next_action": "Monitor fresh exact-head CI for dfe6fe70 and obtain independent re-review; do not merge.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "observed_dirty": 0,
   "observed_head": "89ce603c9aa0a44dc10e52a0ab5dd5654682eeeb",
@@ -27,10 +27,10 @@
   "spec_ref": "specs/AR-1798.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "Formatting repair pushed at 89ce603c after CI gate failure.",
-  "task_revision": 89,
+  "summary": "Exact fixture checkout repair pushed at dfe6fe70.",
+  "task_revision": 90,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:44:20+00:00",
+  "updated_at": "2026-10-11T15:50:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -290,3 +290,10 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T15:44:20+00:00: Recorded command exit 0; command argv SHA-256
   819a4650172b9c667f85b9fb9834ee9443e2b89c7815070683e4b362bdca3d48.
+
+- 2026-10-11T15:50:50+00:00: Exact product head dfe6fe7082f7381d4d6d95881cc477319b91b80f; clean
+  worktree. Repair uses tempfile-backed unique fixture roots and serializes the two fixture Git
+  tests to eliminate intermittent parallel fixture failures. Focused source_checkout stress: 12
+  tests x10 runs passed; cargo fmt, clippy -D warnings, and diff-check passed. Full workspace
+  llvm-cov reached 389 passed but encountered unrelated TUI PTY regression; non-coverage workspace
+  run reached 389 passed but encountered unrelated TUI GCC probe regression. No threshold changes.

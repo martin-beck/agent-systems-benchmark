@@ -1469,8 +1469,8 @@
 | Owner | ar1798-source-checkout-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Formatting repair pushed at 89ce603c after CI gate failure. |
-| Next action | Monitor fresh exact-head CI for 89ce603c and obtain independent re-review; do not merge. |
+| Summary | Exact fixture checkout repair pushed at dfe6fe70. |
+| Next action | Monitor fresh exact-head CI for dfe6fe70 and obtain independent re-review; do not merge. |
 
 
 ## Dependency graph
