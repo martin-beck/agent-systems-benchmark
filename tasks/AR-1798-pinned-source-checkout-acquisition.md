@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Provenance fixture refreshed at ce16703c for intentional CLI source changes.",
-  "task_revision": 63,
+  "task_revision": 64,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:57:09+00:00",
+  "updated_at": "2026-10-11T14:57:13+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -220,3 +220,6 @@ protected merge, and post-merge evidence path.
   d0a5a8f396e21b13fc4b5097d35443a2da50cf0b7abf7b95e2a4a40a7181d61f.
 
 - 2026-10-11T14:57:09+00:00: Heartbeat by ar1798-source-checkout-luna56.
+
+- 2026-10-11T14:57:13+00:00: Recorded command exit 0; command argv SHA-256
+  58063010f5fa48ea54966f2175222b4cb499a1c842b889445ce839e9269ade1d.
