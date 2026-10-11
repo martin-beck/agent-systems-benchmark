@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 248,
+  "task_revision": 249,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:03:28+00:00",
+  "updated_at": "2026-10-11T11:05:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -689,3 +689,6 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T11:03:28+00:00: Hosted coverage previously reported 90.00% but failed the floor; added
   signed+DCO namespace coverage commit d974297a. Local full workspace cargo llvm-cov now passes at
   90.29%; no gate weakening.
+
+- 2026-10-11T11:05:50+00:00: Recorded command exit 0; command argv SHA-256
+  ce06dd6d8af853309253830a51a79d8139e15ea5719866600b13de710a9b9f91.
