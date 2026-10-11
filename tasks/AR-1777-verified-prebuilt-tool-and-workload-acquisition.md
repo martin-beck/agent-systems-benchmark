@@ -8,9 +8,9 @@
   ],
   "id": "AR-1777",
   "next_action": "Implement catalog-driven verified compatible-binary reuse and official prebuilt executable-tool acquisition into project-local storage.",
-  "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition",
+  "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair",
   "observed_dirty": 0,
-  "observed_head": "8d3d85f72d9932c63e88d8f799b089fc82d70133",
+  "observed_head": "f9ec3996e2e7e3d912a15afbff5194bcf956dedf",
   "owner": "codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56",
   "plan": "../plans/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md",
   "priority": "P0",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root.",
-  "task_revision": 56,
+  "task_revision": 57,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T09:03:15+00:00",
+  "updated_at": "2026-10-11T09:12:20+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---

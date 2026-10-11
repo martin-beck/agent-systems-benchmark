@@ -22,21 +22,22 @@ Generated from local Git and GitHub. Do not edit.
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
 | #569 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition@8d3d85f72d99` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat: verified prebuilt tool acquisition |
-| #570 | `feature/ar-1784-command-dependency-registry@60cf8540f4c5` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | feat(cli): add command dependency preflight registry |
+| #570 | `feature/ar-1784-command-dependency-registry@60cf8540f4c5` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add command dependency preflight registry |
+| #571 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair@f9ec3996e2e7` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | AR-1777: verified prebuilt tool acquisition repair |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38127164374 | `da5cf1154f06` | pull_request | Rust verification | in_progress:- |
-| 38127164361 | `da5cf1154f06` | pull_request | Formal assurance | completed:success |
-| 38127164360 | `da5cf1154f06` | pull_request | Repository quality | in_progress:- |
-| 38127164358 | `da5cf1154f06` | pull_request | Agent Workflow Quality shadow | completed:success |
-| 38127164355 | `da5cf1154f06` | pull_request | Credential-free benchmark path | completed:success |
-| 38127164350 | `da5cf1154f06` | pull_request | Huawei MIT source headers | completed:success |
-| 38127164349 | `da5cf1154f06` | pull_request | Emulated aarch64 portability | in_progress:- |
-| 38127164341 | `da5cf1154f06` | pull_request | Portable protected-main provenance | completed:failure |
-| 38127164334 | `da5cf1154f06` | pull_request | Hosted portability and native qualification | completed:success |
-| 38127164333 | `da5cf1154f06` | pull_request | Fault assurance | completed:success |
-| 38127164332 | `da5cf1154f06` | pull_request | Cross-repository development broker qualification | completed:success |
-| 38127013889 | `8d3d85f72d99` | pull_request | Cross-repository development broker qualification | completed:success |
+| 38127502134 | `f9ec3996e2e7` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38127502105 | `f9ec3996e2e7` | pull_request | Credential-free benchmark path | in_progress:- |
+| 38127502086 | `f9ec3996e2e7` | pull_request | Fault assurance | in_progress:- |
+| 38127502063 | `f9ec3996e2e7` | pull_request | Hosted portability and native qualification | in_progress:- |
+| 38127502030 | `f9ec3996e2e7` | pull_request | Rust verification | in_progress:- |
+| 38127502029 | `f9ec3996e2e7` | pull_request | Formal assurance | in_progress:- |
+| 38127502028 | `f9ec3996e2e7` | pull_request | Huawei MIT source headers | completed:success |
+| 38127502026 | `f9ec3996e2e7` | pull_request | Agent Workflow Quality shadow | completed:success |
+| 38127502019 | `f9ec3996e2e7` | pull_request | Cross-repository development broker qualification | in_progress:- |
+| 38127502009 | `f9ec3996e2e7` | pull_request | Portable protected-main provenance | completed:success |
+| 38127502007 | `f9ec3996e2e7` | pull_request | Repository quality | in_progress:- |
+| 38127405485 | `60cf8540f4c5` | pull_request | Huawei MIT source headers | completed:success |
