@@ -146,11 +146,12 @@
 
 ## Complete AR inventory
 
-### Open (2)
+### Open (3)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
+| P0 | [AR-1723](../tasks/AR-1723-easy-run-default-online.md): Make the easy run default to online provider execution | Unclaimed | Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only. | Promote after the live runner and provider qualification dependencies are current; implement and qualify the default-online easy run. |
 | P0 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Unclaimed | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. |
 
 ### Blocked (86)
@@ -244,7 +245,7 @@
 | P2 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md): Provide native openEuler capacity | Unclaimed | Qualify booted openEuler on native x86_64 and applicable QEMU AArch64; keep native ARM64 optional. | Qualify native x86_64 openEuler and required applicable pinned QEMU AArch64 behavior; document genuine native ARM64 as optional future evidence. |
 | P2 | [AR-1444](../tasks/AR-1444-first-class-journey-qualification.md): First-class journey qualification | Unclaimed | Optional cross-repository journey evidence; never an ASB release blocker. | Optional cross-repository qualification only: wait for external asb-tui AR-1327 to provide an exact pinned acceptance revision and credential-free journey transcript; this AR is not an ASB release or first-customer blocker. Do not modify asb-tui from this repository. |
 
-### Planned (103)
+### Planned (102)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -293,7 +294,6 @@
 | P0 | [AR-1712](../tasks/AR-1712.md): Live result, recording, and comparison handoff contract | Unclaimed | Define the ASB live-run result and selected/all recording handoff consumed by TUI for offline replay and comparison. | PR #484 merged at ASB 972a29f provides selected 2x2 and full 9x27 deterministic local-mock recording with offline_ready=true; still qualify strict network-denied replay, comparison, and paired TUI handoff before closure. |
 | P0 | [AR-1716](../tasks/AR-1716.md): Cassette provider-profile identity binding | Unclaimed | Bind every recording index insertion to the selected provider profile identity and reject mismatched cassette metadata before mutation. | Add a focused RecordingIndex::insert identity fence and deterministic positive/mismatch tests, then qualify exact human/JSON diagnostics and receipt integrity. |
 | P0 | [AR-1717](../tasks/AR-1717.md): Comparison exact provider/settings/endpoint identity fences | Unclaimed | Require exact provider, model settings, and endpoint identity equality before comparison admits online/offline results. | Add focused comparison admission fences for provider, model/settings digest, endpoint identity, and generation; qualify symmetric/asymmetric mismatch diagnostics without weakening development setup. |
-| P0 | [AR-1723](../tasks/AR-1723-easy-run-default-online.md): Make the easy run default to online provider execution | Unclaimed | Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only. | Promote after the live runner and provider qualification dependencies are current; implement and qualify the default-online easy run. |
 | P0 | [AR-1724](../tasks/AR-1724-easy-sweep-default-online.md): Make the easy sweep default to online provider execution | Unclaimed | Extend the simple default-online journey to bounded selected/all agent and workload sweeps with explicit mock and replay alternatives. | Promote after AR-1723 and recording/comparison dependencies are current; implement and qualify the bounded online sweep. |
 | P0 | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md): Require model catalogs and execution parity for every backend | Unclaimed | Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution. | Promote after AR-1733; inventory the canonical backend registry and implement catalog, selection, run, and sweep parity with exhaustive fixtures. |
 | P0 | [AR-1754](../tasks/AR-1754-default-online-live-workflow.md): Make online execution the default across ASB workflows | Unclaimed | Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives. | Promote after AR-1723, AR-1724, and cli2key qualification AR-1733 are current; inventory every run/sweep/easy/record/campaign/TUI entry point, implement default-online routing with explicit --local-mock and offline replay alternatives, then qualify positive and negative paths. |
