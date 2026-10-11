@@ -3,7 +3,7 @@
 Generated from local Git and GitHub. Do not edit.
 
 - Product remote main: `3031428aab47be95943b75cd753b0b5e3aeb4f6b`
-- Local origin/main: `7e795589fd4dbefecf17a7d4457623e1de33d2b4`
+- Local origin/main: `3031428aab47be95943b75cd753b0b5e3aeb4f6b`
 - Primary worktree head: `a9abcf2e63f761e314593e9abc6bf074b7418e5e`
 
 ## Open pull requests
@@ -33,7 +33,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38122919805 | `3031428aab47` | push | Portable protected-main provenance | completed:failure |
 | 38122919803 | `3031428aab47` | push | Fault assurance | in_progress:- |
 | 38122919802 | `3031428aab47` | push | Hosted portability and native qualification | in_progress:- |
-| 38122919795 | `3031428aab47` | push | Repository quality | in_progress:- |
+| 38122919795 | `3031428aab47` | push | Repository quality | completed:failure |
 | 38122919793 | `3031428aab47` | push | Rust verification | in_progress:- |
 | 38122919787 | `3031428aab47` | push | Credential-free benchmark path | in_progress:- |
 | 38122919778 | `3031428aab47` | push | Emulated aarch64 portability | in_progress:- |
