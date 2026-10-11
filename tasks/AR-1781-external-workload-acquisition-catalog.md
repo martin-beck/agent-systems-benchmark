@@ -16,20 +16,20 @@
   "priority": "P0",
   "schema_version": 1,
   "spec_acceptance": {
-    "evidence_class": "contract-test",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:80ddddc1f96a1895fec0b21ad53c4e40949ba4df68428dae6ffcd7f5a1fc167e",
+    "evidence_ref": "github:martin-beck/agent-systems-benchmark/commit/4a8f0925f438a114a0eb61d0fdd52508dadf618b/exact-main-workflows",
     "spec_ref": "specs/AR-1781.json",
     "spec_revision": 2,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1781.json",
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "PR #578 merged at signed local merge 4a8f0925.",
-  "task_revision": 39,
+  "task_revision": 40,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T11:45:31+00:00",
+  "updated_at": "2026-10-11T11:54:49+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -160,3 +160,5 @@ labelled.
 
 - 2026-10-11T11:45:31+00:00: Recorded command exit 0; command argv SHA-256
   b91449aa47d635e78e9d59f098f49c726db46333b92a91ba4b6953a5304842f4.
+
+- 2026-10-11T11:54:49+00:00: All exact-main workflows passed at 4a8f0925 after signed merge PR #578.
