@@ -2,21 +2,21 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T11:07:34+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1756"
   ],
   "id": "AR-1793",
   "next_action": "Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate.",
-  "owner": "codex-ar1793-awc-v051",
+  "owner": "",
   "plan": "../plans/AR-1793-coordinator-v051-adoption.md",
   "priority": "P0",
   "schema_version": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Adopt v0.5.1 with strict coverage repair.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "Coordinator v0.5.1 adoption",
-  "updated_at": "2026-10-11T09:07:37+00:00",
+  "updated_at": "2026-10-11T11:14:19+00:00",
   "worktree_key": ""
 }
 ---
@@ -39,3 +39,6 @@ weakened.
 
 - 2026-10-11T09:07:37+00:00: Isolated exact-candidate run passed 1574 tests; coverage is 93.83
   percent against the unchanged 95 percent threshold.
+
+- 2026-10-11T11:14:19+00:00: Expired stale claim released; preserve coordinator adoption task for
+  explicit reassignment.

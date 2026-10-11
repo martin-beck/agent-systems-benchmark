@@ -1392,11 +1392,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | open |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1793-awc-v051 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Adopt v0.5.1 with strict coverage repair. |
@@ -2281,7 +2281,7 @@ flowchart LR
         AR_1790["AR-1790 - Done"]:::status_done
         AR_1791["AR-1791 - Done"]:::status_done
         AR_1792["AR-1792 - Done"]:::status_done
-        AR_1793["AR-1793 - In progress"]:::status_in_progress
+        AR_1793["AR-1793 - Open"]:::status_open
         AR_1794["AR-1794 - Open"]:::status_open
         AR_1795["AR-1795 - Planned"]:::status_planned
     end
