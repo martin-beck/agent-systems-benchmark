@@ -1246,7 +1246,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement dedicated verified remote external workload installation and lifecycle through asb workload. |
-| Next action | Implement asb workload install/list/status/select/repair/update/remove for every development-supported official external workload bundle. |
+| Next action | PR #584 open at a1090297; monitor exact-head CI and complete independent review before merge. |
 
 ### AR-1783 — Installed workload selection and execution
 

@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "Implement asb workload install/list/status/select/repair/update/remove for every development-supported official external workload bundle.",
+  "next_action": "PR #584 open at a1090297; monitor exact-head CI and complete independent review before merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
   "observed_head": "a1090297dede4412bcf1487d2d7bc00315c69dc5",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 12,
+  "task_revision": 13,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T14:05:54+00:00",
+  "updated_at": "2026-10-11T14:06:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -75,3 +75,6 @@ remain mandatory.
 
 - 2026-10-11T14:05:54+00:00: Recorded command exit 8; command argv SHA-256
   78f325bde3962aea10f3844ad0018af88b2cf3e001f1e02858b67193c031b6ae.
+
+- 2026-10-11T14:06:26+00:00: PR #584 is open at signed+DCO product head a1090297. Exact-head CI is
+  running; header/provenance/AWQ shadow checks pass, remaining required workflows pending.
