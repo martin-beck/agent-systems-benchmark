@@ -58,7 +58,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1712-handoff` | `codex/ar-1712-handoff` | `f090de56710d` | 0 | behind 19, ahead 0 |
 | `agent-systems-benchmark-ar-1723` | `codex/ar-1723-easy-online` | `5739f6674cc5` | 0 | behind 20, ahead 0 |
 | `agent-systems-benchmark-ar-1724-easy-sweep` | `codex/ar-1724-easy-sweep-online` | `70f20a9f1f5d` | 0 | behind 16, ahead 0 |
-| `agent-systems-benchmark-ar-1736-backend-model-catalog` | `codex/ar-1736-backend-model-catalog` | `0b6e2ed1f92d` | 0 | behind 3, ahead 1 |
+| `agent-systems-benchmark-ar-1736-backend-model-catalog` | `codex/ar-1736-backend-model-catalog` | `89852e60c5bf` | 0 | behind 0, ahead 1 |
 | `agent-systems-benchmark-ar-1754-merge` | `DETACHED` | `8e4dc926d4b8` | 0 | behind 3, ahead 0 |
 | `agent-systems-benchmark-ar-1754-online` | `codex/ar-1754-online-integration` | `0dcd147261d4` | 0 | behind 4, ahead 0 |
 | `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `2521df12cc31` | 0 | behind 1, ahead 0 |
@@ -291,6 +291,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-ar1744-main-repro` | `DETACHED` | `1ab175c30eb0` | 0 | behind 228, ahead 0 |
 | `asb-ar1746-postmerge` | `DETACHED` | `2f52ecbaf79a` | 0 | behind 215, ahead 0 |
 | `asb-ar1765-merge.X54pFB` | `DETACHED` | `3cd8ae24048d` | 0 | behind 62, ahead 0 |
+| `asb-ar1776-postmerge` | `DETACHED` | `fa9e0c6c9e71` | 0 | behind 0, ahead 0 |
 | `asb-main-verify.FEM1UX` | `DETACHED` | `856294553f2f` | 0 | behind 271, ahead 0 |
 | `asb-pr496-review.3ZigFi` | `DETACHED` | `dc5a635fd37f` | 0 | behind 268, ahead 1 |
 | `asb-pr507-integration` | `DETACHED` | `bbe25d0c516b` | 0 | behind 244, ahead 0 |
