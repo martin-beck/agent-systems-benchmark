@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix.",
-  "task_revision": 7,
+  "task_revision": 8,
   "title": "Pinned source builds and project dependencies",
-  "updated_at": "2026-10-11T08:23:01+00:00",
+  "updated_at": "2026-10-11T08:23:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies"
 }
 ---
@@ -62,3 +62,6 @@ limit are distinct actionable outcomes.
   e00ddc47d1f97e96e8d5b5d1cb147d84ae24445b5e6e936757809f0ee0e5821c.
 
 - 2026-10-11T08:23:01+00:00: Heartbeat by codex-ar1778-luna56.
+
+- 2026-10-11T08:23:08+00:00: Recorded command exit 0; command argv SHA-256
+  a24d8ddac1475fd88c905a457454eb908ea48d17dfe65c58ea9213a04ce7b8fc.
