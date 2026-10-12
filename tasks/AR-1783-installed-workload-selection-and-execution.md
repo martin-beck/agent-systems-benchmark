@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
-  "status": "planned",
+  "status": "open",
   "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T13:22:43+00:00",
+  "updated_at": "2026-10-12T20:41:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -47,3 +47,6 @@ project's install, selection, bounded run and sweep, report, and comparison
 journey. Development runs may use a controlled local/development backend where
 needed; lack of production authorization or hosted qualification must not block
 the suite from this end-to-end path.
+
+- 2026-10-12T20:41:51+00:00: Dependencies AR-1763, AR-1764, and AR-1782 are durably done with
+  acceptance evidence; promote for implementation.
