@@ -270,7 +270,7 @@
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | ar1783-workload-selection-luna | Installed workload execution | Await exact-head CI, then obtain independent review of 4b72fafb against main 356a669; merge only after green review and CI. |
-| P0 | [AR-1833](../tasks/AR-1833-repair-ar1689-receipt.md): Repair AR-1689 receipt bytes | ar1689-tui-qualification-luna | Repair malformed AR-1689 paired qualification evidence before relying on its done state. | Promote and claim after AR-1689 receipt repair is authorized. |
+| P0 | [AR-1833](../tasks/AR-1833-repair-ar1689-receipt.md): Repair AR-1689 receipt bytes | ar1689-tui-qualification-luna | Independent review passed: receipt newline repair preserves qualification content | Reconcile generated projections and release AR-1833 done after final state verification |
 
 ### Open (2)
 

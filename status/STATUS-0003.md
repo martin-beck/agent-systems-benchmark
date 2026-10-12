@@ -1707,8 +1707,8 @@
 | Owner | ar1689-tui-qualification-luna |
 | Parent | None |
 | Children | None |
-| Summary | Repair malformed AR-1689 paired qualification evidence before relying on its done state. |
-| Next action | Promote and claim after AR-1689 receipt repair is authorized. |
+| Summary | Independent review passed: receipt newline repair preserves qualification content |
+| Next action | Reconcile generated projections and release AR-1833 done after final state verification |
 
 
 ## Dependency graph
