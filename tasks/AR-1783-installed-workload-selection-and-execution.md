@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Coverage audit: installed-workload behavior is covered but workspace floor remains below gate",
-  "task_revision": 180,
+  "task_revision": 181,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:14:27+00:00",
+  "updated_at": "2026-10-12T22:14:49+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -512,3 +512,6 @@ the suite from this end-to-end path.
   regions) for wizard/broker lifecycle negative journeys; then asb-runtime launch_factory/sandbox
   and asb-agents provider/auth boundaries. Do not approve or merge while the hard coverage gate is
   red.
+
+- 2026-10-12T22:14:49+00:00: Recorded command exit 101; command argv SHA-256
+  76bea8d1f2fc78aa9f7ab9c51ae71a986073970b4713a9319ad9cc83de308c9a.
