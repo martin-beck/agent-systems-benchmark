@@ -29,7 +29,7 @@ Generated from local Git and GitHub. Do not edit.
 | #577 | `repair/ar-1794-protected-main-merge-path@198bf86975f6` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | chore: certify AR-1781 merge provenance |
 | #581 | `dependabot/github_actions/taiki-e/install-action-2.87.24@83c2c6635789` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | chore(deps): Bump taiki-e/install-action from 2.87.14 to 2.87.25 |
 | #612 | `feature/ar-1774-status-progress-completeness-ci@ad7f1166afc5` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | ci: enforce status and progress completeness |
-| #618 | `repair/ar-1779-current-main-smoke@db08ffb341d5` | `main` | BLOCKED | QUEUED:, QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | fix(cli): verify supported tool reuse and entrypoints |
+| #618 | `repair/ar-1779-current-main-smoke@db08ffb341d5` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | fix(cli): verify supported tool reuse and entrypoints |
 
 ## Recent workflows
 
@@ -37,13 +37,13 @@ Generated from local Git and GitHub. Do not edit.
 | --- | --- | --- | --- | --- |
 | 38285566952 | `db08ffb341d5` | pull_request | Credential-free benchmark path | in_progress:- |
 | 38285566892 | `db08ffb341d5` | pull_request | Emulated aarch64 portability | in_progress:- |
-| 38285566831 | `db08ffb341d5` | pull_request | Development formal assurance | queued:- |
-| 38285566797 | `db08ffb341d5` | pull_request | Portable protected-main provenance | in_progress:- |
+| 38285566831 | `db08ffb341d5` | pull_request | Development formal assurance | in_progress:- |
+| 38285566797 | `db08ffb341d5` | pull_request | Portable protected-main provenance | completed:success |
 | 38285566779 | `db08ffb341d5` | pull_request | Hosted portability and native qualification | in_progress:- |
-| 38285566709 | `db08ffb341d5` | pull_request | Fault assurance | queued:- |
+| 38285566709 | `db08ffb341d5` | pull_request | Fault assurance | in_progress:- |
 | 38285566689 | `db08ffb341d5` | pull_request | Huawei MIT source headers | completed:success |
 | 38285566644 | `db08ffb341d5` | pull_request | Rust verification | in_progress:- |
-| 38285566622 | `db08ffb341d5` | pull_request | Agent Workflow Quality shadow | in_progress:- |
+| 38285566622 | `db08ffb341d5` | pull_request | Agent Workflow Quality shadow | completed:success |
 | 38285566572 | `db08ffb341d5` | pull_request | Repository quality | in_progress:- |
 | 38285566561 | `db08ffb341d5` | pull_request | Cross-repository development broker qualification | in_progress:- |
 | 38283445416 | `a37da01d4d35` | pull_request | Repository quality | completed:failure |
