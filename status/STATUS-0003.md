@@ -1714,11 +1714,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1805_postmerge_repair |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e |
@@ -2601,7 +2601,7 @@ flowchart LR
         AR_1831["AR-1831 - Planned"]:::status_planned
         AR_1832["AR-1832 - Planned"]:::status_planned
         AR_1833["AR-1833 - Done"]:::status_done
-        AR_1834["AR-1834 - In progress"]:::status_in_progress
+        AR_1834["AR-1834 - Done"]:::status_done
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003

@@ -2,13 +2,13 @@
 {
   "branch": "repair/ar-1834-ar1775-protected-main-identity",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-13T01:52:15+00:00",
+  "claim_expires": "",
   "depends_on": [],
   "id": "AR-1834",
   "next_action": "Monitor exact-main workflows for repaired merge da0cbe0848a10e61a2cd0b9a3144217842a3369b to terminal success; record post-merge receipt and release AR-1834 without touching unrelated ARs",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "ar1805_postmerge_repair",
+  "owner": "",
   "plan": "../plans/AR-1834-ar1775-protected-main-identity-recovery.md",
   "priority": "P0",
   "schema_version": 1,
@@ -22,11 +22,11 @@
   },
   "spec_ref": "specs/AR-1834.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e",
-  "task_revision": 62,
+  "task_revision": 63,
   "title": "AR-1775 protected-main local identity recovery",
-  "updated_at": "2026-10-12T22:59:26+00:00",
+  "updated_at": "2026-10-12T22:59:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1834-ar1775-protected-main-identity"
 }
 ---
@@ -238,3 +238,8 @@ This successor is metadata-only and forward-only. It must not alter `LOCAL_COMMI
   Beck SSH/DCO identity, local protected-main policy pass, and all 10 exact-main workflows
   terminal-success (38318493471, 38318493472, 38318493476, 38318493481, 38318493488, 38318493490,
   38318493494, 38318493520, 38318493561, 38318493591).
+
+- 2026-10-12T22:59:37+00:00: AR-1834 complete: signed local protected-main recovery
+  da0cbe0848a10e61a2cd0b9a3144217842a3369b passed exact local identity/DCO/signature/tree policy and
+  all 10 exact-main workflows. Historical 356a669e preserved; AR-1779, AR-1783, and AR-1826--AR-1832
+  untouched.
