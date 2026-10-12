@@ -1,5 +1,9 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1617](../tasks/AR-1617.md) | [AR-1612](../tasks/AR-1612.md), [AR-1614](../tasks/AR-1614.md) | [AR-1615](../tasks/AR-1615.md), [AR-1619](../tasks/AR-1619.md), [AR-1646](../tasks/AR-1646.md) |
+| [AR-1618](../tasks/AR-1618.md) | [AR-1612](../tasks/AR-1612.md), [AR-1614](../tasks/AR-1614.md) | [AR-1615](../tasks/AR-1615.md), [AR-1619](../tasks/AR-1619.md) |
+| [AR-1619](../tasks/AR-1619.md) | [AR-1617](../tasks/AR-1617.md), [AR-1618](../tasks/AR-1618.md) | [AR-1615](../tasks/AR-1615.md), [AR-1620](../tasks/AR-1620.md), [AR-1621](../tasks/AR-1621.md), [AR-1646](../tasks/AR-1646.md) |
+| [AR-1620](../tasks/AR-1620.md) | [AR-1614](../tasks/AR-1614.md), [AR-1619](../tasks/AR-1619.md) | [AR-1615](../tasks/AR-1615.md), [AR-1621](../tasks/AR-1621.md), [AR-1623](../tasks/AR-1623.md), [AR-1646](../tasks/AR-1646.md) |
 | [AR-1621](../tasks/AR-1621.md) | [AR-1619](../tasks/AR-1619.md), [AR-1620](../tasks/AR-1620.md) | [AR-1615](../tasks/AR-1615.md), [AR-1622](../tasks/AR-1622.md), [AR-1642](../tasks/AR-1642.md) |
 | [AR-1622](../tasks/AR-1622.md) | [AR-1613](../tasks/AR-1613.md), [AR-1615](../tasks/AR-1615.md), [AR-1621](../tasks/AR-1621.md), [AR-1641](../tasks/AR-1641.md), [AR-1642](../tasks/AR-1642.md) | [AR-1623](../tasks/AR-1623.md), [AR-1632](../tasks/AR-1632.md) |
 | [AR-1623](../tasks/AR-1623.md) | [AR-1614](../tasks/AR-1614.md), [AR-1620](../tasks/AR-1620.md), [AR-1622](../tasks/AR-1622.md), [AR-1632](../tasks/AR-1632.md) | [AR-1624](../tasks/AR-1624.md), [AR-1653](../tasks/AR-1653.md), [AR-1655](../tasks/AR-1655.md) |
@@ -15,7 +19,7 @@
 | [AR-1633](../tasks/AR-1633.md) | [AR-1604](../tasks/AR-1604.md), [AR-1631](../tasks/AR-1631.md) | [AR-1632](../tasks/AR-1632.md), [AR-1634](../tasks/AR-1634.md) |
 | [AR-1634](../tasks/AR-1634.md) | [AR-1567](../tasks/AR-1567.md), [AR-1631](../tasks/AR-1631.md), [AR-1633](../tasks/AR-1633.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1635](../tasks/AR-1635.md), [AR-1636](../tasks/AR-1636.md), [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md) |
 | [AR-1635](../tasks/AR-1635.md) | [AR-1634](../tasks/AR-1634.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1636](../tasks/AR-1636.md) |
-| [AR-1636](../tasks/AR-1636.md) | [AR-1634](../tasks/AR-1634.md), [AR-1635](../tasks/AR-1635.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1637](../tasks/AR-1637.md), [AR-1638](../tasks/AR-1638.md), [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md) |
+| [AR-1636](../tasks/AR-1636.md) | [AR-1634](../tasks/AR-1634.md), [AR-1635](../tasks/AR-1635.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1637](../tasks/AR-1637.md), [AR-1638](../tasks/AR-1638.md), [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md), [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md) |
 | [AR-1637](../tasks/AR-1637.md) | [AR-1636](../tasks/AR-1636.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1638](../tasks/AR-1638.md), [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md) |
 | [AR-1638](../tasks/AR-1638.md) | [AR-1636](../tasks/AR-1636.md), [AR-1637](../tasks/AR-1637.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1639](../tasks/AR-1639.md) |
 | [AR-1639](../tasks/AR-1639.md) | [AR-1638](../tasks/AR-1638.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1640](../tasks/AR-1640.md) |
@@ -106,7 +110,7 @@
 | [AR-1735](../tasks/AR-1735-goose-symlink-fixture-determinism.md) | None | None |
 | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md) | [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
 | [AR-1737](../tasks/AR-1737-development-tui-linker-handoff.md) | [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md), [AR-1734](../tasks/AR-1734-development-tui-tool-environment.md) | [AR-1751](../tasks/AR-1751-gcc-linker-prefix-confinement.md) |
-| [AR-1738](../tasks/AR-1738-development-rustup-permission-compatibility.md) | [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md), [AR-1734](../tasks/AR-1734-development-tui-tool-environment.md) | None |
+| [AR-1738](../tasks/AR-1738-development-rustup-permission-compatibility.md) | [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md), [AR-1734](../tasks/AR-1734-development-tui-tool-environment.md) | [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md) |
 | [AR-1739](../tasks/AR-1739-easy-channel-lifecycle.md) | None | None |
 | [AR-1740](../tasks/AR-1740-repository-makefile.md) | None | [AR-1745](../tasks/AR-1745-user-local-install-prefix.md) |
 | [AR-1741](../tasks/AR-1741-signed-main-recovery-ar1738.md) | None | None |
@@ -167,22 +171,23 @@
 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md) | None | None |
 | [AR-1797](../tasks/AR-1797-cli2key-live-runtime-wiring.md) | [AR-1729](../tasks/AR-1729-cli2key-sidecar-lifecycle.md), [AR-1731](../tasks/AR-1731-cli2key-codex-adapter.md), [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md), [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md) | None |
 | [AR-1798](../tasks/AR-1798-pinned-source-checkout-acquisition.md) | [AR-1776](../tasks/AR-1776-supported-tool-acquisition-catalog.md), [AR-1778](../tasks/AR-1778-pinned-source-build-and-project-dependencies.md) | None |
+| [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md) | [AR-1636](../tasks/AR-1636.md), [AR-1738](../tasks/AR-1738-development-rustup-permission-compatibility.md) | None |
 
 ## Complete AR inventory
 
-### In progress (3)
+### In progress (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | luna56-ar1779 | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Independent review and exact-head CI for PR #583 at 7c08cfb0; source-only fallback remains to be resolved before merge. |
 | P0 | [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md): Verified asb workload installation | ar1782_workload_install_luna56 | Implement dedicated verified remote external workload installation and lifecycle through asb workload. | PR #584 rebased onto origin/main 24cb72d; exact remote head 96ea497a. Credential-free workload matrix, diagnostic contract, provenance, resolver, and clippy focused gates pass. Poll fresh exact-head CI; do not merge. |
 | P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | codex-ar1796-release-path | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. |
 
-### Open (1)
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
+| P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | Unclaimed | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Independent review and exact-head CI for PR #583 at 7c08cfb0; source-only fallback remains to be resolved before merge. |
 
 ### Blocked (85)
 
@@ -274,7 +279,7 @@
 | P2 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md): Provide native openEuler capacity | Unclaimed | Qualify booted openEuler on native x86_64 and applicable QEMU AArch64; keep native ARM64 optional. | Qualify native x86_64 openEuler and required applicable pinned QEMU AArch64 behavior; document genuine native ARM64 as optional future evidence. |
 | P2 | [AR-1444](../tasks/AR-1444-first-class-journey-qualification.md): First-class journey qualification | Unclaimed | Optional cross-repository journey evidence; never an ASB release blocker. | Optional cross-repository qualification only: wait for external asb-tui AR-1327 to provide an exact pinned acceptance revision and credential-free journey transcript; this AR is not an ASB release or first-customer blocker. Do not modify asb-tui from this repository. |
 
-### Planned (87)
+### Planned (88)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -325,6 +330,7 @@
 | P0 | [AR-1780](../tasks/AR-1780-installed-tool-workload-execution-qualification.md): Installed tool and workload execution qualification | Unclaimed | End-to-end qualify default-installed supported tools and workload bundles through actual ASB execution. | Qualify every development external workload, after installation and selection, through actual run, sweep, report, and comparison flows. |
 | P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Unclaimed | Select every development external workload and prove ASB uses its exact project-local identity end to end. | Integrate every development-supported installed workload bundle into selection and prove full run/sweep/report/compare consumes its exact recorded identity. |
 | P0 | [AR-1797](../tasks/AR-1797-cli2key-live-runtime-wiring.md): Wire cli2key sidecar into live benchmark execution | Unclaimed | Repair cli2key so an installed pinned bridge receives a runtime-issued sidecar launch and can execute a development ASB benchmark. | Wire the verified project-local cli2key bridge into the runtime-owned sidecar launch path, then qualify fake and opt-in live benchmark execution without exposing credentials. |
+| P0 | [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md): Repair asb tui install rustup/rustc trusted-tool rejection | Unclaimed | Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint. | Reproduce the installed-entrypoint failure on the exact current ASB main head, then repair the failing rustup/rustc path and add regression coverage. |
 | P1 | [AR-0808](../tasks/AR-0808-core-workflow-guides.md): Publish core program workflow guides | Unclaimed | Document tested workflows for installing, configuring, running, replaying, comparing, and operating ASB. | Document and execute the qualified CLI setup, reconfiguration, recording, strict-offline and analysis workflows. |
 | P1 | [AR-0809](../tasks/AR-0809-frontend-workflow-guides.md): Publish terminal frontend workflow guides | Unclaimed | Document guided configuration, launch, monitoring, history, repeat, and analysis in the TUI. | Document the exact standalone first-run, provider/auth/model, defaults, recording, offline run and analysis journeys after cross-repository parity passes. |
 | P1 | [AR-0810](../tasks/AR-0810-github-pages-documentation.md): Publish workflow documentation to GitHub Pages | Unclaimed | Publish core and frontend workflows as a searchable, accessible, versioned GitHub Pages site. | Build and publish the versioned workflow documentation on the project&#x27;s GitHub Pages site. |
@@ -575,8 +581,3 @@
 | P0 | [AR-1502](../tasks/AR-1502-runtime-bootstrap-authority.md): Runtime-owned bootstrap authority | Unclaimed | Runtime-owned authenticated bootstrap authority merged and verified on main. | No further action; release AR-1502 after protected merge and exact-head post-merge workflows. |
 | P0 | [AR-1505](../tasks/AR-1505-control-plane-platform-authority.md): Control-plane platform authority/bootstrap protocol | Unclaimed | Provide an authenticated platform protocol that issues private runtime bootstrap inputs to ASB. | No further AR-1505 action; merge and post-merge assurance complete. |
 | P0 | [AR-1513](../tasks/AR-1513-authenticated-lease-dispatch-bridge.md): Authenticated lease-to-live-dispatch bridge | Unclaimed | Authenticate process-owner material, validate executable provenance, and connect leases to ordinary live dispatch. | PR #383 merged at 47329e35; monitor post-merge workflows 36550477933, 36550477996, 36550478002, 36550478037, 36550478039, 36550478042, 36550478232 to terminal success, then verify protected main and close AR. |
-| P0 | [AR-1514](../tasks/AR-1514-runtime-auth-reconciliation.md): Reconciled development auth handoff runtime | Unclaimed | Repair ASB development-runtime reconciliation between digest-only enrollment and helper invocation. | Complete; PR #386 merged at bf89a45ddd71af96e6d4b6954320e199e147f83e. Protected main tree equals reviewed topic and post-merge auth-focused ASB tests pass. Paired asb-tui AR-1323 qualification remains external. |
-| P0 | [AR-1515](../tasks/AR-1515-ar1307-runner-ci-oom-repair.md): AR-1307 runner CI repair | Unclaimed | Triage complete: AR-1307 runner admission and diagnostics are intact; remaining failure is workload capacity under the unchanged 3G/3G contract. | No runner source repair remains; AR-1309 owns the separately reviewed capacity/model-reduction decision. |
-| P0 | [AR-1516](../tasks/AR-1516-ar1308-qemu-fixture-evidence-repair.md): AR-1308 QEMU fixture repair | Unclaimed | Fixture repair passed boot/transient/JAR checks; full tier timed out at 1700s without attestation. | Close fixture repair; hand timeout to AR-1309 for capacity/model decision. |
-| P0 | [AR-1517](../tasks/AR-1517-ar1309-capacity-decision-unblock.md): AR-1309 capacity decision | Unclaimed | Select a reviewed AR-1309 capacity/model contract after runner failure. | Classify evidence and select AR-1309&#x27;s capacity/model contract. |
-| P0 | [AR-1519](../tasks/AR-1519.md): AR-1307/1308 reduced-model development profile | Unclaimed | Reduced development tier implemented with explicit 900s/1-worker/2G/2G/4G bounds and non-claiming attestation. | Independently review the exact head, then release this development-only repair; full AR-1307/1308 qualification remains separate. |

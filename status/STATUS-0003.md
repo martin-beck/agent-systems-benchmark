@@ -1196,11 +1196,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | open |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | luna56-ar1779 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. |
@@ -1471,6 +1471,20 @@
 | Children | None |
 | Summary | Coverage margin repair pushed at c5303c05. |
 | Next action | Monitor PR #585 exact-head CI at 55a78934; request independent re-review after hosted coverage passes. |
+
+### AR-1799 — Repair asb tui install rustup/rustc trusted-tool rejection
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint. |
+| Next action | Reproduce the installed-entrypoint failure on the exact current ASB main head, then repair the failing rustup/rustc path and add regression coverage. |
 
 
 ## Dependency graph
@@ -2309,7 +2323,7 @@ flowchart LR
         AR_1776["AR-1776 - Done"]:::status_done
         AR_1777["AR-1777 - Done"]:::status_done
         AR_1778["AR-1778 - Done"]:::status_done
-        AR_1779["AR-1779 - In progress"]:::status_in_progress
+        AR_1779["AR-1779 - Open"]:::status_open
         AR_1780["AR-1780 - Planned"]:::status_planned
         AR_1781["AR-1781 - Done"]:::status_done
         AR_1782["AR-1782 - In progress"]:::status_in_progress
@@ -2329,6 +2343,7 @@ flowchart LR
         AR_1796["AR-1796 - In progress"]:::status_in_progress
         AR_1797["AR-1797 - Planned"]:::status_planned
         AR_1798["AR-1798 - Done"]:::status_done
+        AR_1799["AR-1799 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4010,6 +4025,7 @@ flowchart LR
     AR_1636 --> AR_1637
     AR_1636 --> AR_1638
     AR_1636 --> AR_1726
+    AR_1636 --> AR_1799
     AR_1637 --> AR_1615
     AR_1637 --> AR_1632
     AR_1637 --> AR_1638
@@ -4215,6 +4231,7 @@ flowchart LR
     AR_1734 --> AR_1737
     AR_1734 --> AR_1738
     AR_1737 --> AR_1751
+    AR_1738 --> AR_1799
     AR_1740 --> AR_1745
     AR_1745 --> AR_1755
     AR_1745 --> AR_1759
@@ -4350,6 +4367,3 @@ flowchart LR
 | [AR-0509](../tasks/AR-0509-replay-codex.md) | [AR-0304](../tasks/AR-0304-agent-codex.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0510](../tasks/AR-0510-replay-gemini.md) | [AR-0305](../tasks/AR-0305-agent-gemini.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0511](../tasks/AR-0511-replay-qwen.md) | [AR-0306](../tasks/AR-0306-agent-qwen-code.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
-| [AR-0512](../tasks/AR-0512-replay-goose.md) | [AR-0307](../tasks/AR-0307-agent-goose.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
-| [AR-0513](../tasks/AR-0513-replay-miniswe.md) | [AR-0308](../tasks/AR-0308-agent-mini-swe.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
-| [AR-0514](../tasks/AR-0514-replay-openhands.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
