@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1779](tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Clean linear branch repair/ar-1779-source-fallback-linear3 is pushed at 21372a22; create/update replacement PR from this exact head, obtain independent review and exact-head CI, then protected merge and post-merge verification. | ar1779-default-install-luna |
+| P0 | [AR-1779](tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Replacement PR #619 is open at exact head 21372a22; obtain independent review and exact-head CI, then protected integration merge and post-merge verification. | ar1779-default-install-luna |
 
 ## Open
 

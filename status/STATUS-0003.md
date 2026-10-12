@@ -1204,7 +1204,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. |
-| Next action | Clean linear branch repair/ar-1779-source-fallback-linear3 is pushed at 21372a22; create/update replacement PR from this exact head, obtain independent review and exact-head CI, then protected merge and post-merge verification. |
+| Next action | Replacement PR #619 is open at exact head 21372a22; obtain independent review and exact-head CI, then protected integration merge and post-merge verification. |
 
 ### AR-1780 — Installed tool and workload execution qualification
 
