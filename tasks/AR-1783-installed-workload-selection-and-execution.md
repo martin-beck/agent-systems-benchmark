@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 loopback supervisor boundary tests are green; serialized workspace coverage improved to 89.19% lines, still below 90%.",
-  "task_revision": 330,
+  "task_revision": 331,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:06:27+00:00",
+  "updated_at": "2026-10-12T23:07:06+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -859,3 +859,6 @@ the suite from this end-to-end path.
   duplicated production parser). Focused binary tests pass. Serialized full workspace llvm-cov
   completed all suites: 89.19% lines (104496 covered, 9855 missed of 157982), 84.97% functions,
   90.57% regions. Profraw artifacts removed; worktree clean. No push/review/merge.
+
+- 2026-10-12T23:07:06+00:00: Recorded command exit 0; command argv SHA-256
+  f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
