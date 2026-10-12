@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "A bounded ControlServer/ControlClient rejection fixture was attempted but hangs at the protocol call and is not safe to retain without a dedicated endpoint contract fixture. Existing asb-control tests prove the endpoint infrastructure exists, but it needs a narrow cross-crate repair AR/fixture exposing a deterministic backend response for runtime receipt/bootstrap/cancel. Native live launch misses still require a containerized delegated-isolation runner. Do not fabricate authority or weaken gates.",
+  "next_action": "Keep AR-1783 in progress and add narrowly scoped coverage for remaining live_service/control bootstrap branches; do not weaken the floor or fabricate authority.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "d87352ddb511c48b4be1bdbecdd26fb2cf6597a8",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 local/mock infrastructure investigation complete; latest full coverage remains 89.28% lines, 85.11% functions, 90.66% regions.",
-  "task_revision": 446,
+  "summary": "AR-1783 delegated runtime fixture is covered; serialized full coverage remains below the 90% line floor (89.28% lines, 85.11% functions, 90.66% regions).",
+  "task_revision": 447,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:47:29+00:00",
+  "updated_at": "2026-10-12T23:47:58+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1131,3 +1131,9 @@ the suite from this end-to-end path.
 
 - 2026-10-12T23:47:29+00:00: Recorded command exit 0; command argv SHA-256
   98895f7181ffe4619810c653239e3d3ad51bc2ceb2cb67ee51c29275f8683e51.
+
+- 2026-10-12T23:47:58+00:00: Focused qualified_runtime_backend_executes_and_reaps_child passed 1/1
+  through canonical handoffctl. Serialized tools/quality/check_coverage.py completed all workspace
+  suites; latest durable aggregate remains 89.28% lines, 85.11% functions, 90.66% regions, below the
+  fixed 90% line floor. Profraw artifacts were removed through handoffctl and product worktree is
+  clean at d87352dd. No review/PR/merge should proceed while the coverage gate remains unmet.

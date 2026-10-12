@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | AR-1783 — local/mock infrastructure investigation complete; latest full coverage remains 89.28&#37; lines, 85.11&#37; functions, 90.66&#37; regions. |
-| Next action | A bounded ControlServer/ControlClient rejection fixture was attempted but hangs at the protocol call and is not safe to retain without a dedicated endpoint contract fixture. Existing asb-control tests prove the endpoint infrastructure exists, but it needs a narrow cross-crate repair AR/fixture exposing a deterministic backend response for runtime receipt/bootstrap/cancel. Native live launch misses still require a containerized delegated-isolation runner. Do not fabricate authority or weaken gates. |
+| Summary | AR-1783 delegated runtime fixture is covered; serialized full coverage remains below the 90&#37; line floor (89.28&#37; lines, 85.11&#37; functions, 90.66&#37; regions). |
+| Next action | Keep AR-1783 in progress and add narrowly scoped coverage for remaining live_service/control bootstrap branches; do not weaken the floor or fabricate authority. |
 
 ### AR-1784 — Command dependency registry and preflight
 
