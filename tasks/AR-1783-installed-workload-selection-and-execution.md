@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Coverage remains below floor after resolver batch. Inspect current report for the next largest production miss; target additional live_service bootstrap/authority transitions or sandbox cleanup branches with behavior-driven positive/negative tests, then rerun focused and serialized coverage.",
+  "next_action": "Coverage report identifies remaining actionable-looking blocks only behind unavailable integration boundaries: live_service request_control_receipt lines 1854-1880, request_control_bootstrap 1888-1927, cancel_control_bootstrap 1931-1970 require an authenticated ControlClient/server fixture; launch_factory live attempt lines 701-721/798-837 and sandbox live spawn lines 766-837 require native delegated isolation. Do not fabricate or weaken these boundaries; create/use a proper bounded control endpoint or containerized native runner before adding tests.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 54,
   "observed_head": "945214967a16a4f4476689545d7ca5ac3b8e8462",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 signed 94521496 adds authority resolver persistence failure/idempotent teardown coverage; serialized workspace coverage remains 89.27% lines, 85.11% functions, 90.66% regions.",
-  "task_revision": 421,
+  "summary": "AR-1783 \u2014 latest serialized report is 89.28% lines, 85.11% functions, 90.66% regions; all tests pass but fixed 90% line floor remains unmet.",
+  "task_revision": 422,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:37:13+00:00",
+  "updated_at": "2026-10-12T23:37:18+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1063,3 +1063,8 @@ the suite from this end-to-end path.
   421ce1b4471964250b3c71c8c954e2a67cb6f28d425c787eb3e7348c2d97d3f0.
 
 - 2026-10-12T23:37:13+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T23:37:18+00:00: Bounded report pass after signed 94521496: exact total 158336 lines,
+  104671 covered, 9774 missed. Dominant uncovered blocks: live_service 1854-1880, 1888-1927,
+  1931-1970; sandbox 766-837; launch_factory 701-721 and 798-837. Focused prior test passed; full
+  serialized suite passed; profraw removed; worktree clean; no publication below gate.
