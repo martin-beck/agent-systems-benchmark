@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 local/mock infrastructure investigation complete; latest full coverage remains 89.28% lines, 85.11% functions, 90.66% regions.",
-  "task_revision": 445,
+  "task_revision": 446,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:47:25+00:00",
+  "updated_at": "2026-10-12T23:47:29+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1128,3 +1128,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T23:47:25+00:00: Recorded command exit 0; command argv SHA-256
   6ea4f0c78fa5e3c788788ee271924d8fec809d9dc937aeb1a7b37c5aa8409acf.
+
+- 2026-10-12T23:47:29+00:00: Recorded command exit 0; command argv SHA-256
+  98895f7181ffe4619810c653239e3d3ad51bc2ceb2cb67ee51c29275f8683e51.
