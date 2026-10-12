@@ -1140,11 +1140,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | ar1775-cli2key-runtime-luna |
 | Parent | None |
 | Children | None |
 | Summary | Implement the mandatory configurable output router and project-configured quiet, normal, verbose, and debug levels. |
@@ -2431,7 +2431,7 @@ flowchart LR
         AR_1772["AR-1772 - Planned"]:::status_planned
         AR_1773["AR-1773 - Planned"]:::status_planned
         AR_1774["AR-1774 - Planned"]:::status_planned
-        AR_1775["AR-1775 - Open"]:::status_open
+        AR_1775["AR-1775 - In progress"]:::status_in_progress
         AR_1776["AR-1776 - Done"]:::status_done
         AR_1777["AR-1777 - Done"]:::status_done
         AR_1778["AR-1778 - Done"]:::status_done

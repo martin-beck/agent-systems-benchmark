@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1775-configurable-output-router-and-levels",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-12T22:45:28+00:00",
   "depends_on": [
     "AR-1771"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1775-configurable-output-router-and-levels",
   "observed_dirty": 0,
   "observed_head": "d7c08c106e52ed9aa144f24ffe130b40dd6c3da7",
-  "owner": "",
+  "owner": "ar1775-cli2key-runtime-luna",
   "plan": "../plans/AR-1775-configurable-output-router-and-levels.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1775.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Implement the mandatory configurable output router and project-configured quiet, normal, verbose, and debug levels.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Configurable output router and levels",
-  "updated_at": "2026-10-12T20:45:06+00:00",
+  "updated_at": "2026-10-12T20:45:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1775-configurable-output-router-and-levels"
 }
 ---
@@ -56,3 +56,5 @@ stdout envelope and silences all human/operational output on both streams.
 
 - 2026-10-12T20:45:06+00:00: AR-1771 dependency is done with accepted contract evidence; promote
   configurable output router implementation.
+
+- 2026-10-12T20:45:28+00:00: Claimed by ar1775-cli2key-runtime-luna.
