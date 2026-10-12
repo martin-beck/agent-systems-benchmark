@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "checkpoint_commit": "e0474221c5a95e7e091265738b4ba05938767a47",
-  "claim_expires": "",
+  "claim_expires": "2026-10-12T23:00:59+00:00",
   "depends_on": [
     "AR-1763",
     "AR-1764",
@@ -13,7 +13,7 @@
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 1,
   "observed_head": "4b72fafb37a0eaff47dfda757ee6a9114b75ffb8",
-  "owner": "",
+  "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 124,
+  "task_revision": 125,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:00:55+00:00",
+  "updated_at": "2026-10-12T22:00:59+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -362,3 +362,5 @@ the suite from this end-to-end path.
   ar1783-workload-selection-luna. Lease expired during bounded workspace coverage run; recovering
   the same owner to preserve repair work. Coverage reached 88.85% lines after installed-workload
   tests, still below 90% floor; generated profraw will be cleaned and repair continues.
+
+- 2026-10-12T22:00:59+00:00: Claimed by ar1783-workload-selection-luna.
