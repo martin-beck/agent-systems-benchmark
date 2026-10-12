@@ -17,7 +17,10 @@ const MAX_TOOL_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_OUTPUT_BYTES: usize = 1024 * 1024;
 const MAX_VERSION_BYTES: usize = 4096;
 const MAX_CLEANUP_ENTRIES: usize = 32;
-const MAX_SPAWN_ATTEMPTS: usize = 8;
+// Keep transient process-admission contention bounded without making a
+// workspace-wide parallel test run depend on serial execution.  The retry
+// window remains finite and only applies to WouldBlock spawn failures.
+const MAX_SPAWN_ATTEMPTS: usize = 32;
 static RUN_NONCE: AtomicU64 = AtomicU64::new(0);
 
 /// Why a diagnostic could not produce trusted evidence.
