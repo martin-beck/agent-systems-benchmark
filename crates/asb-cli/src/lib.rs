@@ -5413,8 +5413,13 @@ fn tool_install_with_progress(
     let (catalog_entry, catalog_artifact) = if fixture_source.is_some() || local_source {
         (None, None)
     } else {
-        let (entry, artifact) = tool_acquisition::resolve_for_install(id)
-            .map_err(|error| CliError::legacy_validation(error.message()))?;
+        let (entry, artifact) =
+            tool_acquisition::resolve_for_install(id).map_err(|error| match error {
+                tool_acquisition::AcquisitionError::SourceAdapterUnavailable => {
+                    CliError::operation_code("catalog_source_adapter_unavailable", error.message())
+                }
+                _ => CliError::legacy_validation(error.message()),
+            })?;
         (Some(entry), Some(artifact))
     };
     let kind = match kind {

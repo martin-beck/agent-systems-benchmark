@@ -14,7 +14,7 @@ use crate::tool_catalog::{BuildRecipe, ToolEntry};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -303,6 +303,14 @@ fn build_inner(request: &BuildRequest, staging: &Path) -> Result<BuildReceipt, B
         return Err(BuildFailure::OutputMismatch);
     }
     let mut file = fs::File::open(&produced).map_err(|_| BuildFailure::OutputMismatch)?;
+    let mut header = [0_u8; 4];
+    file.read_exact(&mut header)
+        .map_err(|_| BuildFailure::OutputMismatch)?;
+    if !is_executable_adapter_header(&header) {
+        return Err(BuildFailure::OutputMismatch);
+    }
+    file.seek(SeekFrom::Start(0))
+        .map_err(|_| BuildFailure::OutputMismatch)?;
     let mut digest = Sha256::new();
     let mut bytes = 0_u64;
     let mut buf = [0_u8; 8192];
@@ -336,6 +344,15 @@ fn build_inner(request: &BuildRequest, staging: &Path) -> Result<BuildReceipt, B
         dependency_ids: request.tool.dependencies.clone(),
         staging_cleaned: false,
     })
+}
+
+fn is_executable_adapter_header(header: &[u8; 4]) -> bool {
+    // A source recipe may publish a native executable or a launcher with an
+    // interpreter directive. Package archives and arbitrary executable-bit
+    // files are not adapters.
+    header == b"\x7fELF"
+        || header[0..2] == [b'#', b'!']
+        || matches!(header, [0xcf, 0xfa, 0xed, 0xfe] | [0xfe, 0xed, 0xfa, 0xcf])
 }
 
 fn resolve_output(source: &Path, pattern: &Path) -> Result<PathBuf, BuildFailure> {
@@ -455,5 +472,14 @@ mod tests {
                 .keys()
                 .any(|key| key.contains("TOKEN") || key.contains("HOME"))
         );
+    }
+
+    #[test]
+    fn source_output_accepts_native_or_launcher_headers_only() {
+        assert!(is_executable_adapter_header(b"\x7fELF"));
+        assert!(is_executable_adapter_header(b"#!/b"));
+        assert!(is_executable_adapter_header(b"\xcf\xfa\xed\xfe"));
+        assert!(!is_executable_adapter_header(b"PK\x03\x04"));
+        assert!(!is_executable_adapter_header(b"\x1f\x8b\x08\0"));
     }
 }
