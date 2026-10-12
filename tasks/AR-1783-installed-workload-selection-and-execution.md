@@ -11,7 +11,7 @@
   "id": "AR-1783",
   "next_action": "Continue behavior-driven baseline coverage in largest uncovered control/TUI/runtime seams; rerun serialized llvm-cov and do not push until >=90% with headroom.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 54,
+  "observed_dirty": 0,
   "observed_head": "1865585e163092ee4c9feaa6dce425db557ec151",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 runtime launch bootstrap validation tests are green; serialized full coverage is 89.11% lines, still below 90%.",
-  "task_revision": 277,
+  "task_revision": 278,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:46:13+00:00",
+  "updated_at": "2026-10-12T22:46:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
