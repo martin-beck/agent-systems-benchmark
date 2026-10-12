@@ -1,6 +1,6 @@
 ---
 {
-  "branch": "repair/ar-1819-expired-claim-safety",
+  "branch": "",
   "checkpoint_commit": "",
   "claim_expires": "2026-10-12T16:47:55+00:00",
   "depends_on": [],
