@@ -11,7 +11,7 @@
   "id": "AR-1783",
   "next_action": "Continue behavior-driven coverage in largest uncovered control/TUI/runtime seams; reach >=90% lines with headroom before pushing the signed branch.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 0,
+  "observed_dirty": 54,
   "observed_head": "1865585e163092ee4c9feaa6dce425db557ec151",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 safe filesystem and project-layout coverage batches are green; full workspace coverage remains 89.10% lines.",
-  "task_revision": 274,
+  "task_revision": 275,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:45:50+00:00",
+  "updated_at": "2026-10-12T22:45:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
