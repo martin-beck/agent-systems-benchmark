@@ -1,7 +1,7 @@
 ---
 {
   "branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
-  "checkpoint_commit": "1e3d15f6bdd568f7e3ef1838194e8f84f8ec500c",
+  "checkpoint_commit": "acf439195f13df0c06fe53f2a1924d794d600e56",
   "claim_expires": "2026-10-12T20:52:28+00:00",
   "depends_on": [
     "AR-1776",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 110,
+  "task_revision": 111,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T19:19:33+00:00",
+  "updated_at": "2026-10-12T19:19:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -352,3 +352,5 @@ AR-1825's acceptance evidence is independently reviewed and durable.
   smoke before activation, process-group termination on every terminal path, bounded concurrent
   output drain, rollback/fsync cleanup, source-build cleanup, and focused descendant/race/size
   negatives. Focused adapter (8), diagnostic (9), and workflow (3) tests pass.
+
+- 2026-10-12T19:19:37+00:00: Checkpointed source commit acf439195f13df0c06fe53f2a1924d794d600e56.
