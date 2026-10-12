@@ -9,7 +9,7 @@
     "AR-1784"
   ],
   "id": "AR-1779",
-  "next_action": "Independent review and exact-head CI for the current-main repair commit 0c5826a4; then publish a clean PR, merge via protected local integration, and requalify the installed tool path.",
+  "next_action": "Independent review of signed current-main repair a37da01d4d3557122dbe8b3bd595cc9de9b2826e, then publish a new clean repair branch (never force-update stale PR #583), wait exact-head CI, merge via protected integration, and requalify installed tool path.",
   "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
   "observed_dirty": 0,
   "observed_head": "a37da01d4d3557122dbe8b3bd595cc9de9b2826e",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 59,
+  "task_revision": 60,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:18:52+00:00",
+  "updated_at": "2026-10-12T17:19:01+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -196,3 +196,7 @@ the adapter smoke check failed.
   8451e7fa7fe09018adb31cdfa413e4fb168ad8aa0345923d3fd7e0f7b625693b.
 
 - 2026-10-12T17:18:52+00:00: Heartbeat by ar1779-default-install-luna.
+
+- 2026-10-12T17:19:01+00:00: Current-main repair is product commit
+  a37da01d4d3557122dbe8b3bd595cc9de9b2826e (SSH signature valid, matching DCO); focused tests and
+  clippy passed. Stale PR #583 branch remains at daf2d3ee and is not being force-updated.

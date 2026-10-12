@@ -1204,7 +1204,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. |
-| Next action | Independent review and exact-head CI for the current-main repair commit 0c5826a4; then publish a clean PR, merge via protected local integration, and requalify the installed tool path. |
+| Next action | Independent review of signed current-main repair a37da01d4d3557122dbe8b3bd595cc9de9b2826e, then publish a new clean repair branch (never force-update stale PR #583), wait exact-head CI, merge via protected integration, and requalify installed tool path. |
 
 ### AR-1780 — Installed tool and workload execution qualification
 
