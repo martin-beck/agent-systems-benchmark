@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 signed ccf0a92f adds production development sandbox lifecycle/cleanup coverage; serialized workspace coverage improved to 89.27% lines, 85.11% functions, 90.66% regions.",
-  "task_revision": 403,
+  "task_revision": 404,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:29:24+00:00",
+  "updated_at": "2026-10-12T23:29:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1023,3 +1023,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T23:29:18+00:00: Recorded command exit 0; command argv SHA-256
   f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
+
+- 2026-10-12T23:29:28+00:00: Recorded command exit 0; command argv SHA-256
+  68c221e0653ef90cdf61da5334074863988c118a966aefdb5aededc54b34dc63.
