@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1825",
-  "next_action": "Await exact-head PR #622 CI for 9884e34acd91d6ff36724b5f3b33a107a048aa94; inspect policy/coverage result at least every 30 seconds. If all required checks green, recreate protected signed merge with expected base ab0a791b05d6082fd0c99ab287f8a7883180bcec and current exact head/tree.",
+  "next_action": "Coverage blocker is systemic: adapter file now reaches 91.27% lines after 9884e34, but exact CI workspace remains 88.59% (required 90%) due existing low-coverage modules (asb-cli control/lib/tui/source_builder and runtime sandbox). Do not lower floor. Parent must route a broader coverage-repair AR or add justified behavior tests before another merge attempt.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
   "observed_dirty": 0,
   "observed_head": "9884e34acd91d6ff36724b5f3b33a107a048aa94",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 170,
+  "task_revision": 171,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T20:00:24+00:00",
+  "updated_at": "2026-10-12T20:01:03+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -513,3 +513,8 @@ AR-1825's acceptance evidence is independently reviewed and durable.
 
 - 2026-10-12T20:00:24+00:00: Recorded command exit 0; command argv SHA-256
   694bc79c3c53949d2aeff47e4c94e15bc5df09dae1599b7cdbc3f7590d97ac23.
+
+- 2026-10-12T20:01:03+00:00: Exact-head policy check 38300299285 failed only at coverage: workspace
+  lines 88.59% (17,806 missed of 156,089), while adapter tool_materialization is 91.27% after
+  focused repair. AArch64 and Rust checks are green. This is not fixed by more narrow adapter tests;
+  the remaining gap is pre-existing/systemic and must be handled as a scoped coverage repair.

@@ -1596,7 +1596,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement bounded source adapter contract |
-| Next action | Await exact-head PR #622 CI for 9884e34acd91d6ff36724b5f3b33a107a048aa94; inspect policy/coverage result at least every 30 seconds. If all required checks green, recreate protected signed merge with expected base ab0a791b05d6082fd0c99ab287f8a7883180bcec and current exact head/tree. |
+| Next action | Coverage blocker is systemic: adapter file now reaches 91.27&#37; lines after 9884e34, but exact CI workspace remains 88.59&#37; (required 90&#37;) due existing low-coverage modules (asb-cli control/lib/tui/source_builder and runtime sandbox). Do not lower floor. Parent must route a broader coverage-repair AR or add justified behavior tests before another merge attempt. |
 
 
 ## Dependency graph
