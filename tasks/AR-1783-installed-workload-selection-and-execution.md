@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 200,
+  "task_revision": 201,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:20:18+00:00",
+  "updated_at": "2026-10-12T22:20:22+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -557,4 +557,7 @@ the suite from this end-to-end path.
   271113781cc5be8e8a2160bd41e97aca82a07f164bb84ce885b3336c61975e2c.
 
 - 2026-10-12T22:20:13+00:00: Recorded command exit 101; command argv SHA-256
+  b4f3fe410552c10d5c9045c448bd9f3142cdff89e43064d7fad731f5b270b04b.
+
+- 2026-10-12T22:20:22+00:00: Recorded command exit 0; command argv SHA-256
   b4f3fe410552c10d5c9045c448bd9f3142cdff89e43064d7fad731f5b270b04b.
