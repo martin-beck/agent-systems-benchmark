@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 50,
+  "task_revision": 51,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:15:56+00:00",
+  "updated_at": "2026-10-12T17:16:17+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -176,3 +176,6 @@ the adapter smoke check failed.
 - 2026-10-12T17:15:56+00:00: Replaced stale PR #583 next action: its implementation was superseded
   by merged PR #585. Current-main repair adds receipt-validated catalog reuse and bounded
   credential-free entrypoint smoke verification; focused tests pass.
+
+- 2026-10-12T17:16:17+00:00: Recorded command exit 101; command argv SHA-256
+  f4ca587d92ce889a616cbf0ab1c3902483f2596853ed2e353532e6413afd3ca9.
