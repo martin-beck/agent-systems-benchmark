@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1779-default-usable-tool-install-command",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-13T00:23:17+00:00",
   "depends_on": [
     "AR-1777",
     "AR-1778",
@@ -13,7 +13,7 @@
   "observed_branch": "repair/ar-1779-source-fallback-linear4",
   "observed_dirty": 0,
   "observed_head": "80060a79e716b42e021ddd9b116afdc560bc6cc1",
-  "owner": "",
+  "owner": "ar1779-default-install-luna",
   "plan": "../plans/AR-1779-default-usable-tool-install-command.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1779.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 222,
+  "task_revision": 223,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T20:36:51+00:00",
+  "updated_at": "2026-10-12T22:23:17+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -612,3 +612,5 @@ the adapter smoke check failed.
 - 2026-10-12T20:36:51+00:00: Recovered expired claim formerly owned by ar1779-default-install-luna.
   Recover stale expired ownership before promoting dependency-safe AR-1783; preserve in-progress
   AR-1779 evidence and owner history.
+
+- 2026-10-12T22:23:17+00:00: Claimed by ar1779-default-install-luna.
