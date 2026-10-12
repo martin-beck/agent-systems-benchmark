@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 latest serialized report is 89.28% lines, 85.11% functions, 90.66% regions; all tests pass but fixed 90% line floor remains unmet.",
-  "task_revision": 422,
+  "task_revision": 423,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:37:18+00:00",
+  "updated_at": "2026-10-12T23:38:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1068,3 +1068,6 @@ the suite from this end-to-end path.
   104671 covered, 9774 missed. Dominant uncovered blocks: live_service 1854-1880, 1888-1927,
   1931-1970; sandbox 766-837; launch_factory 701-721 and 798-837. Focused prior test passed; full
   serialized suite passed; profraw removed; worktree clean; no publication below gate.
+
+- 2026-10-12T23:38:11+00:00: Recorded command exit 0; command argv SHA-256
+  f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
