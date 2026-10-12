@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "checkpoint_commit": "e0474221c5a95e7e091265738b4ba05938767a47",
-  "claim_expires": "",
+  "claim_expires": "2026-10-12T21:59:50+00:00",
   "depends_on": [
     "AR-1763",
     "AR-1764",
@@ -13,7 +13,7 @@
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 2,
   "observed_head": "dad6dd8c06a3d126db62abbc73585ae389aec56d",
-  "owner": "",
+  "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 77,
+  "task_revision": 78,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T21:29:46+00:00",
+  "updated_at": "2026-10-12T21:29:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -239,3 +239,5 @@ the suite from this end-to-end path.
 
 - 2026-10-12T21:29:46+00:00: Review repair is dependency-safe: implementation branch contains
   fail-closed validation; resume to add diagnostic identity mappings and rerun gates.
+
+- 2026-10-12T21:29:50+00:00: Claimed by ar1783-workload-selection-luna.
