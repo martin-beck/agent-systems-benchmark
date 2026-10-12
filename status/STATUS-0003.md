@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | AR-1783 — sidecar validation tests are green; bb291c71 raised serialized workspace coverage to 89.21&#37; lines, 85.01&#37; functions, 90.60&#37; regions, still below 90&#37;. |
-| Next action | Inspect the largest uncovered production cluster (sandbox/launch_factory), add behavior-driven positive and negative tests, run focused tests, then serialized llvm-cov to &gt;=90&#37; with headroom; keep artifacts clean. |
+| Summary | AR-1783 — sandbox resource-boundary tests are green; signed 5910b65, serialized workspace coverage remains 89.21&#37; lines, 85.03&#37; functions, 90.61&#37; regions. |
+| Next action | Coverage did not materially move; inspect largest uncovered production cluster from the latest report and add a substantive behavior-driven test batch, then rerun focused and serialized coverage toward &gt;=90&#37;. |
 
 ### AR-1784 — Command dependency registry and preflight
 

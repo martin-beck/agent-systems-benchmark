@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Inspect the largest uncovered production cluster (sandbox/launch_factory), add behavior-driven positive and negative tests, run focused tests, then serialized llvm-cov to >=90% with headroom; keep artifacts clean.",
+  "next_action": "Coverage did not materially move; inspect largest uncovered production cluster from the latest report and add a substantive behavior-driven test batch, then rerun focused and serialized coverage toward >=90%.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 54,
   "observed_head": "5910b65c6855e9b8a7c3c817a9a81699fdb91254",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 sidecar validation tests are green; bb291c71 raised serialized workspace coverage to 89.21% lines, 85.01% functions, 90.60% regions, still below 90%.",
-  "task_revision": 354,
+  "summary": "AR-1783 \u2014 sandbox resource-boundary tests are green; signed 5910b65, serialized workspace coverage remains 89.21% lines, 85.03% functions, 90.61% regions.",
+  "task_revision": 355,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:15:40+00:00",
+  "updated_at": "2026-10-12T23:15:46+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -913,3 +913,7 @@ the suite from this end-to-end path.
   b48802db5d60864fea266a175aab6561f162cad0de4217481cf349d287ea912d.
 
 - 2026-10-12T23:15:40+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T23:15:46+00:00: Full serialized workspace tests passed; fixed 90% line floor is the
+  sole failure. Exact report total 158107 lines, 104563 covered, 9822 missed; generated profraw
+  removed; worktree clean; no push/review/merge.
