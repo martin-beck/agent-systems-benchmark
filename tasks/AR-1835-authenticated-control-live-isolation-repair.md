@@ -1,7 +1,7 @@
 ---
 {
   "branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
-  "checkpoint_commit": "",
+  "checkpoint_commit": "5cafc95ec5acdebf7c323e21597666ac0798dfdc",
   "claim_expires": "2026-10-13T01:53:07+00:00",
   "depends_on": [
     "AR-1763",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 16,
+  "task_revision": 17,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-12T23:55:54+00:00",
+  "updated_at": "2026-10-12T23:55:59+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -93,3 +93,5 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   an asb-runtime transport test using the real socket for bootstrap, cancel, stale generation and
   replay. Do not fabricate certificate authority or weaken validation. Baseline focused suites
   remain green; no product head was created.
+
+- 2026-10-12T23:55:59+00:00: Checkpointed source commit 5cafc95ec5acdebf7c323e21597666ac0798dfdc.
