@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Continue behavior-driven baseline coverage in largest uncovered control/TUI/runtime seams; rerun serialized llvm-cov and do not push until >=90% with headroom.",
+  "next_action": "Continue meaningful behavior-driven tests in uncovered control/TUI/runtime paths; rerun serialized llvm-cov and reach >=90% lines with headroom before push/review.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 54,
   "observed_head": "b0d076bcf988cc88fc55fbda8c5d06bf32b5cd3e",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 runtime launch bootstrap validation tests are green; serialized full coverage is 89.11% lines, still below 90%.",
-  "task_revision": 288,
+  "summary": "AR-1783 \u2014 sandbox environment-boundary tests are green; serialized full coverage remains 89.11% lines.",
+  "task_revision": 289,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:50:27+00:00",
+  "updated_at": "2026-10-12T22:50:34+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -763,3 +763,9 @@ the suite from this end-to-end path.
   b48802db5d60864fea266a175aab6561f162cad0de4217481cf349d287ea912d.
 
 - 2026-10-12T22:50:27+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T22:50:34+00:00: Latest signed/DCO local commit b0d076bc adds sandbox LLVM profile
+  override and environment-key boundary coverage; focused test passes. Deterministic serialized full
+  workspace llvm-cov completed all suites and reports 89.11% lines (104421 covered, 9927 missed of
+  157803), 84.78% functions, 90.49% regions; floor remains unmet. Profraw removed, worktree clean,
+  no push/review/merge.
