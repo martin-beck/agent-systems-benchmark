@@ -3,24 +3,35 @@
   "branch": "feature/ar-1774-status-progress-completeness-ci",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1769", "AR-1773", "AR-1775"],
+  "depends_on": [
+    "AR-1769",
+    "AR-1773",
+    "AR-1775"
+  ],
   "id": "AR-1774",
   "next_action": "Add required CI enforcement and controlled-defect tests for quiet, status, and progress completeness after universal instrumentation lands.",
-  "observed_branch": "",
+  "observed_branch": "feature/ar-1774-status-progress-completeness-ci",
   "observed_dirty": 0,
-  "observed_head": "",
+  "observed_head": "ad7f1166afc5fe0af47140fab00bd29dc5999e52",
   "owner": "",
   "plan": "../plans/AR-1774-status-progress-completeness-ci.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "hosted", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1774.json", "spec_revision": 1, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "hosted",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1774.json",
+    "spec_revision": 1,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1774.json",
   "spec_revision": 1,
   "status": "planned",
   "summary": "Make CI reject missing quiet support, status/progress bypasses, false estimates, and any human output in JSON mode.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Status and progress completeness CI",
-  "updated_at": "2026-10-09T21:29:29+00:00",
+  "updated_at": "2026-10-12T13:22:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1774-status-progress-completeness-ci"
 }
 ---

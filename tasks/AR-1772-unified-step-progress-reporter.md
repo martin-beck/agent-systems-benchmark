@@ -3,24 +3,33 @@
   "branch": "feature/ar-1772-unified-step-progress-reporter",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1775"],
+  "depends_on": [
+    "AR-1775"
+  ],
   "id": "AR-1772",
   "next_action": "Implement the single human step reporter on the mandatory output router after its output, level, status, and quiet contracts are accepted.",
-  "observed_branch": "",
+  "observed_branch": "feature/ar-1772-unified-step-progress-reporter",
   "observed_dirty": 0,
-  "observed_head": "",
+  "observed_head": "65ee830e6659ac5426757833d1030ae0c32f8ac5",
   "owner": "",
   "plan": "../plans/AR-1772-unified-step-progress-reporter.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "contract-test", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1772.json", "spec_revision": 1, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "contract-test",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1772.json",
+    "spec_revision": 1,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1772.json",
   "spec_revision": 1,
   "status": "planned",
   "summary": "Provide the sole status/progress reporter for delayed, terminal-safe, ETA-bearing human step output.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Unified human step-progress reporter",
-  "updated_at": "2026-10-09T21:29:29+00:00",
+  "updated_at": "2026-10-12T13:22:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1772-unified-step-progress-reporter"
 }
 ---

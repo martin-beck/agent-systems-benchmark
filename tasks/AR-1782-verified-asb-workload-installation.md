@@ -10,7 +10,7 @@
   "next_action": "PR #584 rebased onto origin/main 24cb72d; exact remote head 96ea497a. Credential-free workload matrix, diagnostic contract, provenance, resolver, and clippy focused gates pass. Poll fresh exact-head CI; do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
-  "observed_head": "12fbe26399975e9114a451ddee632bdadb65b820",
+  "observed_head": "3be3029d7a1d927b86b4ae938abfc939d8339009",
   "owner": "",
   "plan": "../plans/AR-1782-verified-asb-workload-installation.md",
   "priority": "P0",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "open",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 133,
+  "task_revision": 134,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-12T13:21:50+00:00",
+  "updated_at": "2026-10-12T13:22:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---

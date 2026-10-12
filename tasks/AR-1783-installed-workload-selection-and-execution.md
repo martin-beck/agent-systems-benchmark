@@ -3,24 +3,35 @@
   "branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1763", "AR-1764", "AR-1782"],
+  "depends_on": [
+    "AR-1763",
+    "AR-1764",
+    "AR-1782"
+  ],
   "id": "AR-1783",
   "next_action": "Integrate every development-supported installed workload bundle into selection and prove full run/sweep/report/compare consumes its exact recorded identity.",
-  "observed_branch": "",
+  "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
-  "observed_head": "",
+  "observed_head": "aca3f79b3256729543e93cc321ce3a85daa78051",
   "owner": "",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "environmental", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1783.json", "spec_revision": 2, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "environmental",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1783.json",
+    "spec_revision": 2,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "planned",
   "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-10T09:49:36+00:00",
+  "updated_at": "2026-10-12T13:22:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---

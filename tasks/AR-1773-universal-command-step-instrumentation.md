@@ -3,24 +3,34 @@
   "branch": "feature/ar-1773-universal-command-step-instrumentation",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1769", "AR-1772"],
+  "depends_on": [
+    "AR-1769",
+    "AR-1772"
+  ],
   "id": "AR-1773",
   "next_action": "Instrument every eligible public command operation through the shared reporter after the diagnostic gate and reporter are accepted.",
-  "observed_branch": "",
+  "observed_branch": "feature/ar-1773-universal-command-step-instrumentation",
   "observed_dirty": 0,
-  "observed_head": "",
+  "observed_head": "f78a1006202d6fb62df4aa3d5efd0a42381b713c",
   "owner": "",
   "plan": "../plans/AR-1773-universal-command-step-instrumentation.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "integration-test", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1773.json", "spec_revision": 1, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "integration-test",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1773.json",
+    "spec_revision": 1,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1773.json",
   "spec_revision": 1,
   "status": "planned",
   "summary": "Route every eligible public ASB command step through the shared status/progress reporter with real work updates.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Universal command step instrumentation",
-  "updated_at": "2026-10-09T21:29:29+00:00",
+  "updated_at": "2026-10-12T13:22:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1773-universal-command-step-instrumentation"
 }
 ---

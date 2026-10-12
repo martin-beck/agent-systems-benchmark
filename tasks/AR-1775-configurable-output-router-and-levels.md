@@ -3,24 +3,33 @@
   "branch": "feature/ar-1775-configurable-output-router-and-levels",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1771"],
+  "depends_on": [
+    "AR-1771"
+  ],
   "id": "AR-1775",
   "next_action": "Implement the sole configurable output router, generated project output defaults, and four-level selection after the output contract is accepted.",
-  "observed_branch": "",
+  "observed_branch": "feature/ar-1775-configurable-output-router-and-levels",
   "observed_dirty": 0,
-  "observed_head": "",
+  "observed_head": "d7c08c106e52ed9aa144f24ffe130b40dd6c3da7",
   "owner": "",
   "plan": "../plans/AR-1775-configurable-output-router-and-levels.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "contract-test", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1775.json", "spec_revision": 1, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "contract-test",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1775.json",
+    "spec_revision": 1,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1775.json",
   "spec_revision": 1,
   "status": "planned",
   "summary": "Implement the mandatory configurable output router and project-configured quiet, normal, verbose, and debug levels.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Configurable output router and levels",
-  "updated_at": "2026-10-09T21:29:29+00:00",
+  "updated_at": "2026-10-12T13:22:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1775-configurable-output-router-and-levels"
 }
 ---

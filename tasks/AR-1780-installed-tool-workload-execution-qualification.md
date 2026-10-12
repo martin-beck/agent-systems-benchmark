@@ -3,24 +3,35 @@
   "branch": "feature/ar-1780-installed-tool-workload-execution-qualification",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1764", "AR-1779", "AR-1783"],
+  "depends_on": [
+    "AR-1764",
+    "AR-1779",
+    "AR-1783"
+  ],
   "id": "AR-1780",
   "next_action": "Qualify every development external workload, after installation and selection, through actual run, sweep, report, and comparison flows.",
-  "observed_branch": "",
+  "observed_branch": "feature/ar-1780-installed-tool-workload-execution-qualification",
   "observed_dirty": 0,
-  "observed_head": "",
+  "observed_head": "ca494d506135c4a3263bea21621dcc97d817614c",
   "owner": "",
   "plan": "../plans/AR-1780-installed-tool-workload-execution-qualification.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "environmental", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1780.json", "spec_revision": 2, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "environmental",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1780.json",
+    "spec_revision": 2,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1780.json",
   "spec_revision": 2,
   "status": "planned",
   "summary": "End-to-end qualify default-installed supported tools and workload bundles through actual ASB execution.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Installed tool and workload execution qualification",
-  "updated_at": "2026-10-10T09:49:36+00:00",
+  "updated_at": "2026-10-12T13:22:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1780-installed-tool-workload-execution-qualification"
 }
 ---
