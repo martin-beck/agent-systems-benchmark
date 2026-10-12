@@ -32,20 +32,21 @@ Generated from local Git and GitHub. Do not edit.
 | #618 | `repair/ar-1779-current-main-smoke@f1dbe055aaeb` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): verify supported tool reuse and entrypoints |
 | #619 | `repair/ar-1779-source-fallback-linear3@21372a22aba3` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
 | #623 | `qualification/ar-1686@93d75e28a758` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | test(qualification): prove current-head content identity boundaries |
+| #624 | `feature/ar-1783-installed-workload-selection-and-execution@60ec53268f51` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | feat(cli): bind installed workloads before execution |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
+| 38307227576 | `60ec53268f51` | pull_request | Repository quality | queued:- |
+| 38307227531 | `60ec53268f51` | pull_request | Rust verification | queued:- |
+| 38307227519 | `60ec53268f51` | pull_request | Huawei MIT source headers | queued:- |
+| 38307227511 | `60ec53268f51` | pull_request | Cross-repository development broker qualification | queued:- |
+| 38307227486 | `60ec53268f51` | pull_request | Development formal assurance | queued:- |
+| 38307227455 | `60ec53268f51` | pull_request | Emulated aarch64 portability | queued:- |
+| 38307227402 | `60ec53268f51` | pull_request | Portable protected-main provenance | queued:- |
+| 38307227374 | `60ec53268f51` | pull_request | Fault assurance | queued:- |
+| 38307227361 | `60ec53268f51` | pull_request | Hosted portability and native qualification | queued:- |
+| 38307227347 | `60ec53268f51` | pull_request | Credential-free benchmark path | queued:- |
 | 38306623190 | `93d75e28a758` | pull_request | Cross-repository development broker qualification | completed:success |
 | 38306623175 | `93d75e28a758` | pull_request | Repository quality | in_progress:- |
-| 38306623174 | `93d75e28a758` | pull_request | Fault assurance | completed:success |
-| 38306623169 | `93d75e28a758` | pull_request | Rust verification | in_progress:- |
-| 38306623156 | `93d75e28a758` | pull_request | Agent Workflow Quality shadow | completed:success |
-| 38306623152 | `93d75e28a758` | pull_request | Credential-free benchmark path | completed:success |
-| 38306623145 | `93d75e28a758` | pull_request | Emulated aarch64 portability | in_progress:- |
-| 38306623140 | `93d75e28a758` | pull_request | Portable protected-main provenance | completed:success |
-| 38306623139 | `93d75e28a758` | pull_request | Hosted portability and native qualification | completed:success |
-| 38306623097 | `93d75e28a758` | pull_request | Huawei MIT source headers | completed:success |
-| 38306623086 | `93d75e28a758` | pull_request | Development formal assurance | completed:success |
-| 38303791955 | `b8fc46907afd` | push | Hosted portability and native qualification | completed:success |
