@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 control state/endpoint behavior tests and diagnostic catalog repair are green; serialized full coverage remains 89.11% lines.",
-  "task_revision": 308,
+  "task_revision": 309,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:57:27+00:00",
+  "updated_at": "2026-10-12T22:57:40+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -813,3 +813,6 @@ the suite from this end-to-end path.
   pass. Serialized full workspace llvm-cov completed suites; 89.11% lines (coverage gate remains
   nonzero because fixed 90% floor is unmet), 84.78% functions, 90.49% regions. Profraw removed,
   worktree clean, no push/review/merge.
+
+- 2026-10-12T22:57:40+00:00: Recorded command exit 1; command argv SHA-256
+  913192cfa7ce9d37612f68d8a89f5cc71682e1a6e3f77ebb736f0a51a283e7cf.
