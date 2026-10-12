@@ -1,0 +1,15 @@
+{
+  "ar": "AR-1819",
+  "status": "done",
+  "merged_commit": "f153826958c87eee37a063afb3f2d3fdc821925d",
+  "pull_request": 131,
+  "reviewed_head": "019d8d24c639d0430d2332725d9a2756b6482e78",
+  "checks": {
+    "focused_tests": "164 passed, 65 subtests passed",
+    "coordination_verification": 38266191704,
+    "formal_verification": 38266191711,
+    "source_headers": 38266191693,
+    "doctor": "passed"
+  },
+  "development_policy": "No TLC/model-check or live-provider run required."
+}
