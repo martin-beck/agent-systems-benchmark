@@ -47,5 +47,5 @@ Generated from local Git and GitHub. Do not edit.
 | 38300299305 | `9884e34acd91` | pull_request | Credential-free benchmark path | in_progress:- |
 | 38300299303 | `9884e34acd91` | pull_request | Rust verification | in_progress:- |
 | 38300299290 | `9884e34acd91` | pull_request | Portable protected-main provenance | completed:success |
-| 38300299285 | `9884e34acd91` | pull_request | Repository quality | pending:- |
+| 38300299285 | `9884e34acd91` | pull_request | Repository quality | in_progress:- |
 | 38296804389 | `4e37d542b824` | pull_request | Fault assurance | completed:success |
