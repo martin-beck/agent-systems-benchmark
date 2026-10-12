@@ -11,8 +11,8 @@
   "id": "AR-1783",
   "next_action": "A bounded ControlServer/ControlClient rejection fixture was attempted but hangs at the protocol call and is not safe to retain without a dedicated endpoint contract fixture. Existing asb-control tests prove the endpoint infrastructure exists, but it needs a narrow cross-crate repair AR/fixture exposing a deterministic backend response for runtime receipt/bootstrap/cancel. Native live launch misses still require a containerized delegated-isolation runner. Do not fabricate authority or weaken gates.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 1,
-  "observed_head": "945214967a16a4f4476689545d7ca5ac3b8e8462",
+  "observed_dirty": 0,
+  "observed_head": "d87352ddb511c48b4be1bdbecdd26fb2cf6597a8",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 local/mock infrastructure investigation complete; latest full coverage remains 89.28% lines, 85.11% functions, 90.66% regions.",
-  "task_revision": 438,
+  "task_revision": 439,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:43:38+00:00",
+  "updated_at": "2026-10-12T23:43:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
