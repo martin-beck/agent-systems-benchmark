@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 runtime launch bootstrap validation tests are green; serialized full coverage is 89.11% lines, still below 90%.",
-  "task_revision": 286,
+  "task_revision": 287,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:50:06+00:00",
+  "updated_at": "2026-10-12T22:50:20+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -758,3 +758,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T22:47:03+00:00: Recorded command exit 0; command argv SHA-256
   ad350cfdd3ad441c4f9e48ea364ca36f7852e23d898f3486a07a1d09c6e64408.
+
+- 2026-10-12T22:50:20+00:00: Recorded command exit 0; command argv SHA-256
+  b48802db5d60864fea266a175aab6561f162cad0de4217481cf349d287ea912d.
