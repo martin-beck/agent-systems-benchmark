@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | Installed workload execution |
-| Next action | Coverage remains below floor: full llvm-cov on latest local test batch is 89.05&#37; lines. Continue meaningful coverage for installed workload sweep/report/compare and touched paths; no push/review/merge until &gt;=90&#37; with headroom. |
+| Summary | AR-1783 — control boundary tests pass; full workspace coverage is 89.07&#37; lines, below the fixed 90&#37; floor. |
+| Next action | Add behavior-driven coverage in the largest uncovered control/TUI/runtime seams (prioritize control and TUI public boundary paths), rerun full llvm-cov to &gt;=90&#37; with headroom, then push a signed exact-head repair. |
 
 ### AR-1784 — Command dependency registry and preflight
 

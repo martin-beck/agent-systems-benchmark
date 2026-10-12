@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Coverage remains below floor: full llvm-cov on latest local test batch is 89.05% lines. Continue meaningful coverage for installed workload sweep/report/compare and touched paths; no push/review/merge until >=90% with headroom.",
+  "next_action": "Add behavior-driven coverage in the largest uncovered control/TUI/runtime seams (prioritize control and TUI public boundary paths), rerun full llvm-cov to >=90% with headroom, then push a signed exact-head repair.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 54,
   "observed_head": "d0d3674c94bba653e8a7cf9bfb64289f890f1ed5",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "Installed workload execution",
-  "task_revision": 225,
+  "summary": "AR-1783 \u2014 control boundary tests pass; full workspace coverage is 89.07% lines, below the fixed 90% floor.",
+  "task_revision": 226,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:27:36+00:00",
+  "updated_at": "2026-10-12T22:27:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -620,3 +620,10 @@ the suite from this end-to-end path.
   80ca5428992be15b15ccff44645a59ab40fad43ae4cc0e46b9943c576349df7e.
 
 - 2026-10-12T22:27:36+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T22:27:43+00:00: Checkpoint: commits 9315abdd (control artifact tests), d0d3674c
+  (diagnostic identity refresh), c2f3759f source-builder preflight are local and signed/DCO. Focused
+  control and diagnostic-contract tests pass. Full workspace llvm-cov completed all tests but
+  reports 89.07% lines (104306/121? total report: 157541 lines, 17218 missed), 84.72% functions,
+  90.45% regions; no push/review/merge attempted. Generated profraw cleaned after run. Failure from
+  prior run was stale diagnostic catalog identities; repaired and focused test now green.
