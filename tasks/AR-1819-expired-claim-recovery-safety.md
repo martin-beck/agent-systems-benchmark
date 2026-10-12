@@ -10,13 +10,21 @@
   "plan": "../plans/AR-1819-expired-claim-recovery-safety.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "contract-test",
+    "evidence_digest": "sha256:3664ac4b1952eb8f73e416b50caf31171b858e0c93984bf25be4fa45f7e7e9f4",
+    "evidence_ref": "quality/AR-1819-expired-claim-recovery-safety-closeout.json",
+    "spec_ref": "specs/AR-1819.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1819.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make expired-claim recovery fail closed when the exact current session snapshot is unavailable.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "Fail-closed expired-claim recovery",
-  "updated_at": "2026-10-12T14:56:47+00:00",
+  "updated_at": "2026-10-12T14:58:07+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1819-current-main-v3"
 }
 ---
@@ -47,3 +55,6 @@ provider run is required for this development repair.
   branch repair/ar-1819-current-main-v3.
 
 - 2026-10-12T14:56:47+00:00: Heartbeat by ar1819_restore_merge.
+
+- 2026-10-12T14:58:07+00:00: Exact reviewed merge, focused recovery/vendor coverage, required
+  post-merge checks, and live doctor verified.
