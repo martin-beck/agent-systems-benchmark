@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 181,
+  "task_revision": 182,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T20:11:15+00:00",
+  "updated_at": "2026-10-12T20:21:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -548,3 +548,6 @@ AR-1825's acceptance evidence is independently reviewed and durable.
 - 2026-10-12T20:11:15+00:00: Checkpoint: focused asb-cli adapter tests pass 13/13; SSH-signed DCO
   commit 630d3808 pushed. Handoff post-reconcile was blocked by unrelated expired AR-1779 claim/lock
   timeout; lease renewed.
+
+- 2026-10-12T20:21:55+00:00: Recorded command exit 0; command argv SHA-256
+  841eeda8aa66322dd3e6bb7078b99b91ab4cc75549b6142fe5b77e78b8a28d34.
