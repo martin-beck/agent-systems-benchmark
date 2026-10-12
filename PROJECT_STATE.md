@@ -31,7 +31,7 @@ Generated from local Git and GitHub. Do not edit.
 | #612 | `feature/ar-1774-status-progress-completeness-ci@ad7f1166afc5` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | ci: enforce status and progress completeness |
 | #618 | `repair/ar-1779-current-main-smoke@f1dbe055aaeb` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): verify supported tool reuse and entrypoints |
 | #619 | `repair/ar-1779-source-fallback-linear3@21372a22aba3` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
-| #624 | `feature/ar-1783-installed-workload-selection-and-execution@e0474221c5a9` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS: | feat(cli): bind installed workloads before execution |
+| #624 | `feature/ar-1783-installed-workload-selection-and-execution@e0474221c5a9` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): bind installed workloads before execution |
 | #625 | `feature/ar-1775-configurable-output-router-and-levels@067baebb23bd` | `main` | DIRTY | - | feat(cli): configurable output router and levels |
 
 ## Recent workflows
@@ -47,6 +47,6 @@ Generated from local Git and GitHub. Do not edit.
 | 38308732744 | `e0474221c5a9` | pull_request | Development formal assurance | completed:success |
 | 38308732726 | `e0474221c5a9` | pull_request | Credential-free benchmark path | completed:success |
 | 38308732719 | `e0474221c5a9` | pull_request | Huawei MIT source headers | completed:success |
-| 38308732627 | `e0474221c5a9` | pull_request | Fault assurance | in_progress:- |
+| 38308732627 | `e0474221c5a9` | pull_request | Fault assurance | completed:success |
 | 38308732616 | `e0474221c5a9` | pull_request | Agent Workflow Quality shadow | completed:success |
 | 38308012270 | `74b391348fc5` | push | Portable protected-main provenance | completed:success |
