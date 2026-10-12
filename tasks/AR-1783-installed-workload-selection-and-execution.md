@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Coverage did not materially move; inspect largest uncovered production cluster from the latest report and add a substantive behavior-driven test batch, then rerun focused and serialized coverage toward >=90%.",
+  "next_action": "Target substantive runtime paths named by latest report: LocalReplayProvisioner::acquire_with_backend validation/materialization, LiveLaunchFactory::issue/acquire, LiveProviderAttempt::start_relay/spawn/relay, and SandboxBackend::spawn_with_identity live/development branches. Add behavior-driven success and rejection tests, then rerun focused and serialized coverage.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "0bc211b2752b97c58ab807b17557ddd46062bda9",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 sandbox resource-boundary tests are green; signed 5910b65, serialized workspace coverage remains 89.21% lines, 85.03% functions, 90.61% regions.",
-  "task_revision": 362,
+  "summary": "AR-1783 \u2014 production development-fixture launch authority path now executes successfully; signed 0bc211b2. Prior serialized coverage: 89.21% lines, 85.03% functions, 90.61% regions.",
+  "task_revision": 363,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:16:42+00:00",
+  "updated_at": "2026-10-12T23:16:49+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -931,3 +931,8 @@ the suite from this end-to-end path.
   9d89a2e439a85fa248537e7ac9e812bbcc4e0ed11e847981f2750bc4f2e91b57.
 
 - 2026-10-12T23:16:42+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T23:16:49+00:00: Focused development_fixture_runs_owned_authority_without_native_tools
+  passed. Latest report top missed clusters were launch_factory.rs (201 lines), sandbox.rs (197),
+  live_service.rs (215); no unchanged coverage rerun. Worktree clean after signed commit; no
+  push/review/merge below 90%.

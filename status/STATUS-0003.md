@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | AR-1783 — sandbox resource-boundary tests are green; signed 5910b65, serialized workspace coverage remains 89.21&#37; lines, 85.03&#37; functions, 90.61&#37; regions. |
-| Next action | Coverage did not materially move; inspect largest uncovered production cluster from the latest report and add a substantive behavior-driven test batch, then rerun focused and serialized coverage toward &gt;=90&#37;. |
+| Summary | AR-1783 — production development-fixture launch authority path now executes successfully; signed 0bc211b2. Prior serialized coverage: 89.21&#37; lines, 85.03&#37; functions, 90.61&#37; regions. |
+| Next action | Target substantive runtime paths named by latest report: LocalReplayProvisioner::acquire_with_backend validation/materialization, LiveLaunchFactory::issue/acquire, LiveProviderAttempt::start_relay/spawn/relay, and SandboxBackend::spawn_with_identity live/development branches. Add behavior-driven success and rejection tests, then rerun focused and serialized coverage. |
 
 ### AR-1784 — Command dependency registry and preflight
 
