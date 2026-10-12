@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1779-default-usable-tool-install-command",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-12T19:45:19+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1777",
     "AR-1778",
@@ -13,7 +13,7 @@
   "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
   "observed_dirty": 0,
   "observed_head": "db08ffb341d5bb8666c8aa9119d01503bc458b26",
-  "owner": "ar1779-default-install-luna",
+  "owner": "",
   "plan": "../plans/AR-1779-default-usable-tool-install-command.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1779.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 118,
+  "task_revision": 119,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:45:19+00:00",
+  "updated_at": "2026-10-12T17:47:38+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -355,3 +355,6 @@ the adapter smoke check failed.
   422f79d615e5b979c6ee13fb7ec34f076339fe84a70a73bcc5dd961a1302b431.
 
 - 2026-10-12T17:45:19+00:00: Heartbeat by ar1779-default-install-luna.
+
+- 2026-10-12T17:47:38+00:00: Recovered interrupted worker with no live process/session; preserved PR
+  #618 head db08ffb3 and recorded repair next action. Replacement may claim after reconciliation.
