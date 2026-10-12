@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Coverage repair tests are on signed head 280b39de; local full llvm-cov reached 88.88% lines, still below hard 90% floor. Coordinate broader baseline coverage repair before review; do not merge.",
+  "next_action": "Broader baseline coverage is still required: full workspace llvm-cov on signed head 32f42827 reached 89.04% lines, below hard 90% floor. Do not review or merge until >=90% with headroom.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "32f42827367dbfedcb21304e80234336445ab683",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 178,
+  "task_revision": 179,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:14:15+00:00",
+  "updated_at": "2026-10-12T22:14:20+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -487,3 +487,9 @@ the suite from this end-to-end path.
   b3d00ffc79d5956edc9fb3b323c005128b35a9d78b32003296a54525894e5df6.
 
 - 2026-10-12T22:14:15+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T22:14:20+00:00: Coverage batch adds source-builder compile/publish, failed-build,
+  ambiguous-output, stable-failure-code tests in addition to installed workload run/source tests.
+  Full workspace tests completed; llvm-cov result 89.04% lines, 84.70% functions, 90.41% regions.
+  Generated profraw removed through handoffctl; clean signed head 32f42827 pushed to PR #624. This
+  remains a genuine coverage blocker.

@@ -1260,7 +1260,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Installed workload execution |
-| Next action | Coverage repair tests are on signed head 280b39de; local full llvm-cov reached 88.88&#37; lines, still below hard 90&#37; floor. Coordinate broader baseline coverage repair before review; do not merge. |
+| Next action | Broader baseline coverage is still required: full workspace llvm-cov on signed head 32f42827 reached 89.04&#37; lines, below hard 90&#37; floor. Do not review or merge until &gt;=90&#37; with headroom. |
 
 ### AR-1784 — Command dependency registry and preflight
 
