@@ -1,5 +1,7 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1529](../tasks/AR-1529.md) | [AR-1517](../tasks/AR-1517-ar1309-capacity-decision-unblock.md), [AR-1520](../tasks/AR-1520.md) | [AR-1530](../tasks/AR-1530.md) |
+| [AR-1530](../tasks/AR-1530.md) | [AR-1520](../tasks/AR-1520.md), [AR-1529](../tasks/AR-1529.md) | [AR-1521](../tasks/AR-1521.md), [AR-1522](../tasks/AR-1522.md), [AR-1531](../tasks/AR-1531.md), [AR-1534](../tasks/AR-1534.md), [AR-1537](../tasks/AR-1537.md), [AR-1538](../tasks/AR-1538.md), [AR-1539](../tasks/AR-1539.md), [AR-1540](../tasks/AR-1540.md), [AR-1541](../tasks/AR-1541.md), [AR-1544](../tasks/AR-1544.md) |
 | [AR-1531](../tasks/AR-1531.md) | [AR-1520](../tasks/AR-1520.md), [AR-1530](../tasks/AR-1530.md) | [AR-1546](../tasks/AR-1546.md) |
 | [AR-1532](../tasks/AR-1532.md) | [AR-1528](../tasks/AR-1528.md) | [AR-1535](../tasks/AR-1535.md), [AR-1542](../tasks/AR-1542.md) |
 | [AR-1533](../tasks/AR-1533.md) | [AR-1528](../tasks/AR-1528.md) | [AR-1536](../tasks/AR-1536.md), [AR-1543](../tasks/AR-1543.md) |
@@ -266,19 +268,19 @@
 
 ## Complete AR inventory
 
-### In progress (2)
+### In progress (3)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | AR-1825 is accepted on merged PR #622 / main b8fc46907afd281781a49dbd04ccb0aa6337a850: all 10 exact-main post-merge workflows are terminal success and source-executable matrix plus bounded adapter/rollback/smoke negative gates are present. AR-1779 release is blocked until current origin/main 356a669e0c6ebbb6cd3675a119cba16fea486283 is green; current unrelated AR-1775 follow-on has Portable protected-main provenance, Repository quality, and Rust verification failures. Do not touch AR-1826–1832. |
 | P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | ar1783-workload-selection-luna | Installed workload execution | Coverage remains below floor: full llvm-cov on latest local test batch is 89.05&#37; lines. Continue meaningful coverage for installed workload sweep/report/compare and touched paths; no push/review/merge until &gt;=90&#37; with headroom. |
+| P0 | [AR-1834](../tasks/AR-1834-ar1775-protected-main-identity-recovery.md): AR-1775 protected-main local identity recovery | ar1805_postmerge_repair | Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e | Claim a clean product worktree, create a signed-DCO metadata-only recovery topic from immutable main 356a669e, and publish only through merge_pr.py after independent review and green exact-head checks |
 
-### Open (2)
+### Open (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Unclaimed | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. |
-| P0 | [AR-1834](../tasks/AR-1834-ar1775-protected-main-identity-recovery.md): AR-1775 protected-main local identity recovery | Unclaimed | Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e | Claim a clean product worktree, create a signed-DCO metadata-only recovery topic from immutable main 356a669e, and publish only through merge_pr.py after independent review and green exact-head checks |
 
 ### Blocked (84)
 
@@ -629,4 +631,3 @@
 | P0 | [AR-1441](../tasks/AR-1441-first-class-install-bootstrap.md): First-class install and bootstrap | Unclaimed | Provide a verified one-command install and first-run bootstrap for ASB CLI/runtime bundles. | Done: ASB-only bootstrap and lifecycle qualification passed against protected merge 2872a31f; preserve AR-0823 as the separate cross-repository/UI audit. |
 | P0 | [AR-1442](../tasks/AR-1442-guided-setup-wizard-orchestration.md): Guided setup wizard orchestration | Unclaimed | Qualify ASB CLI first-run and reconfiguration of agents, providers, auth methods, models and defaults with a non-blocking development profile. | Done: ASB CLI setup/reconfiguration contract and full CLI qualification passed against protected merge 2872a31f; preserve standalone TUI wiring as separate downstream work. |
 | P0 | [AR-1443](../tasks/AR-1443-guided-benchmark-capture-comparison.md): Guided benchmark capture and comparison | Unclaimed | Make benchmark, offline capture/replay, and result comparison a single guided workflow with warning-only development prerequisites. | Done: ASB-only guided capture/replay/comparison qualification verified on protected merge 2872a31f2ee90ac5df1a47203b2a618b1829cfec. CLI tests passed (107 unit, 12 capability, 3 CLI E2E, 5 guide, 2 setup, 4 lifecycle, 3 transcript); optional live capture and asb-tui remain separate. |
-| P0 | [AR-1445](../tasks/AR-1445-protected-main-topology-repair-openrouter.md): Protected-main topology repair for OpenRouter refresh | Unclaimed | Repair the single-parent protected-main merge produced for the OpenRouter model refresh. | PR #324 merged as two-parent 5871de7cad4ee7e496ffce1c5e1fe51862660bfc; monitor seven exact-main workflows 36145976341, 36145976337, 36145976326, 36145976266, 36145976239, 36145976238, 36145976223 to terminal success. Record that GitHub has no independent review record, then update/release AR-1440 only after all seven pass. |

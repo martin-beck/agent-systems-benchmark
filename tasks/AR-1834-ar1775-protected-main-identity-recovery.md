@@ -2,12 +2,13 @@
 {
   "branch": "repair/ar-1834-ar1775-protected-main-identity",
   "checkpoint_commit": "",
+  "claim_expires": "2026-10-13T01:27:39+00:00",
   "depends_on": [],
   "id": "AR-1834",
   "next_action": "Claim a clean product worktree, create a signed-DCO metadata-only recovery topic from immutable main 356a669e, and publish only through merge_pr.py after independent review and green exact-head checks",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "ar1805_postmerge_repair",
   "plan": "../plans/AR-1834-ar1775-protected-main-identity-recovery.md",
   "priority": "P0",
   "schema_version": 1,
@@ -21,11 +22,11 @@
   },
   "spec_ref": "specs/AR-1834.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "AR-1775 protected-main local identity recovery",
-  "updated_at": "2026-10-12T22:27:30+00:00",
+  "updated_at": "2026-10-12T22:27:39+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1834-ar1775-protected-main-identity"
 }
 ---
@@ -38,3 +39,5 @@ This successor is metadata-only and forward-only. It must not alter `LOCAL_COMMI
 
 - 2026-10-12T22:27:30+00:00: Dependencies empty; promote narrow AR-1775 protected-main identity
   recovery preserving historical merge 356a669e and excluding AR-1779/1783 and AR-1826-1832
+
+- 2026-10-12T22:27:39+00:00: Claimed by ar1805_postmerge_repair.

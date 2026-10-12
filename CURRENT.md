@@ -9,13 +9,13 @@ Never edit this file directly.
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1779](tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | AR-1825 is accepted on merged PR #622 / main b8fc46907afd281781a49dbd04ccb0aa6337a850: all 10 exact-main post-merge workflows are terminal success and source-executable matrix plus bounded adapter/rollback/smoke negative gates are present. AR-1779 release is blocked until current origin/main 356a669e0c6ebbb6cd3675a119cba16fea486283 is green; current unrelated AR-1775 follow-on has Portable protected-main provenance, Repository quality, and Rust verification failures. Do not touch AR-1826–1832. | ar1779-default-install-luna |
 | P0 | [AR-1783](tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Installed workload execution | Coverage remains below floor: full llvm-cov on latest local test batch is 89.05% lines. Continue meaningful coverage for installed workload sweep/report/compare and touched paths; no push/review/merge until >=90% with headroom. | ar1783-workload-selection-luna |
+| P0 | [AR-1834](tasks/AR-1834-ar1775-protected-main-identity-recovery.md): AR-1775 protected-main local identity recovery | Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e | Claim a clean product worktree, create a signed-DCO metadata-only recovery topic from immutable main 356a669e, and publish only through merge_pr.py after independent review and green exact-head checks | ar1805_postmerge_repair |
 
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1796](tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. | - |
-| P0 | [AR-1834](tasks/AR-1834-ar1775-protected-main-identity-recovery.md): AR-1775 protected-main local identity recovery | Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e | Claim a clean product worktree, create a signed-DCO metadata-only recovery topic from immutable main 356a669e, and publish only through merge_pr.py after independent review and green exact-head checks | - |
 
 ## Blocked
 
