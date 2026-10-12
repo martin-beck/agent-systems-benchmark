@@ -1,5 +1,6 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1617](../tasks/AR-1617.md) | [AR-1612](../tasks/AR-1612.md), [AR-1614](../tasks/AR-1614.md) | [AR-1615](../tasks/AR-1615.md), [AR-1619](../tasks/AR-1619.md), [AR-1646](../tasks/AR-1646.md) |
 | [AR-1618](../tasks/AR-1618.md) | [AR-1612](../tasks/AR-1612.md), [AR-1614](../tasks/AR-1614.md) | [AR-1615](../tasks/AR-1615.md), [AR-1619](../tasks/AR-1619.md) |
 | [AR-1619](../tasks/AR-1619.md) | [AR-1617](../tasks/AR-1617.md), [AR-1618](../tasks/AR-1618.md) | [AR-1615](../tasks/AR-1615.md), [AR-1620](../tasks/AR-1620.md), [AR-1621](../tasks/AR-1621.md), [AR-1646](../tasks/AR-1646.md) |
 | [AR-1620](../tasks/AR-1620.md) | [AR-1614](../tasks/AR-1614.md), [AR-1619](../tasks/AR-1619.md) | [AR-1615](../tasks/AR-1615.md), [AR-1621](../tasks/AR-1621.md), [AR-1623](../tasks/AR-1623.md), [AR-1646](../tasks/AR-1646.md) |
@@ -178,7 +179,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md): Repair asb tui install rustup/rustc trusted-tool rejection | codex-ar1799-tui-install-rustup-invalid-20261012 | Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint. | Reproduce the installed-entrypoint failure on the exact current ASB main head, then repair the failing rustup/rustc path and add regression coverage. |
+| P0 | [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md): Repair asb tui install rustup/rustc trusted-tool rejection | codex-ar1799-tui-install-rustup-invalid-20261012 | Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint. | PR #613 (63ba8e7973545f65bd8dda56f3aa24d9d339bb16) is open; focused rustup tests, fmt, clippy, and independent review pass. Await remaining exact-head hosted checks, then merge and run post-merge installed-entrypoint qualification. |
 
 ### Open (4)
 
@@ -580,4 +581,3 @@
 | P0 | [AR-1502](../tasks/AR-1502-runtime-bootstrap-authority.md): Runtime-owned bootstrap authority | Unclaimed | Runtime-owned authenticated bootstrap authority merged and verified on main. | No further action; release AR-1502 after protected merge and exact-head post-merge workflows. |
 | P0 | [AR-1505](../tasks/AR-1505-control-plane-platform-authority.md): Control-plane platform authority/bootstrap protocol | Unclaimed | Provide an authenticated platform protocol that issues private runtime bootstrap inputs to ASB. | No further AR-1505 action; merge and post-merge assurance complete. |
 | P0 | [AR-1513](../tasks/AR-1513-authenticated-lease-dispatch-bridge.md): Authenticated lease-to-live-dispatch bridge | Unclaimed | Authenticate process-owner material, validate executable provenance, and connect leases to ordinary live dispatch. | PR #383 merged at 47329e35; monitor post-merge workflows 36550477933, 36550477996, 36550478002, 36550478037, 36550478039, 36550478042, 36550478232 to terminal success, then verify protected main and close AR. |
-| P0 | [AR-1514](../tasks/AR-1514-runtime-auth-reconciliation.md): Reconciled development auth handoff runtime | Unclaimed | Repair ASB development-runtime reconciliation between digest-only enrollment and helper invocation. | Complete; PR #386 merged at bf89a45ddd71af96e6d4b6954320e199e147f83e. Protected main tree equals reviewed topic and post-merge auth-focused ASB tests pass. Paired asb-tui AR-1323 qualification remains external. |

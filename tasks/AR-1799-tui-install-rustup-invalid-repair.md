@@ -8,7 +8,7 @@
     "AR-1636"
   ],
   "id": "AR-1799",
-  "next_action": "Reproduce the installed-entrypoint failure on the exact current ASB main head, then repair the failing rustup/rustc path and add regression coverage.",
+  "next_action": "PR #613 (63ba8e7973545f65bd8dda56f3aa24d9d339bb16) is open; focused rustup tests, fmt, clippy, and independent review pass. Await remaining exact-head hosted checks, then merge and run post-merge installed-entrypoint qualification.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Repair asb tui install rustup/rustc trusted-tool rejection",
-  "updated_at": "2026-10-12T13:23:22+00:00",
+  "updated_at": "2026-10-12T13:37:36+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1799-tui-install-rustup-invalid"
 }
 ---
@@ -54,3 +54,6 @@ may block development qualification or enter durable state.
   trusted_tool_invalid failure.
 
 - 2026-10-12T13:23:22+00:00: Claimed by codex-ar1799-tui-install-rustup-invalid-20261012.
+
+- 2026-10-12T13:37:36+00:00: Reproduced the real bound-rustc permission gap, implemented PR #613,
+  and recorded focused/local review evidence.
