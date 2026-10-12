@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 28,
+  "task_revision": 29,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T20:49:40+00:00",
+  "updated_at": "2026-10-12T20:50:02+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -97,3 +97,6 @@ the suite from this end-to-end path.
   f7e20666638201d8567703a3d7bc028e04a5e8e4c6c509de13d4976b0c91a669.
 
 - 2026-10-12T20:49:40+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T20:50:02+00:00: Recorded command exit 0; command argv SHA-256
+  1024fc1e6cefa31b078f0b5d2ed85c7ea4586897b388bf1e308f62db58574461.
