@@ -12,11 +12,11 @@
   "schema_version": 1,
   "spec_ref": "specs/AR-1823.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Publish the already-verified AR-1820 provenance receipt and durable done state.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "AR-1820 receipt publication cleanup",
-  "updated_at": "2026-10-12T15:00:00+00:00",
+  "updated_at": "2026-10-12T15:01:20+00:00",
   "worktree_key": ""
 }
 ---
@@ -31,3 +31,6 @@ reclassify any other AR.
 
 - 2026-10-12T15:00:00+00:00: Created after reconciliation found the verified
   AR-1820 closure only in detached local state, not current durable main.
+
+- 2026-10-12T15:01:20+00:00: Dependencies verified: publish only the existing verified AR-1820
+  receipt and done state.
