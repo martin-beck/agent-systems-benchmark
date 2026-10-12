@@ -50,8 +50,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-agent-runtime-bundles` | `feature/agent-runtime-bundles` | `1249fd87d46d` | 0 | behind 783, ahead 132 |
 | `agent-systems-benchmark-aider-deterministic-replay` | `fix/aider-deterministic-replay` | `87a22654913a` | 0 | behind 783, ahead 99 |
 | `agent-systems-benchmark-all-agents-provider` | `feature/all-agents-provider` | `03962f28571e` | 0 | behind 783, ahead 136 |
-| `agent-systems-benchmark-ar-1779-default-usable-tool-install-command` | `repair/ar-1779-source-fallback-linear4` | `6e1034a513c0` | 1 | behind 0, ahead 5 |
-| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog_compact.rs` |
+| `agent-systems-benchmark-ar-1779-default-usable-tool-install-command` | `repair/ar-1779-source-fallback-linear4` | `6e1034a513c0` | 2 | behind 0, ahead 5 |
+| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog_compact.rs`, `docs/examples/asb-cli-workflow-v1.provenance.json` |
 | `agent-systems-benchmark-ar-1799-tui-install-rustup-invalid` | `repair/ar-1799-tui-install-rustup-invalid` | `e058ea2b5881` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 783, ahead 326 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
