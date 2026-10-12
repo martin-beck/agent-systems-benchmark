@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 139,
+  "task_revision": 140,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T19:43:54+00:00",
+  "updated_at": "2026-10-12T19:44:06+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -431,3 +431,6 @@ AR-1825's acceptance evidence is independently reviewed and durable.
   and critical package checks; all tests passed. Initial GitHub run 38296804232 failed at 88.57%,
   while local non-policy cargo run undercounted 88.78%. This validates no gate weakening; the next
   action is a fresh exact-head CI check, not speculative test manipulation.
+
+- 2026-10-12T19:44:06+00:00: Recorded command exit 0; command argv SHA-256
+  62b9be5fd189bb243a8c16ff5017aca22397a9d3498eab9dfd63a80957e2ecf5.
