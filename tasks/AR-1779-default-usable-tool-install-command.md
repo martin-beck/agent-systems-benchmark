@@ -2,13 +2,7 @@
 {
   "branch": "feature/ar-1779-default-usable-tool-install-command",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-12T19:56:22+00:00",
-  "claim_process": {
-    "boot_digest": "sha256:e7865b965cd7fb9a03f25a68c08a4552c90fa89300f35b839e047ca4bb39ff28",
-    "pid": 3826910,
-    "pid_namespace": "5:4026531836",
-    "start_time": 668487230
-  },
+  "claim_expires": "",
   "depends_on": [
     "AR-1777",
     "AR-1778",
@@ -19,7 +13,7 @@
   "observed_branch": "repair/ar-1779-source-fallback-linear4",
   "observed_dirty": 0,
   "observed_head": "80060a79e716b42e021ddd9b116afdc560bc6cc1",
-  "owner": "ar1779-default-install-luna",
+  "owner": "",
   "plan": "../plans/AR-1779-default-usable-tool-install-command.md",
   "priority": "P0",
   "schema_version": 1,
@@ -33,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1779.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 221,
+  "task_revision": 222,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T18:48:34+00:00",
+  "updated_at": "2026-10-12T20:36:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -614,3 +608,7 @@ the adapter smoke check failed.
   terminal success including Rust, repository quality, aarch64, policy/provenance, formal, fault,
   credential-free, broker, hosted portability, and headers; reconcile --commit --push and doctor
   --live OK. AR-1825 remains prerequisite for genuine source adapter/runtime support.
+
+- 2026-10-12T20:36:51+00:00: Recovered expired claim formerly owned by ar1779-default-install-luna.
+  Recover stale expired ownership before promoting dependency-safe AR-1783; preserve in-progress
+  AR-1779 evidence and owner history.
