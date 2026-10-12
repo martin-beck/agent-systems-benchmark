@@ -10,9 +10,9 @@
   ],
   "id": "AR-1779",
   "next_action": "Independent review and exact-head CI for PR #583 at 7c08cfb0; source-only fallback remains to be resolved before merge.",
-  "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
+  "observed_branch": "DETACHED",
   "observed_dirty": 0,
-  "observed_head": "daf2d3ee9750b24adb2a33d113a7096acd961e93",
+  "observed_head": "e058ea2b5881e047c2a02a5bc5bd4f23103c28c0",
   "owner": "ar1779-default-install-luna",
   "plan": "../plans/AR-1779-default-usable-tool-install-command.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 32,
+  "task_revision": 33,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:11:22+00:00",
+  "updated_at": "2026-10-12T17:11:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
