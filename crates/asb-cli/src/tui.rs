@@ -5079,6 +5079,7 @@ fn version_parts(value: &str) -> Result<(u64, u64, u64), RouterError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::OpenOptions;
 
     #[test]
     fn preflight_classifies_toolchain_rejection_with_recovery() {
@@ -6192,6 +6193,24 @@ mod tests {
         const MARKER: &str = "ASB_AR1727_FOREGROUND_TEST_MARKER";
         const TEST_NAME: &str =
             "tui::tests::development_broker_foregrounds_interactive_child_and_restores_terminal";
+
+        // Workspace coverage runs library and binary test targets concurrently. Serialize
+        // only the outer PTY harnesses; nested launcher/frontend roles pass through.
+        let _foreground_lock = if std::env::var_os(ROLE).is_none() {
+            let lock_file = OpenOptions::new()
+                .create(true)
+                .truncate(false)
+                .read(true)
+                .write(true)
+                .open("/tmp/asb-tui-foreground-test.lock")
+                .expect("foreground test lock");
+            Some(
+                nix::fcntl::Flock::lock(lock_file, nix::fcntl::FlockArg::LockExclusive)
+                    .expect("foreground test lock acquisition"),
+            )
+        } else {
+            None
+        };
 
         match std::env::var(ROLE).as_deref() {
             Ok("frontend") => {

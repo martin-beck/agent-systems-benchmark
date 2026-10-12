@@ -15,33 +15,37 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def run_coverage(arguments: list[str], floor: int) -> None:
-    subprocess.run(
-        [
-            "cargo",
-            "llvm-cov",
-            "--locked",
-            *arguments,
-            "--all-targets",
-            "--fail-under-lines",
-            str(floor),
-        ],
-        cwd=ROOT,
-        # Coverage exercises durable control-state tests that intentionally
-        # share process-global ownership guards.  Serialise the test harness
-        # so line coverage is deterministic and the quality floor cannot be
-        # decided by test scheduling.
-        env={
-            **os.environ,
-            "RUST_TEST_THREADS": "1",
-            # Keep instrumented child coverage outside the checkout.  The
-            # CLI child-process contract deliberately rejects profiles in
-            # product directories, while llvm-cov still consumes this sink.
-            "LLVM_PROFILE_FILE": str(
-                Path(tempfile.gettempdir()) / "asb-quality-%p-%m.profraw"
-            ),
-        },
-        check=True,
-    )
+    # Isolate each invocation so a repeated local run cannot aggregate stale
+    # profiles from an earlier tree.  CI starts with an empty runner, while
+    # developers commonly run this gate repeatedly in one checkout.
+    with tempfile.TemporaryDirectory(prefix="asb-quality-") as profile_root:
+        subprocess.run(
+            [
+                "cargo",
+                "llvm-cov",
+                "--locked",
+                *arguments,
+                "--all-targets",
+                "--fail-under-lines",
+                str(floor),
+            ],
+            cwd=ROOT,
+            # Coverage exercises durable control-state tests that intentionally
+            # share process-global ownership guards.  Serialise the test harness
+            # so line coverage is deterministic and the quality floor cannot be
+            # decided by test scheduling.
+            env={
+                **os.environ,
+                "RUST_TEST_THREADS": "1",
+                # Keep instrumented child coverage outside the checkout.  The
+                # CLI child-process contract deliberately rejects profiles in
+                # product directories, while llvm-cov still consumes this sink.
+                "LLVM_PROFILE_FILE": str(
+                    Path(profile_root) / "asb-quality-%p-%m.profraw"
+                ),
+            },
+            check=True,
+        )
 
 
 def main() -> int:
