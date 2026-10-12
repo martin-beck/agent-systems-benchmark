@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 sandbox environment-boundary tests are green; serialized full coverage remains 89.11% lines.",
-  "task_revision": 295,
+  "task_revision": 296,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:52:03+00:00",
+  "updated_at": "2026-10-12T22:52:13+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -781,3 +781,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T22:52:03+00:00: Recorded command exit 0; command argv SHA-256
   b73abb55fa7f9dc051adc063b94ee19431ce0fc80b16f2e8128676c71af61291.
+
+- 2026-10-12T22:52:13+00:00: Recorded command exit 0; command argv SHA-256
+  45ca30b6d20fee5877cea3a87e949f34e4c5bdbc904fcf0e9c5afae3685992a6.
