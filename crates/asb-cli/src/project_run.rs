@@ -74,6 +74,90 @@ impl ProjectExecution {
         plan
     }
 
+    /// Validate that a plan consumes the selected installed workload receipt.
+    ///
+    /// Project inventory records are mutable discovery state; execution must
+    /// additionally bind the immutable workload receipt and prepared adapter
+    /// tree.  This rejects stale, revoked, manually substituted, or ambient
+    /// workload identities before any run roots are prepared.
+    pub(super) fn validate_workload_identity(
+        &self,
+        workload_id: &str,
+        workload_revision: &str,
+        workload_digest: &str,
+    ) -> Result<(), CliError> {
+        let config = super::load_tool_project(&self.root)?;
+        if config.selections.workload.as_deref() != Some(workload_id) {
+            return Err(CliError::legacy_validation(
+                "plan workload is not the selected installed project workload",
+            ));
+        }
+        let record = config
+            .workloads
+            .get(workload_id)
+            .ok_or_else(|| CliError::legacy_validation("selected installed workload is missing"))?;
+        if record.status != ProjectToolStatus::Available
+            || record.kind != ProjectToolKind::Workload
+            || record.platform != super::platform_label()
+            || record.digest_sha256.as_deref() != Some(workload_digest)
+        {
+            return Err(CliError::legacy_validation(
+                "selected installed workload identity is stale or unavailable",
+            ));
+        }
+        let relative = record.path.as_deref().ok_or_else(|| {
+            CliError::legacy_validation("selected installed workload has no project-local path")
+        })?;
+        let root = self.root.join(relative);
+        if !root.starts_with(&self.root) {
+            return Err(CliError::legacy_validation(
+                "selected workload path escapes the project",
+            ));
+        }
+        let root_meta = fs::symlink_metadata(&root).map_err(|_| {
+            CliError::legacy_validation("selected workload installation is missing")
+        })?;
+        if root_meta.file_type().is_symlink() || !root_meta.is_dir() {
+            return Err(CliError::legacy_validation(
+                "selected workload installation is not a real directory",
+            ));
+        }
+        let prepared = root.join("prepared");
+        let prepared_meta = fs::symlink_metadata(&prepared)
+            .map_err(|_| CliError::legacy_validation("selected workload preparation is missing"))?;
+        if prepared_meta.file_type().is_symlink() || !prepared_meta.is_dir() {
+            return Err(CliError::legacy_validation(
+                "selected workload preparation is not usable",
+            ));
+        }
+        let receipt_path = root.join("receipt.json");
+        let receipt = fs::read(&receipt_path)
+            .map_err(|_| CliError::legacy_validation("selected workload receipt is missing"))?;
+        if receipt.len() > 64 * 1024 {
+            return Err(CliError::legacy_validation(
+                "selected workload receipt is too large",
+            ));
+        }
+        let receipt: serde_json::Value = serde_json::from_slice(&receipt)
+            .map_err(|_| CliError::legacy_validation("selected workload receipt is invalid"))?;
+        let text = |key: &str| receipt.get(key).and_then(serde_json::Value::as_str);
+        if text("workload_id") != Some(workload_id)
+            || text("catalog_revision") != Some(workload_revision)
+            || text("archive_digest_sha256") != Some(workload_digest)
+            || text("status") != Some("verified")
+            || text("license").is_none_or(|license| {
+                license.is_empty() || license.eq_ignore_ascii_case("NOASSERTION")
+            })
+            || text("preparation").is_none()
+            || text("evaluator_entrypoint").is_none()
+        {
+            return Err(CliError::legacy_validation(
+                "selected workload receipt is stale, revoked, or incomplete",
+            ));
+        }
+        Ok(())
+    }
+
     /// Reject a report/compare run reference that is outside project results.
     pub(super) fn validate_run_reference(&self, path: &Path) -> Result<(), CliError> {
         let canonical = fs::canonicalize(path)
@@ -193,5 +277,62 @@ mod tests {
             work_root: directory.path().join(".asb/work"),
         };
         assert!(execution.validate_run_reference(outside.path()).is_err());
+    }
+
+    #[test]
+    fn installed_workload_identity_requires_verified_prepared_receipt() {
+        let directory = project();
+        let digest = "a".repeat(64);
+        let root = directory.path().join(".asb/workloads/fixture");
+        fs::create_dir_all(root.join("prepared")).unwrap();
+        fs::write(
+            root.join("receipt.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "workload_id": "fixture",
+                "catalog_revision": "fixture-v1",
+                "archive_digest_sha256": digest,
+                "status": "verified",
+                "license": "MIT",
+                "preparation": "bounded-extracted; no installer executed",
+                "evaluator_entrypoint": "fixture/manifest.json"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let mut config = super::load_tool_project(directory.path()).unwrap();
+        config.selections.workload = Some("fixture".into());
+        config.workloads.insert(
+            "fixture".into(),
+            ProjectToolRecordV1 {
+                kind: ProjectToolKind::Workload,
+                source_ref: "fixture://fixture".into(),
+                version: "fixture-v1".into(),
+                platform: "linux-x86_64".into(),
+                path: Some(".asb/workloads/fixture".into()),
+                digest_sha256: Some(digest.clone()),
+                capabilities: vec!["external-workload".into()],
+                status: ProjectToolStatus::Available,
+            },
+        );
+        super::save_tool_project(directory.path(), &config).unwrap();
+        let execution = ProjectExecution {
+            root: directory.path().to_path_buf(),
+            result_root: directory.path().join("results"),
+            work_root: directory.path().join(".asb/work"),
+        };
+        execution
+            .validate_workload_identity("fixture", "fixture-v1", &digest)
+            .unwrap();
+        assert!(
+            execution
+                .validate_workload_identity("fixture", "stale", &digest)
+                .is_err()
+        );
+        fs::write(root.join("receipt.json"), b"{}\n").unwrap();
+        assert!(
+            execution
+                .validate_workload_identity("fixture", "fixture-v1", &digest)
+                .is_err()
+        );
     }
 }
