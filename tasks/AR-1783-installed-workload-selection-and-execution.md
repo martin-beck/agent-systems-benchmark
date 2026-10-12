@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 loopback supervisor boundary tests are green; serialized workspace coverage improved to 89.19% lines, still below 90%.",
-  "task_revision": 333,
+  "task_revision": 334,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:07:14+00:00",
+  "updated_at": "2026-10-12T23:07:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -865,3 +865,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T23:07:14+00:00: Recorded command exit 101; command argv SHA-256
   2a994f4af435ddc208dc9a9073e933c656545d9b0077180abd9947455022da12.
+
+- 2026-10-12T23:07:26+00:00: Recorded command exit 0; command argv SHA-256
+  f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
