@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 103,
+  "task_revision": 104,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:39:24+00:00",
+  "updated_at": "2026-10-12T17:39:31+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -310,3 +310,6 @@ the adapter smoke check failed.
   source builder rejects package archives/non-executable output before activation and validates
   executable staging. Product commits b76659a8, ddb0d931, db08ffb3 are SSH-signed with DCO. PR #618
   updated without force-pushing stale PR #583.
+
+- 2026-10-12T17:39:31+00:00: Recorded command exit 0; command argv SHA-256
+  a63d7df09166ff1c467a7bf4582f5ad38227203a2ff00aa9802ac4b575c6e577.
