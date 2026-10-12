@@ -1204,7 +1204,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. |
-| Next action | Replacement PR #619 is open at exact head 21372a22; obtain independent review and exact-head CI, then protected integration merge and post-merge verification. |
+| Next action | Safety PR #620 is open at exact signed head 80060a79 lineage plus matching DCO repair; obtain independent review and exact-head CI, then protected merge. AR-1779 stays pending until successor source-adapter/runtime contract AR is created and accepted. |
 
 ### AR-1780 — Installed tool and workload execution qualification
 
