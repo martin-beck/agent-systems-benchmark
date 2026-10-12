@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1800-development-warning-only-trust-contract",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-12T23:17:04+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1799"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1800-development-warning-only-trust-contract",
   "observed_dirty": 0,
   "observed_head": "961243b302dcb803f426eac507d0f0ce01e2fba0",
-  "owner": "ar1800-dev-warning-luna56",
+  "owner": "",
   "plan": "../plans/AR-1800-development-warning-only-trust-contract.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1800.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Make development-channel trust, digest, and exact-version mismatches warning-only without weakening stable/production policy.",
-  "task_revision": 13,
+  "task_revision": 14,
   "title": "Development channel warning-only trust contracts",
-  "updated_at": "2026-10-12T21:25:21+00:00",
+  "updated_at": "2026-10-12T21:25:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1800-development-warning-only-trust-contract"
 }
 ---
@@ -86,3 +86,9 @@ in warnings, JSON, logs, or evidence.
   961243b302dcb803f426eac507d0f0ce01e2fba0; protected main 74b391348fc5c1361034a14742f6afef747d72db
   exact-main checks 13/13 green; focused trust tests 3/3 and full locked workspace tests/doc-tests
   passed; dev-only warning scope and fail-closed stable/production/structural boundaries verified.
+
+- 2026-10-12T21:25:43+00:00: Completed on protected main 74b391348fc5c1361034a14742f6afef747d72db.
+  PR #615 merged reviewed head 961243b302dcb803f426eac507d0f0ce01e2fba0; exact-main checks 13/13
+  green, focused trust tests 3/3, full locked workspace tests/doc-tests passed; dev-only warning
+  scope and fail-closed stable/production/structural boundaries verified; AR-1799 installed
+  qualification consumed.

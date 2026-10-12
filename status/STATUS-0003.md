@@ -1490,11 +1490,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1800-dev-warning-luna56 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Make development-channel trust, digest, and exact-version mismatches warning-only without weakening stable/production policy. |
@@ -2459,7 +2459,7 @@ flowchart LR
     end
     subgraph series_18["18 - Additional work"]
         direction TB
-        AR_1800["AR-1800 - In progress"]:::status_in_progress
+        AR_1800["AR-1800 - Done"]:::status_done
         AR_1819["AR-1819 - Done"]:::status_done
         AR_1820["AR-1820 - Done"]:::status_done
         AR_1821["AR-1821 - Done"]:::status_done

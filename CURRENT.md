@@ -9,7 +9,6 @@ Never edit this file directly.
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1775](tasks/AR-1775-configurable-output-router-and-levels.md): Configurable output router and levels | Implement the mandatory configurable output router and project-configured quiet, normal, verbose, and debug levels. | Implement the sole configurable output router, generated project output defaults, and four-level selection after the output contract is accepted. | ar1775-cli2key-runtime-luna |
 | P0 | [AR-1783](tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Select every development external workload and prove ASB uses its exact project-local identity end to end. | Repair plan workload binding so a project plan cannot substitute an unregistered/built-in workload when an external installed workload is selected; rerun independent exact-head review. | ar1783-workload-selection-luna |
-| P0 | [AR-1800](tasks/AR-1800-development-warning-only-trust-contract.md): Development channel warning-only trust contracts | Make development-channel trust, digest, and exact-version mismatches warning-only without weakening stable/production policy. | Release done after exact-main 74b391348fc5c1361034a14742f6afef747d72db verification: PR #615 merged, 13/13 exact-main checks green, focused trust tests and full locked workspace tests passed; perform final state reconciliation. | ar1800-dev-warning-luna56 |
 
 ## Open
 
