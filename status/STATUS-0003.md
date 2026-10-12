@@ -1596,7 +1596,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement bounded source adapter contract |
-| Next action | Coverage repair head 630d3808 adds behavior tests for valid relative symlink/digest boundaries, strategy matrix rejection, platform compatibility, and bounded successful smoke. Push is complete; await exact-head CI. Workspace coverage previously 88.59&#37; vs 90&#37; floor, so do not merge until green; broader low-coverage modules require coordinator-planned successor AR-1826. |
+| Next action | PR #622 merged to main as merge commit b8fc46907afd281781a49dbd04ccb0aa6337a850; remote main is 99f8c531de24cfabc2ca8be39f352c2a838ed957. Post-merge workspace tests ran 442 passed, 1 failed: source_checkout::tests::exact_fixture_checkout_is_returned_and_cleanup_is_explicit returned Unavailable at source_checkout.rs:913. Diagnose/repair the fixture/environment failure before accepting AR-1825; coverage gate was green on exact head. |
 
 
 ## Dependency graph

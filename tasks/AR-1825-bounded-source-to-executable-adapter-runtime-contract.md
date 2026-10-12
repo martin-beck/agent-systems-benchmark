@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1825",
-  "next_action": "Coverage repair head 630d3808 adds behavior tests for valid relative symlink/digest boundaries, strategy matrix rejection, platform compatibility, and bounded successful smoke. Push is complete; await exact-head CI. Workspace coverage previously 88.59% vs 90% floor, so do not merge until green; broader low-coverage modules require coordinator-planned successor AR-1826.",
+  "next_action": "PR #622 merged to main as merge commit b8fc46907afd281781a49dbd04ccb0aa6337a850; remote main is 99f8c531de24cfabc2ca8be39f352c2a838ed957. Post-merge workspace tests ran 442 passed, 1 failed: source_checkout::tests::exact_fixture_checkout_is_returned_and_cleanup_is_explicit returned Unavailable at source_checkout.rs:913. Diagnose/repair the fixture/environment failure before accepting AR-1825; coverage gate was green on exact head.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
   "observed_dirty": 0,
   "observed_head": "9884e34acd91d6ff36724b5f3b33a107a048aa94",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 184,
+  "task_revision": 185,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T20:24:11+00:00",
+  "updated_at": "2026-10-12T20:24:40+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -557,3 +557,7 @@ AR-1825's acceptance evidence is independently reviewed and durable.
 
 - 2026-10-12T20:24:11+00:00: Recorded command exit 101; command argv SHA-256
   3ccf4956d0c2e1bae7cc08bb681c20f4a235efb736166ca8514a65edbeb56dcc.
+
+- 2026-10-12T20:24:40+00:00: Protected local merge succeeded with exact base ab0a791b, head
+  630d3808, tree 7a0281b9 and publication accepted. Post-merge cargo test --locked --workspace
+  failed only source checkout fixture Unavailable; no AR acceptance yet.
