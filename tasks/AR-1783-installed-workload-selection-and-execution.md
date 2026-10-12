@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Await exact-head CI, then obtain independent review of 4b72fafb against main 356a669; merge only after green review and CI.",
+  "next_action": "CI is running for signed head f52131bc; if policy coverage remains below 90, coordinate baseline coverage repair before review. Do not merge until exact-head CI and independent review are green.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "f52131bc971fefa25eb08eec087cad6bcb3b88e6",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 133,
+  "task_revision": 134,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:02:02+00:00",
+  "updated_at": "2026-10-12T22:02:09+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -384,3 +384,10 @@ the suite from this end-to-end path.
   b3d00ffc79d5956edc9fb3b323c005128b35a9d78b32003296a54525894e5df6.
 
 - 2026-10-12T22:02:02+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T22:02:09+00:00: Coverage repair checkpoint: added positive/negative installed-workload
+  boundary tests for unsafe roots, tampered ownership, missing owner, file/object bounds, and
+  PreparedWorkloadChoice dispatch. Focused package tests and fmt passed. Local workspace llvm-cov
+  improved from 88.82% to 88.85% lines but remains below the unchanged 90% floor, so this is not yet
+  a passing coverage gate. Signed DCO commit f52131bc971fefa25eb08eec087cad6bcb3b88e6 pushed to PR
+  #624; generated profraw removed through handoffctl.

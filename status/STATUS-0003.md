@@ -1260,7 +1260,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Installed workload execution |
-| Next action | Await exact-head CI, then obtain independent review of 4b72fafb against main 356a669; merge only after green review and CI. |
+| Next action | CI is running for signed head f52131bc; if policy coverage remains below 90, coordinate baseline coverage repair before review. Do not merge until exact-head CI and independent review are green. |
 
 ### AR-1784 — Command dependency registry and preflight
 
