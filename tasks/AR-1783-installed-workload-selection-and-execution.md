@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 control state/endpoint behavior tests and diagnostic catalog repair are green; serialized full coverage remains 89.11% lines.",
-  "task_revision": 319,
+  "task_revision": 320,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:01:44+00:00",
+  "updated_at": "2026-10-12T23:02:19+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -836,3 +836,6 @@ the suite from this end-to-end path.
   913192cfa7ce9d37612f68d8a89f5cc71682e1a6e3f77ebb736f0a51a283e7cf.
 
 - 2026-10-12T23:01:44+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T23:02:19+00:00: Recorded command exit 0; command argv SHA-256
+  f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
