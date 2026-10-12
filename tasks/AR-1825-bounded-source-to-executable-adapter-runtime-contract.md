@@ -11,7 +11,7 @@
   "next_action": "Post-merge exact-main workspace rerun completed with all tests passing, including source_checkout::tests::exact_fixture_checkout_is_returned_and_cleanup_is_explicit (443 asb-cli unit tests passed; workspace integration/doc tests passed). Initial 442/1 Unavailable was not reproducible and appears a one-time environmental/concurrency failure. Before acceptance, reconcile exact-main evidence and confirm required AArch64/Rust/repository-quality workflows terminal green; preserve AR-1779 expiry warning.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
   "observed_dirty": 0,
-  "observed_head": "9884e34acd91d6ff36724b5f3b33a107a048aa94",
+  "observed_head": "630d380866e463e5a6120a54411e4ba3b7524bed",
   "owner": "",
   "plan": "../plans/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md",
   "priority": "P0",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "done",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 191,
+  "task_revision": 192,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T20:35:44+00:00",
+  "updated_at": "2026-10-12T20:36:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
