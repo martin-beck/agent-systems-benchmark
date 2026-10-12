@@ -1,0 +1,26 @@
+{
+  "ar": "AR-1782",
+  "candidate_head": "3be3029d7a1d927b86b4ae938abfc939d8339009",
+  "checks": {
+    "post_merge_main": {
+      "aarch64_emulated": 38278037055,
+      "broker": 38278036945,
+      "credential_free": 38278037246,
+      "fault": 38278037009,
+      "formal": 38278037114,
+      "hosted_portability": 38278036850,
+      "huawei_headers": 38278037026,
+      "provenance": 38278037239,
+      "repository_quality": 38278037190,
+      "rust": 38278036951
+    },
+    "pr_584": "all required checks success"
+  },
+  "post_merge_result": "all ten exact e058ea2 checks completed success",
+  "pr": 584,
+  "pr_merge_commit": "7ce484612db043831e4acb995839455f512197c0",
+  "protected_main": "e058ea2b5881e047c2a02a5bc5bd4f23103c28c0",
+  "reviewed_product_diff": "PR #584 merged as reviewed protected-main change; exact candidate and merge trees inspected",
+  "scope": "development workload lifecycle; no production authorization or TLC dependency asserted",
+  "verified_at": "2026-10-12T17:12:00Z"
+}\n
