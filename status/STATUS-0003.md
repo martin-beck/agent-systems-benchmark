@@ -1595,8 +1595,8 @@
 | Owner | ar1825-implementation-luna |
 | Parent | None |
 | Children | None |
-| Summary | Define and implement a bounded source-to-executable adapter and runtime contract for supported ASB tools. |
-| Next action | Implement the bounded source-to-executable adapter/runtime contract, its per-tool support matrix, offline fixtures, receipts, rollback/retention behavior, and hostile negative gates; keep AR-1779 pending until this AR is accepted. |
+| Summary | Implement bounded source adapter contract |
+| Next action | Independent review PR #622 at exact head 19ce8875; wait for required CI, then merge through protected integration and verify post-merge. |
 
 
 ## Dependency graph

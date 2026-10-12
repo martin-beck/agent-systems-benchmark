@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1825",
-  "next_action": "Implement the bounded source-to-executable adapter/runtime contract, its per-tool support matrix, offline fixtures, receipts, rollback/retention behavior, and hostile negative gates; keep AR-1779 pending until this AR is accepted.",
+  "next_action": "Independent review PR #622 at exact head 19ce8875; wait for required CI, then merge through protected integration and verify post-merge.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
   "observed_dirty": 0,
   "observed_head": "19ce887552b0c2921c437df420bf7a8f0563f60a",
@@ -27,10 +27,10 @@
   "spec_ref": "specs/AR-1825.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "Define and implement a bounded source-to-executable adapter and runtime contract for supported ASB tools.",
-  "task_revision": 75,
+  "summary": "Implement bounded source adapter contract",
+  "task_revision": 76,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T18:56:05+00:00",
+  "updated_at": "2026-10-12T18:57:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -241,3 +241,9 @@ AR-1825's acceptance evidence is independently reviewed and durable.
 
 - 2026-10-12T18:55:21+00:00: Recorded command exit 8; command argv SHA-256
   7db1d034ff356e5d652eb0517359ac6a7bdf36e5eb39faad512d73620f2fad76.
+
+- 2026-10-12T18:57:16+00:00: AR-1825 implementation is ready for independent review: immutable
+  matrix, closed package/runtime strategies, launcher and symlink checks, offline receipts,
+  rollback/retention, hostile negatives, and source output race validation. Product gates passed:
+  fmt, clippy, full workspace tests, docs, release build; all four commits SSH-signed with DCO.
+  Runtime gpt-5.6-luna medium.
