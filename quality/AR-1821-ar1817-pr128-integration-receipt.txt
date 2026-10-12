@@ -1,0 +1,9 @@
+AR-1821 AR-1817 PR #128 integration receipt
+base=1c0cea4e8acf321c71b4141d820cfb04b6fae6a3
+reviewed_head=a6b6253c27bb0ab9c75504ad964fee5f3d83685b
+merge=e76b54a02e846a14762773e30a1de82e4957a90a
+tree=4a2e5383ca5df2ea396c7dbcddf1af9501aa0b2a
+parents=1c0cea4e8acf321c71b4141d820cfb04b6fae6a3,a6b6253c27bb0ab9c75504ad964fee5f3d83685b
+checks=Coordination verification 38261642258 SUCCESS; Huawei MIT source headers 38261641340 SUCCESS
+postmerge=focused schema/validation/ruff/mypy/vendor/generated-view gates PASS; doctor --live PASS
+historical=PR #122/#123/#125 preserved; no force-push or gate weakening
