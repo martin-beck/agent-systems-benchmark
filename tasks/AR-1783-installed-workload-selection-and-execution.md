@@ -11,7 +11,7 @@
   "id": "AR-1783",
   "next_action": "Run full workspace llvm-cov on signed head d46a9dee and require >=90% lines with headroom; then push any repair and restart exact-head CI.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 54,
+  "observed_dirty": 55,
   "observed_head": "d46a9deeffefc627d69fb3cec124b92b295ae335",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 155,
+  "task_revision": 156,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:08:33+00:00",
+  "updated_at": "2026-10-12T22:08:38+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
