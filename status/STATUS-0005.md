@@ -279,11 +279,12 @@
 | P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | AR-1825 is accepted on merged PR #622 / main b8fc46907afd281781a49dbd04ccb0aa6337a850: all 10 exact-main post-merge workflows are terminal success and source-executable matrix plus bounded adapter/rollback/smoke negative gates are present. AR-1779 release is blocked until current origin/main 356a669e0c6ebbb6cd3675a119cba16fea486283 is green; current unrelated AR-1775 follow-on has Portable protected-main provenance, Repository quality, and Rust verification failures. Do not touch AR-1826–1832. |
 | P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | ar1783-workload-selection-luna | AR-1783 delegated runtime fixture is covered; serialized full coverage remains below the 90&#37; line floor (89.28&#37; lines, 85.11&#37; functions, 90.66&#37; regions). | Keep AR-1783 in progress and add narrowly scoped coverage for remaining live_service/control bootstrap branches; do not weaken the floor or fabricate authority. |
 
-### Open (1)
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Unclaimed | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. |
+| P0 | [AR-1835](../tasks/AR-1835-authenticated-control-live-isolation-repair.md): Authenticated control and live-isolation coverage repair | Unclaimed | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. | Promote and claim after dependency and ownership review; implement the bounded authenticated control/live-isolation coverage repair. |
 
 ### Blocked (84)
 
@@ -374,7 +375,7 @@
 | P2 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md): Provide native openEuler capacity | Unclaimed | Qualify booted openEuler on native x86_64 and applicable QEMU AArch64; keep native ARM64 optional. | Qualify native x86_64 openEuler and required applicable pinned QEMU AArch64 behavior; document genuine native ARM64 as optional future evidence. |
 | P2 | [AR-1444](../tasks/AR-1444-first-class-journey-qualification.md): First-class journey qualification | Unclaimed | Optional cross-repository journey evidence; never an ASB release blocker. | Optional cross-repository qualification only: wait for external asb-tui AR-1327 to provide an exact pinned acceptance revision and credential-free journey transcript; this AR is not an ASB release or first-customer blocker. Do not modify asb-tui from this repository. |
 
-### Planned (92)
+### Planned (91)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -428,7 +429,6 @@
 | P0 | [AR-1829](../tasks/AR-1829-config-bound-plan-create.md): Compile config-bound benchmark plans with explicit output | Unclaimed | Make asb plan create compile a complete setup file into an explicit-output immutable benchmark plan with no provider-selection inputs. | Implement config-only benchmark plan compilation with mandatory --config and --output arguments. |
 | P0 | [AR-1830](../tasks/AR-1830-config-bound-plan-run-sweep.md): Execute config-bound live runs and sweeps | Unclaimed | Make plan validation, run, and sweep require the setup config and safely execute complete live benchmark selections from config-bound plans. | Require explicit config validation for plan validation, live run, and live sweep, then wire bounded multi-agent execution. |
 | P0 | [AR-1832](../tasks/AR-1832-explicit-config-e2e-qualification.md): Qualify explicit setup-config benchmark workflow end-to-end | Unclaimed | Qualify fresh-user setup-output through explicit config-bound plan creation, validation, live run, sweep, reporting, and legacy-surface absence. | Qualify the full fresh-user explicit-config route across supported selection matrices and live development execution. |
-| P0 | [AR-1835](../tasks/AR-1835-authenticated-control-live-isolation-repair.md): Authenticated control and live-isolation coverage repair | Unclaimed | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. | Promote and claim after dependency and ownership review; implement the bounded authenticated control/live-isolation coverage repair. |
 | P1 | [AR-0808](../tasks/AR-0808-core-workflow-guides.md): Publish core program workflow guides | Unclaimed | Document tested workflows for installing, configuring, running, replaying, comparing, and operating ASB. | Document and execute the qualified CLI setup, reconfiguration, recording, strict-offline and analysis workflows. |
 | P1 | [AR-0809](../tasks/AR-0809-frontend-workflow-guides.md): Publish terminal frontend workflow guides | Unclaimed | Document guided configuration, launch, monitoring, history, repeat, and analysis in the TUI. | Document the exact standalone first-run, provider/auth/model, defaults, recording, offline run and analysis journeys after cross-repository parity passes. |
 | P1 | [AR-0810](../tasks/AR-0810-github-pages-documentation.md): Publish workflow documentation to GitHub Pages | Unclaimed | Publish core and frontend workflows as a searchable, accessible, versioned GitHub Pages site. | Build and publish the versioned workflow documentation on the project&#x27;s GitHub Pages site. |
