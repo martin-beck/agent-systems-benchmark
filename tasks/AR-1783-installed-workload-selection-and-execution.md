@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 latest serialized report is 89.28% lines, 85.11% functions, 90.66% regions; all tests pass but fixed 90% line floor remains unmet.",
-  "task_revision": 433,
+  "task_revision": 434,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:40:19+00:00",
+  "updated_at": "2026-10-12T23:41:06+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1098,3 +1098,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T23:40:19+00:00: Recorded command exit 101; command argv SHA-256
   23bfe013b1134f1849c245cd4c9fca19f9b321c8994c0a1cdf995caf36cdd44a.
+
+- 2026-10-12T23:41:06+00:00: Recorded command exit 101; command argv SHA-256
+  760958eaafc6a50b2e4366ec95d254d4d33c1b9811e12427939e2ac4c7c1fdc0.
