@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1825",
-  "next_action": "Run exact-head full gates on PR #622 at 4e37d542; obtain independent re-review and green CI before protected merge.",
+  "next_action": "Await independent re-review of exact head 4e37d542 and remaining PR #622 CI (emulated-aarch64, Rust checks, policy/coverage/supply-chain); merge only after all required checks green.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
   "observed_dirty": 0,
   "observed_head": "19ce887552b0c2921c437df420bf7a8f0563f60a",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 118,
+  "task_revision": 119,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T19:24:51+00:00",
+  "updated_at": "2026-10-12T19:25:23+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -375,3 +375,10 @@ AR-1825's acceptance evidence is independently reviewed and durable.
 
 - 2026-10-12T19:24:51+00:00: Recorded command exit 8; command argv SHA-256
   7db1d034ff356e5d652eb0517359ac6a7bdf36e5eb39faad512d73620f2fad76.
+
+- 2026-10-12T19:25:23+00:00: Review repair complete and published: process groups are terminated on
+  every terminal smoke path before joining bounded pipe drainers; private staged bytes are smoked
+  before activation; rollback/fsync and source-build cleanup are fail-closed. Focused adapter 8,
+  diagnostics 9, workflow 3; full workspace 451 passed; clippy, docs, release build passed. Prior
+  full workspace one-time discovery test failure passed on isolated rerun. Runtime gpt-5.6-luna
+  medium.

@@ -1596,7 +1596,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement bounded source adapter contract |
-| Next action | Run exact-head full gates on PR #622 at 4e37d542; obtain independent re-review and green CI before protected merge. |
+| Next action | Await independent re-review of exact head 4e37d542 and remaining PR #622 CI (emulated-aarch64, Rust checks, policy/coverage/supply-chain); merge only after all required checks green. |
 
 
 ## Dependency graph
