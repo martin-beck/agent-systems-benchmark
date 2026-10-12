@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T01:27:39+00:00",
   "depends_on": [],
   "id": "AR-1834",
-  "next_action": "Run the focused policy check with full 40-character recovery topic SHA 4107fcd177efa675f74e1ae08d0ee0bfa15c5216, then independently review and publish only through merge_pr.py",
+  "next_action": "Monitor PR #626 exact-head checks for 4107fcd177efa675f74e1ae08d0ee0bfa15c5216 to terminal success; obtain independent review, then publish only through merge_pr.py",
   "observed_dirty": 0,
   "observed_head": "",
   "owner": "ar1805_postmerge_repair",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e",
-  "task_revision": 16,
+  "task_revision": 17,
   "title": "AR-1775 protected-main local identity recovery",
-  "updated_at": "2026-10-12T22:32:42+00:00",
+  "updated_at": "2026-10-12T22:32:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1834-ar1775-protected-main-identity"
 }
 ---
@@ -83,3 +83,9 @@ This successor is metadata-only and forward-only. It must not alter `LOCAL_COMMI
 - 2026-10-12T22:32:42+00:00: Recorded command timeout; classification=SUBPROCESS_TIMEOUT;
   deadline=60.0s; command argv SHA-256
   096b0655dbac80be4b47a92ee0808f45b7af4e16a148353b99139ee4b23b36dd.
+
+- 2026-10-12T22:32:51+00:00: Recovery branch repair/ar-1834-ar1775-protected-main-identity is pushed
+  at exact head 4107fcd177efa675f74e1ae08d0ee0bfa15c5216; PR #626 is open. The gh checks --watch
+  command exited 8 because the bounded 60-second monitoring window elapsed while required checks
+  remained pending; this is a monitoring timeout, not a check failure. Current observed checks:
+  Portable provenance, headers, and AWQ shadow pass; remaining required checks pending.

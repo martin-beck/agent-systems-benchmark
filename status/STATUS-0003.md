@@ -1722,7 +1722,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e |
-| Next action | Run the focused policy check with full 40-character recovery topic SHA 4107fcd177efa675f74e1ae08d0ee0bfa15c5216, then independently review and publish only through merge_pr.py |
+| Next action | Monitor PR #626 exact-head checks for 4107fcd177efa675f74e1ae08d0ee0bfa15c5216 to terminal success; obtain independent review, then publish only through merge_pr.py |
 
 
 ## Dependency graph
