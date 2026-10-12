@@ -1204,7 +1204,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. |
-| Next action | PR #618 now points to repaired signed head db08ffb3; request fresh independent review of all three findings and await exact-head hosted CI. Full locked workspace tests, diagnostic contract, catalog reuse tests, clippy, and fmt are green. Merge only after independent approval and all required checks, then post-merge requalify source/prebuilt install paths. |
+| Next action | Repair source fallback by failing closed on non-executable source/archive catalog entries; focused tests and full workspace gates next, then push a signed exact-head PR and request fresh independent review. |
 
 ### AR-1780 — Installed tool and workload execution qualification
 

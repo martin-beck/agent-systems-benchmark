@@ -9,7 +9,7 @@
     "AR-1784"
   ],
   "id": "AR-1779",
-  "next_action": "PR #618 now points to repaired signed head db08ffb3; request fresh independent review of all three findings and await exact-head hosted CI. Full locked workspace tests, diagnostic contract, catalog reuse tests, clippy, and fmt are green. Merge only after independent approval and all required checks, then post-merge requalify source/prebuilt install paths.",
+  "next_action": "Repair source fallback by failing closed on non-executable source/archive catalog entries; focused tests and full workspace gates next, then push a signed exact-head PR and request fresh independent review.",
   "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
   "observed_dirty": 0,
   "observed_head": "db08ffb341d5bb8666c8aa9119d01503bc458b26",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 113,
+  "task_revision": 114,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:42:41+00:00",
+  "updated_at": "2026-10-12T17:43:41+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -337,3 +337,10 @@ the adapter smoke check failed.
   fb59ad09e0c5642e05f534aac856e041a170286383d3fcbb33e0807ec786c3cf.
 
 - 2026-10-12T17:42:41+00:00: Heartbeat by ar1779-default-install-luna.
+
+- 2026-10-12T17:43:41+00:00: Second independent review approved diagnostic and receipt repairs but
+  rejected source fallback because package archives were treated as entrypoints and
+  openjiuwen/perf/bpftool lacked build recipes. Repair design: retain pinned identities as metadata,
+  remove all source fallback from default install until a verified native/launcher adapter exists,
+  add a specific actionable diagnostic, and enforce executable headers in source_builder with
+  positive/negative tests.
