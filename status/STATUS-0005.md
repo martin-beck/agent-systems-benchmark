@@ -209,19 +209,19 @@
 
 ## Complete AR inventory
 
-### In progress (1)
+### In progress (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Safety PR #620 is open at exact signed head 80060a79 lineage plus matching DCO repair; obtain independent review and exact-head CI, then protected merge. Keep AR-1779 pending until successor AR-1825 (Bounded source-to-executable adapter/runtime contract) is accepted; do not claim source fallback without its adapter/runtime, support-matrix, offline-fixture, receipt, rollback, and negative-gate evidence. |
+| P0 | [AR-1825](../tasks/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md): Bounded source-to-executable adapter/runtime contract | ar1825-implementation-luna | Define and implement a bounded source-to-executable adapter and runtime contract for supported ASB tools. | Implement the bounded source-to-executable adapter/runtime contract, its per-tool support matrix, offline fixtures, receipts, rollback/retention behavior, and hostile negative gates; keep AR-1779 pending until this AR is accepted. |
 
-### Open (3)
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
 | P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Unclaimed | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. |
-| P0 | [AR-1825](../tasks/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md): Bounded source-to-executable adapter/runtime contract | Unclaimed | Define and implement a bounded source-to-executable adapter and runtime contract for supported ASB tools. | Implement the bounded source-to-executable adapter/runtime contract, its per-tool support matrix, offline fixtures, receipts, rollback/retention behavior, and hostile negative gates; keep AR-1779 pending until this AR is accepted. |
 
 ### Blocked (85)
 
