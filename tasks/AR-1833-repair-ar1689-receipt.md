@@ -26,9 +26,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair malformed AR-1689 paired qualification evidence before relying on its done state.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Repair AR-1689 receipt bytes",
-  "updated_at": "2026-10-12T21:54:29+00:00",
+  "updated_at": "2026-10-12T21:54:36+00:00",
   "worktree_key": ""
 }
 ---
@@ -39,3 +39,6 @@ Repair AR-1689’s malformed receipt bytes without changing the reviewed paired 
   after release.
 
 - 2026-10-12T21:54:29+00:00: Claimed by ar1689-tui-qualification-luna.
+
+- 2026-10-12T21:54:36+00:00: Recorded command exit 0; command argv SHA-256
+  9410754323bf30b1f3133ec96282c7505ead686f1672ce12b5976ba115f8eb51.
