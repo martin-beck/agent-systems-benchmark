@@ -11,7 +11,7 @@
   },
   "depends_on": [],
   "id": "AR-1822",
-  "next_action": "Reconcile current state, promote and claim this repair, then implement and test targeted expired-assignment cleanup without weakening read or admission validation.",
+  "next_action": "Publish v7 from exact base 06d3a008b624; wait for fresh exact-head review and CI before merge.",
   "owner": "ar1817_schema_contract",
   "plan": "../plans/AR-1822-role-removal-expiry.md",
   "priority": "P0",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Allow exact-revision roles.remove cleanup of explicitly named expired assignments while preserving fail-closed reads and admission.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Expired role assignment cleanup semantics",
-  "updated_at": "2026-10-12T15:14:30+00:00",
+  "updated_at": "2026-10-12T15:14:39+00:00",
   "worktree_key": "agent-systems-benchmark-state-ar-1822-role-removal-expiry"
 }
 ---
@@ -47,3 +47,6 @@ transactional command.
   06d3a008b624.
 
 - 2026-10-12T15:14:30+00:00: Claimed by ar1817_schema_contract.
+
+- 2026-10-12T15:14:39+00:00: Focused role, schema, vendor, Ruff and mypy gates pass; full bounded
+  suite produced no terminal result in the worker session, so CI remains required.

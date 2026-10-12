@@ -1554,7 +1554,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Allow exact-revision roles.remove cleanup of explicitly named expired assignments while preserving fail-closed reads and admission. |
-| Next action | Reconcile current state, promote and claim this repair, then implement and test targeted expired-assignment cleanup without weakening read or admission validation. |
+| Next action | Publish v7 from exact base 06d3a008b624; wait for fresh exact-head review and CI before merge. |
 
 ### AR-1823 — AR-1820 receipt publication cleanup
 
