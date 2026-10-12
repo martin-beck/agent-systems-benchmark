@@ -15,7 +15,7 @@
     "AR-1784"
   ],
   "id": "AR-1779",
-  "next_action": "Safety PR #620 is open at exact signed head 80060a79 lineage plus matching DCO repair; obtain independent review and exact-head CI, then protected merge. AR-1779 stays pending until successor source-adapter/runtime contract AR is created and accepted.",
+  "next_action": "Safety PR #620 is open at exact signed head 80060a79 lineage plus matching DCO repair; obtain independent review and exact-head CI, then protected merge. Keep AR-1779 pending until successor AR-1825 (Bounded source-to-executable adapter/runtime contract) is accepted; do not claim source fallback without its adapter/runtime, support-matrix, offline-fixture, receipt, rollback, and negative-gate evidence.",
   "observed_branch": "repair/ar-1779-source-fallback-linear4",
   "observed_dirty": 0,
   "observed_head": "80060a79e716b42e021ddd9b116afdc560bc6cc1",
@@ -35,9 +35,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 205,
+  "task_revision": 206,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T18:11:23+00:00",
+  "updated_at": "2026-10-12T18:13:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -561,3 +561,6 @@ the adapter smoke check failed.
 
 - 2026-10-12T18:11:23+00:00: Recorded command exit 1; command argv SHA-256
   062287a4a156bf57e73c2cd1616d9bc0178aab578677372a61c4b078735d3532.
+
+- 2026-10-12T18:13:55+00:00: Linked successor AR-1825 for the unresolved source-to-executable
+  adapter/runtime gap; AR-1779 remains pending until AR-1825 is accepted.

@@ -213,7 +213,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Safety PR #620 is open at exact signed head 80060a79 lineage plus matching DCO repair; obtain independent review and exact-head CI, then protected merge. AR-1779 stays pending until successor source-adapter/runtime contract AR is created and accepted. |
+| P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Safety PR #620 is open at exact signed head 80060a79 lineage plus matching DCO repair; obtain independent review and exact-head CI, then protected merge. Keep AR-1779 pending until successor AR-1825 (Bounded source-to-executable adapter/runtime contract) is accepted; do not claim source fallback without its adapter/runtime, support-matrix, offline-fixture, receipt, rollback, and negative-gate evidence. |
 
 ### Open (3)
 
