@@ -17,20 +17,20 @@
   "priority": "P0",
   "schema_version": 1,
   "spec_acceptance": {
-    "evidence_class": "contract-test",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_class": "mechanical",
+    "evidence_digest": "sha256:00a3aa982989ac4d8face264857686f1cff9729e8707138b56b51d158e18e5ef",
+    "evidence_ref": "sessions/AR-1825.jsonl",
     "spec_ref": "specs/AR-1825.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1825.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 189,
+  "task_revision": 190,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T20:27:35+00:00",
+  "updated_at": "2026-10-12T20:35:38+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -575,3 +575,8 @@ AR-1825's acceptance evidence is independently reviewed and durable.
   full-workspace run; focused source checkout passed and subsequent full asb-cli (443/443) plus full
   workspace rerun passed. No product repair is justified yet; avoid masking a non-reproducible
   fixture failure. Merge remains b8fc4690 / remote main 99f8c531.
+
+- 2026-10-12T20:35:38+00:00: Accepted after protected merge b8fc4690, remote main 99f8c531,
+  exact-head CI green, repository-quality workflow 38303791801 terminal success, focused 13/13
+  adapter tests, full asb-cli 443/443, and full workspace rerun passing after one non-reproducible
+  fixture failure.
