@@ -27,8 +27,8 @@
 | Owner | ar1689-tui-qualification-luna |
 | Parent | None |
 | Children | None |
-| Summary | Qualify the complete current-main TUI journey from wizard setup through valid plan, benchmark, recording, offline replay, comparison, and analysis. |
-| Next action | Request independent review of receipt commit 9f2238727d, reconcile generated projections, then release AR-1689 done only after review and exact-head verification. |
+| Summary | Independent review passed; exact paired receipt verified, pending final reconciliation/release |
+| Next action | Reconcile generated projections and perform final exact-head/post-merge verification; then release AR-1689 done |
 
 ### AR-1690 — ASB development-channel current-main materializer
 
