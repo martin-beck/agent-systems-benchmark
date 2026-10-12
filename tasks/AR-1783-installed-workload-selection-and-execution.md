@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
-  "status": "blocked",
+  "status": "open",
   "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 76,
+  "task_revision": 77,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T21:29:24+00:00",
+  "updated_at": "2026-10-12T21:29:46+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -236,3 +236,6 @@ the suite from this end-to-end path.
   is not consumed end-to-end and prepared content is not integrity-bound; acceptance exact
   project-local execution/substitution rejection is unmet. Required exact-head CI not independently
   green/merge-ready.
+
+- 2026-10-12T21:29:46+00:00: Review repair is dependency-safe: implementation branch contains
+  fail-closed validation; resume to add diagnostic identity mappings and rerun gates.
