@@ -17,19 +17,19 @@
   "schema_version": 1,
   "spec_acceptance": {
     "evidence_class": "contract-test",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_digest": "sha256:edd2c248679ef58c1bc6a1010bb60357300637f58385d6770d74f7f40363d129",
+    "evidence_ref": "github:martin-beck/agent-systems-benchmark/commit/74b391348fc5c1361034a14742f6afef747d72db/exact-main-workflows",
     "spec_ref": "specs/AR-1800.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1800.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make development-channel trust, digest, and exact-version mismatches warning-only without weakening stable/production policy.",
-  "task_revision": 12,
+  "task_revision": 13,
   "title": "Development channel warning-only trust contracts",
-  "updated_at": "2026-10-12T21:24:22+00:00",
+  "updated_at": "2026-10-12T21:25:21+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1800-development-warning-only-trust-contract"
 }
 ---
@@ -81,3 +81,8 @@ in warnings, JSON, logs, or evidence.
 - 2026-10-12T21:24:22+00:00: Focused trust tests passed 3/3. Full cargo test --locked --workspace
   passed all executed tests and doc tests; wrapper post-reconcile bookkeeping initially failed only
   on generated handoffctl bytecode size guard, with no product failure.
+
+- 2026-10-12T21:25:21+00:00: Acceptance evidence: PR #615 merged reviewed head
+  961243b302dcb803f426eac507d0f0ce01e2fba0; protected main 74b391348fc5c1361034a14742f6afef747d72db
+  exact-main checks 13/13 green; focused trust tests 3/3 and full locked workspace tests/doc-tests
+  passed; dev-only warning scope and fail-closed stable/production/structural boundaries verified.
