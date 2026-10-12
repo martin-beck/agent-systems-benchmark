@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "checkpoint_commit": "e0474221c5a95e7e091265738b4ba05938767a47",
-  "claim_expires": "2026-10-12T23:15:30+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1763",
     "AR-1764",
@@ -13,7 +13,7 @@
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 1,
   "observed_head": "dad6dd8c06a3d126db62abbc73585ae389aec56d",
-  "owner": "ar1783-workload-selection-luna",
+  "owner": "",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
-  "status": "in_progress",
+  "status": "blocked",
   "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 74,
+  "task_revision": 75,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T21:28:21+00:00",
+  "updated_at": "2026-10-12T21:29:15+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -226,3 +226,13 @@ the suite from this end-to-end path.
 
 - 2026-10-12T21:28:21+00:00: Recorded command exit 101; command argv SHA-256
   534f8613e1c316db8f0f46dd989e44e14a8ca74304a94791b4e4a1c59b2fbb1d.
+
+- 2026-10-12T21:29:15+00:00: Independent read-only review of PR #624 head
+  dad6dd8c06a3d126db62abbc73585ae389aec56d against base 74b391348fc5c1361034a14742f6afef747d72db:
+  SSH signature and DCO pass; project_run tests 4/4 pass; diff-check clean. BLOCKER: validation only
+  checks installed receipt/prepared directory (project_run.rs:171-270), while run_attempt still
+  calls built-in prepare_workload(&plan.workload, ...) (lib.rs:10297-10300), and load_and_validate
+  still calls describe_workload(&plan.workload) (lib.rs:8404-8413). Thus external installed workload
+  is not consumed end-to-end and prepared content is not integrity-bound; acceptance exact
+  project-local execution/substitution rejection is unmet. Required exact-head CI not independently
+  green/merge-ready.
