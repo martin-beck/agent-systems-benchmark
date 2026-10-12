@@ -4680,7 +4680,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. |
-| Next action | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
+| Next action | PR #623 at signed head 93d75e28; obtain independent review and wait for exact-head CI, then perform protected merge and post-merge verification. |
 
 ### AR-1687 — Development/mock provider-bound comparison qualification
 
