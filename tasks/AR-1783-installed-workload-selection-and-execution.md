@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 TUI boundary coverage tests pass; latest full workspace llvm-cov is 89.08% lines, still below the fixed 90% floor.",
-  "task_revision": 246,
+  "task_revision": 247,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:32:45+00:00",
+  "updated_at": "2026-10-12T22:33:49+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -668,3 +668,6 @@ the suite from this end-to-end path.
   c082b27b00848ec679355b840bac1b8cb883010f8feb36a4f4f52ecfe1e7f01c.
 
 - 2026-10-12T22:32:45+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T22:33:49+00:00: Recorded command exit 0; command argv SHA-256
+  e61f9d3beb1ca5641341fcbf3eb64bbd6f2035831028208eafe31c5cd951748e.
