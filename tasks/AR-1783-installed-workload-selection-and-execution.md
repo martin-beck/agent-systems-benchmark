@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 control state/endpoint behavior tests and diagnostic catalog repair are green; serialized full coverage remains 89.11% lines.",
-  "task_revision": 323,
+  "task_revision": 324,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:02:38+00:00",
+  "updated_at": "2026-10-12T23:02:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -845,3 +845,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T23:02:38+00:00: Recorded command exit 0; command argv SHA-256
   d44b98afbbd64e32da19b691aa894d9a8bf4653cf63adbe66cf8bd1d024d8f90.
+
+- 2026-10-12T23:02:47+00:00: Recorded command exit 0; command argv SHA-256
+  839fb353c063a6c03cb5458f3c4cdde4d148454faf7fe2d1b233aa425a413494.
