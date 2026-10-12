@@ -11,7 +11,7 @@
   "id": "AR-1783",
   "next_action": "Coverage did not materially move; inspect largest uncovered production cluster from the latest report and add a substantive behavior-driven test batch, then rerun focused and serialized coverage toward >=90%.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 54,
+  "observed_dirty": 1,
   "observed_head": "5910b65c6855e9b8a7c3c817a9a81699fdb91254",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 sandbox resource-boundary tests are green; signed 5910b65, serialized workspace coverage remains 89.21% lines, 85.03% functions, 90.61% regions.",
-  "task_revision": 356,
+  "task_revision": 357,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:16:02+00:00",
+  "updated_at": "2026-10-12T23:16:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
