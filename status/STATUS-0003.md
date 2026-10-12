@@ -1722,7 +1722,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e |
-| Next action | Claim a clean product worktree, create a signed-DCO metadata-only recovery topic from immutable main 356a669e, and publish only through merge_pr.py after independent review and green exact-head checks |
+| Next action | Run the focused policy check with full 40-character recovery topic SHA 4107fcd177efa675f74e1ae08d0ee0bfa15c5216, then independently review and publish only through merge_pr.py |
 
 
 ## Dependency graph

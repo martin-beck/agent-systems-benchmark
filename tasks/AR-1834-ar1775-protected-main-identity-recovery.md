@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T01:27:39+00:00",
   "depends_on": [],
   "id": "AR-1834",
-  "next_action": "Claim a clean product worktree, create a signed-DCO metadata-only recovery topic from immutable main 356a669e, and publish only through merge_pr.py after independent review and green exact-head checks",
+  "next_action": "Run the focused policy check with full 40-character recovery topic SHA 4107fcd177efa675f74e1ae08d0ee0bfa15c5216, then independently review and publish only through merge_pr.py",
   "observed_dirty": 0,
   "observed_head": "",
   "owner": "ar1805_postmerge_repair",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e",
-  "task_revision": 8,
+  "task_revision": 9,
   "title": "AR-1775 protected-main local identity recovery",
-  "updated_at": "2026-10-12T22:28:28+00:00",
+  "updated_at": "2026-10-12T22:28:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1834-ar1775-protected-main-identity"
 }
 ---
@@ -56,3 +56,8 @@ This successor is metadata-only and forward-only. It must not alter `LOCAL_COMMI
 
 - 2026-10-12T22:28:28+00:00: Recorded command exit 1; command argv SHA-256
   259bda4af8fb24e0ae4d4e6e32a44b723d2512ddb56ab47abd0dee304ab40b36.
+
+- 2026-10-12T22:28:43+00:00: The initial focused repository-policy invocation failed closed because
+  the recovery topic was supplied as abbreviated SHA 4107fcd1; repository_policy requires full
+  lowercase 40-character commit identities. No product or state contract changed; retry with the
+  exact full SHA.
