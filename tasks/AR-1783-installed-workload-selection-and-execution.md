@@ -11,8 +11,8 @@
   "id": "AR-1783",
   "next_action": "Coverage remains below floor: full llvm-cov on latest local test batch is 89.05% lines. Continue meaningful coverage for installed workload sweep/report/compare and touched paths; no push/review/merge until >=90% with headroom.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 1,
-  "observed_head": "c2f3759f9962e8aac874479843789f313e97be86",
+  "observed_dirty": 0,
+  "observed_head": "9315abddd4d93db2e255ee046e479020e12ee7e5",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 211,
+  "task_revision": 212,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:22:04+00:00",
+  "updated_at": "2026-10-12T22:22:09+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
