@@ -1,5 +1,9 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1601](../tasks/AR-1601.md) | [AR-1599](../tasks/AR-1599.md), [AR-1600](../tasks/AR-1600.md) | [AR-1603](../tasks/AR-1603.md), [AR-1607](../tasks/AR-1607.md), [AR-1611](../tasks/AR-1611.md) |
+| [AR-1602](../tasks/AR-1602.md) | [AR-1595](../tasks/AR-1595.md), [AR-1596](../tasks/AR-1596.md) | [AR-1605](../tasks/AR-1605.md) |
+| [AR-1603](../tasks/AR-1603.md) | [AR-1598](../tasks/AR-1598.md), [AR-1601](../tasks/AR-1601.md), [AR-1605](../tasks/AR-1605.md), [AR-1606](../tasks/AR-1606.md), [AR-1607](../tasks/AR-1607.md), [AR-1608](../tasks/AR-1608.md) | [AR-1604](../tasks/AR-1604.md), [AR-1613](../tasks/AR-1613.md) |
+| [AR-1604](../tasks/AR-1604.md) | [AR-1603](../tasks/AR-1603.md) | [AR-1613](../tasks/AR-1613.md), [AR-1614](../tasks/AR-1614.md), [AR-1631](../tasks/AR-1631.md), [AR-1633](../tasks/AR-1633.md) |
 | [AR-1605](../tasks/AR-1605.md) | [AR-1602](../tasks/AR-1602.md) | [AR-1603](../tasks/AR-1603.md), [AR-1606](../tasks/AR-1606.md), [AR-1611](../tasks/AR-1611.md), [AR-1612](../tasks/AR-1612.md) |
 | [AR-1606](../tasks/AR-1606.md) | [AR-1591](../tasks/AR-1591.md), [AR-1605](../tasks/AR-1605.md) | [AR-1603](../tasks/AR-1603.md), [AR-1612](../tasks/AR-1612.md) |
 | [AR-1607](../tasks/AR-1607.md) | [AR-1595](../tasks/AR-1595.md), [AR-1601](../tasks/AR-1601.md) | [AR-1603](../tasks/AR-1603.md), [AR-1608](../tasks/AR-1608.md), [AR-1609](../tasks/AR-1609.md), [AR-1642](../tasks/AR-1642.md), [AR-1656](../tasks/AR-1656.md) |
@@ -184,15 +188,18 @@
 | [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md) | [AR-1636](../tasks/AR-1636.md), [AR-1738](../tasks/AR-1738-development-rustup-permission-compatibility.md) | [AR-1800](../tasks/AR-1800-development-warning-only-trust-contract.md) |
 | [AR-1800](../tasks/AR-1800-development-warning-only-trust-contract.md) | [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md) | None |
 | [AR-1819](../tasks/AR-1819-expired-claim-recovery-safety.md) | None | None |
+| [AR-1820](../tasks/AR-1820-ar1772-provenance.md) | None | None |
 | [AR-1821](../tasks/AR-1821-ar1817-pr128-integration-recovery.md) | None | None |
+| [AR-1823](../tasks/AR-1823-ar1820-receipt-publication.md) | None | None |
 
 ## Complete AR inventory
 
-### In progress (1)
+### In progress (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md): Repair asb tui install rustup/rustc trusted-tool rejection | codex-ar1799-tui-install-rustup-invalid-20261012 | Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint. | PR #613 (63ba8e7973545f65bd8dda56f3aa24d9d339bb16) is open; focused rustup tests, fmt, clippy, and independent review pass. Await remaining exact-head hosted checks, then merge and run post-merge installed-entrypoint qualification. |
+| P0 | [AR-1823](../tasks/AR-1823-ar1820-receipt-publication.md): AR-1820 receipt publication cleanup | ar1823_receipt_cleanup | Publish the already-verified AR-1820 provenance receipt and durable done state. | Publish the already-verified AR-1820 receipt and done transition from the durable current-main state; do not change product or historical PR evidence. |
 
 ### Open (4)
 
@@ -392,7 +399,7 @@
 | --- | --- | --- | --- | --- |
 | P4 | [AR-0703](../tasks/AR-0703-native-platform-lab.md): Provision native platform qualification capacity | Unclaimed | Optionally provide native ARM64 Debian/openEuler capacity for future claim-scoped evidence. | When separately authorized, provision genuine ARM64 Debian/openEuler capacity for optional future native evidence; absence must not block any AR. |
 
-### Done (586)
+### Done (587)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -582,6 +589,3 @@
 | P0 | [AR-1487](../tasks/AR-1487-owner-backed-first-customer-qualification.md): Owner-backed first-customer qualification | Unclaimed | Qualify the owner-backed credential-free local/mock/replay first-customer journey. | Reconcile and doctor state projection; retain known generated WORKTREES/PROJECT_STATE caveat if reported. |
 | P0 | [AR-1488](../tasks/AR-1488-owner-backed-user-journey.md): Owner-backed first-customer user journey | Unclaimed | Qualify the owner-backed first-customer install, operation, replay, evidence, and cleanup journey. | Reconcile and doctor state projection; retain known generated WORKTREES/PROJECT_STATE caveat if reported. |
 | P0 | [AR-1489](../tasks/AR-1489-first-customer-package-consumption.md): First-customer package consumption | Unclaimed | Verify first-customer release package installation and owner-backed local/mock/replay consumption. | Reconcile and doctor state projection; retain known generated WORKTREES/PROJECT_STATE caveat if reported. |
-| P0 | [AR-1490](../tasks/AR-1490-fresh-package-runtime-acceptance.md): Fresh package runtime acceptance | Unclaimed | Run fresh package first-customer runtime acceptance and produce an explicit readiness report. | No further AR-1490 action. Development unsigned qualification is complete; any customer/release publication remains separately gated by a genuinely signed production bundle. |
-| P0 | [AR-1491](../tasks/AR-1491-self-contained-package-qualification-fixture.md): Self-contained package qualification fixture | Unclaimed | Add a self-contained non-production package qualification fixture using the offline verifier test-key pattern. | Reconcile and doctor state projection; retain generated WORKTREES/PROJECT_STATE caveat if reported. |
-| P0 | [AR-1492](../tasks/AR-1492-customer-bundle-signing-handoff.md): Customer bundle signing handoff | Unclaimed | Stage a deterministic customer bundle and provide an explicit external signing handoff and verifier. | Run state reconcile and doctor, then release AR-1492 done ownerless with merge and eight-workflow evidence. |
