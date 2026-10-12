@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 125,
+  "task_revision": 126,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:00:59+00:00",
+  "updated_at": "2026-10-12T22:01:04+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -364,3 +364,6 @@ the suite from this end-to-end path.
   tests, still below 90% floor; generated profraw will be cleaned and repair continues.
 
 - 2026-10-12T22:00:59+00:00: Claimed by ar1783-workload-selection-luna.
+
+- 2026-10-12T22:01:04+00:00: Recorded command exit 0; command argv SHA-256
+  0bd9bff7dffe484fe4b8432c4f1544b887400c963364a952b9000a38291cf28b.
