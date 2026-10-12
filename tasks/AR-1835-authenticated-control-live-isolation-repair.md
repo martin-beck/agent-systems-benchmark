@@ -11,7 +11,7 @@
   "id": "AR-1835",
   "next_action": "Implement the test-only authenticated backend seeding seam first; then add real Unix-socket runtime bootstrap/cancel positive and stale/replay tests and rerun focused/full gates.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
-  "observed_dirty": 0,
+  "observed_dirty": 1,
   "observed_head": "da0cbe0848a10e61a2cd0b9a3144217842a3369b",
   "owner": "ar1835-control-isolation-luna",
   "plan": "../plans/AR-1835-authenticated-control-live-isolation-repair.md",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 18,
+  "task_revision": 19,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-12T23:57:17+00:00",
+  "updated_at": "2026-10-12T23:57:22+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
