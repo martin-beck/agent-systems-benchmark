@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1782-verified-asb-workload-installation",
   "checkpoint_commit": "c5154b12fc85bf356ce61d746c56b83d856ff502",
-  "claim_expires": "2026-10-12T19:11:12+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1781"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
   "observed_head": "3be3029d7a1d927b86b4ae938abfc939d8339009",
-  "owner": "ar1782_luna_requal_20261012",
+  "owner": "",
   "plan": "../plans/AR-1782-verified-asb-workload-installation.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1782.json",
   "spec_revision": 2,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 140,
+  "task_revision": 141,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-12T17:11:57+00:00",
+  "updated_at": "2026-10-12T17:12:05+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -420,3 +420,7 @@ remain mandatory.
 - 2026-10-12T17:11:57+00:00: PR #584 candidate 3be3029d and merge 7ce48461 are included in protected
   main e058ea2; all ten exact-main post-merge assurance workflows succeeded; receipt records CI run
   IDs and lifecycle scope.
+
+- 2026-10-12T17:12:05+00:00: Released done: PR #584 merged as
+  7ce484612db043831e4acb995839455f512197c0; protected main e058ea2b includes it; all ten exact-main
+  post-merge checks succeeded; acceptance receipt quality/AR-1782-postmerge-receipt.json.
