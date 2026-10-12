@@ -55,8 +55,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-all-agents-provider` | `feature/all-agents-provider` | `03962f28571e` | 0 | behind 804, ahead 136 |
 | `agent-systems-benchmark-ar-1652-record-replay` | `repair/ar-1652-record-replay` | `ab0a791b05d6` | 0 | behind 12, ahead 0 |
 | `agent-systems-benchmark-ar-1686` | `qualification/ar-1686` | `93d75e28a758` | 0 | behind 1, ahead 0 |
-| `agent-systems-benchmark-ar-1775-configurable-output-router-and-levels` | `feature/ar-1775-configurable-output-router-and-levels` | `8b8882db69b1` | 1 | behind 0, ahead 6 |
-| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog_compact.rs` |
+| `agent-systems-benchmark-ar-1775-configurable-output-router-and-levels` | `feature/ar-1775-configurable-output-router-and-levels` | `8b8882db69b1` | 2 | behind 0, ahead 6 |
+| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog_compact.rs`, `crates/asb-cli/src/human.rs` |
 | `agent-systems-benchmark-ar-1779-default-usable-tool-install-command` | `repair/ar-1779-source-fallback-linear4` | `80060a79e716` | 0 | behind 15, ahead 0 |
 | `agent-systems-benchmark-ar-1799-tui-install-rustup-invalid` | `repair/ar-1799-tui-install-rustup-invalid` | `e058ea2b5881` | 0 | behind 21, ahead 0 |
 | `agent-systems-benchmark-ar-1800-development-warning-only-trust-contract` | `feature/ar-1800-development-warning-only-trust-contract` | `961243b302dc` | 0 | behind 29, ahead 0 |
