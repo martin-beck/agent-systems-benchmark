@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Define and implement a bounded source-to-executable adapter and runtime contract for supported ASB tools.",
-  "task_revision": 70,
+  "task_revision": 71,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T18:52:41+00:00",
+  "updated_at": "2026-10-12T18:53:58+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -229,3 +229,6 @@ AR-1825's acceptance evidence is independently reviewed and durable.
 
 - 2026-10-12T18:52:41+00:00: Recorded command exit 0; command argv SHA-256
   560d920083f813f28bcb66d2c40257f9c447fd8e17f1b9941c46f4f65a79d5d2.
+
+- 2026-10-12T18:53:58+00:00: Recorded command exit 0; command argv SHA-256
+  534f8613e1c316db8f0f46dd989e44e14a8ca74304a94791b4e4a1c59b2fbb1d.
