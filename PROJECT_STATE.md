@@ -31,22 +31,22 @@ Generated from local Git and GitHub. Do not edit.
 | #612 | `feature/ar-1774-status-progress-completeness-ci@ad7f1166afc5` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | ci: enforce status and progress completeness |
 | #618 | `repair/ar-1779-current-main-smoke@f1dbe055aaeb` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): verify supported tool reuse and entrypoints |
 | #619 | `repair/ar-1779-source-fallback-linear3@21372a22aba3` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
-| #624 | `feature/ar-1783-installed-workload-selection-and-execution@dad6dd8c06a3` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | feat(cli): bind installed workloads before execution |
-| #625 | `feature/ar-1775-configurable-output-router-and-levels@67ddb5221114` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, IN_PROGRESS:, QUEUED:, QUEUED:, QUEUED: | feat(cli): configurable output router and levels |
+| #624 | `feature/ar-1783-installed-workload-selection-and-execution@dad6dd8c06a3` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | feat(cli): bind installed workloads before execution |
+| #625 | `feature/ar-1775-configurable-output-router-and-levels@67ddb5221114` | `main` | BLOCKED | QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | feat(cli): configurable output router and levels |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38310630872 | `67ddb5221114` | pull_request | Cross-repository development broker qualification | queued:- |
-| 38310630682 | `67ddb5221114` | pull_request | Portable protected-main provenance | queued:- |
-| 38310630676 | `67ddb5221114` | pull_request | Hosted portability and native qualification | queued:- |
-| 38310630674 | `67ddb5221114` | pull_request | Repository quality | pending:- |
-| 38310630661 | `67ddb5221114` | pull_request | Huawei MIT source headers | queued:- |
-| 38310630660 | `67ddb5221114` | pull_request | Development formal assurance | queued:- |
-| 38310630649 | `67ddb5221114` | pull_request | Credential-free benchmark path | queued:- |
-| 38310630648 | `67ddb5221114` | pull_request | Fault assurance | queued:- |
-| 38310630637 | `67ddb5221114` | pull_request | Agent Workflow Quality shadow | queued:- |
-| 38310630635 | `67ddb5221114` | pull_request | Rust verification | queued:- |
-| 38310630629 | `67ddb5221114` | pull_request | Emulated aarch64 portability | queued:- |
-| 38309998235 | `8b8882db69b1` | pull_request | Development formal assurance | completed:success |
+| 38310632714 | `dad6dd8c06a3` | pull_request | Cross-repository development broker qualification | queued:- |
+| 38310632696 | `dad6dd8c06a3` | pull_request | Hosted portability and native qualification | queued:- |
+| 38310632683 | `dad6dd8c06a3` | pull_request | Rust verification | in_progress:- |
+| 38310632655 | `dad6dd8c06a3` | pull_request | Agent Workflow Quality shadow | in_progress:- |
+| 38310632634 | `dad6dd8c06a3` | pull_request | Huawei MIT source headers | queued:- |
+| 38310632626 | `dad6dd8c06a3` | pull_request | Portable protected-main provenance | queued:- |
+| 38310632620 | `dad6dd8c06a3` | pull_request | Repository quality | queued:- |
+| 38310632580 | `dad6dd8c06a3` | pull_request | Emulated aarch64 portability | queued:- |
+| 38310632550 | `dad6dd8c06a3` | pull_request | Fault assurance | queued:- |
+| 38310632544 | `dad6dd8c06a3` | pull_request | Development formal assurance | queued:- |
+| 38310632541 | `dad6dd8c06a3` | pull_request | Credential-free benchmark path | queued:- |
+| 38310630872 | `67ddb5221114` | pull_request | Cross-repository development broker qualification | in_progress:- |
