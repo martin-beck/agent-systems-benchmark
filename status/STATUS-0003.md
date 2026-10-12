@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | Select every development external workload and prove ASB uses its exact project-local identity end to end. |
-| Next action | Repair plan workload binding so a project plan cannot substitute an unregistered/built-in workload when an external installed workload is selected; rerun independent exact-head review. |
+| Summary | Installed workload execution |
+| Next action | Await exact-head CI, then obtain independent review of 4b72fafb against main 356a669; merge only after green review and CI. |
 
 ### AR-1784 — Command dependency registry and preflight
 

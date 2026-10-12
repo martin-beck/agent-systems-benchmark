@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Repair plan workload binding so a project plan cannot substitute an unregistered/built-in workload when an external installed workload is selected; rerun independent exact-head review.",
+  "next_action": "Await exact-head CI, then obtain independent review of 4b72fafb against main 356a669; merge only after green review and CI.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "4b72fafb37a0eaff47dfda757ee6a9114b75ffb8",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 111,
+  "summary": "Installed workload execution",
+  "task_revision": 112,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T21:49:54+00:00",
+  "updated_at": "2026-10-12T21:50:32+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -325,3 +325,11 @@ the suite from this end-to-end path.
 
 - 2026-10-12T21:49:18+00:00: Recorded command exit 0; command argv SHA-256
   f92bf6471a6d7c67009de95a487a784d5d4c4adb75b1b06fe24b42ee5cd4f306.
+
+- 2026-10-12T21:50:32+00:00: Checkpoint: repaired fail-closed project workload binding and
+  end-to-end installed workload execution, including record/schema/adapter checks and archive digest
+  recomputation. Branch is clean at signed DCO head 4b72fafb37a0eaff47dfda757ee6a9114b75ffb8,
+  rebased onto main 356a669e0c6ebbb6cd3675a119cba16fea486283 and pushed to PR #624. Focused tests,
+  full workspace cargo test (458 CLI tests plus workspace), fmt, and clippy passed. Coverage rerun
+  remains required for final qualification; do not merge until exact-head CI and independent review
+  are green.
