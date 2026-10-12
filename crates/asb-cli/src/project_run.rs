@@ -186,7 +186,9 @@ impl ProjectExecution {
             // record and retain the pre-existing project execution path only
             // when this project has no selected workload. Once a project
             // workload is selected, an unknown plan identity must fail closed.
-            if config.selections.workload.is_some() {
+            if config.selections.workload.is_some()
+                && OriginalWorkloads::describe(workload_id).is_err()
+            {
                 return Err(CliError::legacy_validation(
                     "plan workload is not registered in the selected project inventory",
                 ));
@@ -206,6 +208,16 @@ impl ProjectExecution {
         if config.selections.workload.as_deref() != Some(workload_id) {
             return Err(CliError::legacy_validation(
                 "plan workload is not the selected installed project workload",
+            ));
+        }
+        if record.version != workload_revision
+            || !record
+                .capabilities
+                .iter()
+                .any(|capability| capability == "adapter-ready")
+        {
+            return Err(CliError::legacy_validation(
+                "selected installed workload adapter metadata is stale or incomplete",
             ));
         }
         if record.status != ProjectToolStatus::Available
@@ -242,6 +254,21 @@ impl ProjectExecution {
                 "selected workload preparation is not usable",
             ));
         }
+        let bundle_path = root.join("bundle.archive");
+        let bundle_meta = fs::symlink_metadata(&bundle_path)
+            .map_err(|_| CliError::legacy_validation("selected workload archive is missing"))?;
+        if bundle_meta.file_type().is_symlink() || !bundle_meta.is_file() {
+            return Err(CliError::legacy_validation(
+                "selected workload archive is not a regular file",
+            ));
+        }
+        let bundle = fs::read(&bundle_path)
+            .map_err(|_| CliError::legacy_validation("selected workload archive is unreadable"))?;
+        if format!("{:x}", Sha256::digest(&bundle)) != workload_digest {
+            return Err(CliError::legacy_validation(
+                "selected workload archive digest does not match the selected identity",
+            ));
+        }
         let receipt_path = root.join("receipt.json");
         let receipt = fs::read(&receipt_path)
             .map_err(|_| CliError::legacy_validation("selected workload receipt is missing"))?;
@@ -253,14 +280,19 @@ impl ProjectExecution {
         let receipt: serde_json::Value = serde_json::from_slice(&receipt)
             .map_err(|_| CliError::legacy_validation("selected workload receipt is invalid"))?;
         let text = |key: &str| receipt.get(key).and_then(serde_json::Value::as_str);
-        if text("workload_id") != Some(workload_id)
+        if receipt
+            .get("schema_version")
+            .and_then(serde_json::Value::as_u64)
+            != Some(1)
+            || text("workload_id") != Some(workload_id)
             || text("catalog_revision") != Some(workload_revision)
             || text("archive_digest_sha256") != Some(workload_digest)
             || text("status") != Some("verified")
+            || text("adapter_version") != Some("asb-workload-adapter-v1")
             || text("license").is_none_or(|license| {
                 license.is_empty() || license.eq_ignore_ascii_case("NOASSERTION")
             })
-            || text("preparation").is_none()
+            || text("preparation") != Some("bounded-extracted; no installer executed")
             || text("evaluator_entrypoint").is_none()
         {
             return Err(CliError::legacy_validation(
@@ -311,16 +343,19 @@ mod tests {
     #[test]
     fn installed_workload_identity_requires_verified_prepared_receipt() {
         let directory = project();
-        let digest = "a".repeat(64);
+        let digest = format!("{:x}", Sha256::digest(b"fixture archive"));
         let root = directory.path().join(".asb/workloads/fixture");
         fs::create_dir_all(root.join("prepared")).unwrap();
+        fs::write(root.join("bundle.archive"), b"fixture archive").unwrap();
         fs::write(
             root.join("receipt.json"),
             serde_json::to_vec(&serde_json::json!({
+                "schema_version": 1,
                 "workload_id": "fixture",
                 "catalog_revision": "fixture-v1",
                 "archive_digest_sha256": digest,
                 "status": "verified",
+                "adapter_version": "asb-workload-adapter-v1",
                 "license": "MIT",
                 "preparation": "bounded-extracted; no installer executed",
                 "evaluator_entrypoint": "fixture/manifest.json"
@@ -339,7 +374,7 @@ mod tests {
                 platform: "linux-x86_64".into(),
                 path: Some(".asb/workloads/fixture".into()),
                 digest_sha256: Some(digest.clone()),
-                capabilities: vec!["external-workload".into()],
+                capabilities: vec!["external-workload".into(), "adapter-ready".into()],
                 status: ProjectToolStatus::Available,
             },
         );
@@ -369,18 +404,21 @@ mod tests {
     fn installed_workload_identity_rejects_unsafe_or_stale_installations() {
         fn fixture() -> (tempfile::TempDir, ProjectExecution, String, PathBuf) {
             let directory = project();
-            let digest = "b".repeat(64);
+            let digest = format!("{:x}", Sha256::digest(b"fixture archive"));
             let root = directory.path().join(".asb/workloads/fixture");
             fs::create_dir_all(root.join("prepared")).unwrap();
+            fs::write(root.join("bundle.archive"), b"fixture archive").unwrap();
             fs::write(
                 root.join("receipt.json"),
                 serde_json::to_vec(&serde_json::json!({
+                    "schema_version": 1,
                     "workload_id": "fixture",
                     "catalog_revision": "fixture-v1",
                     "archive_digest_sha256": digest,
                     "status": "verified",
+                    "adapter_version": "asb-workload-adapter-v1",
                     "license": "Apache-2.0",
-                    "preparation": "bounded",
+                    "preparation": "bounded-extracted; no installer executed",
                     "evaluator_entrypoint": "fixture/run"
                 }))
                 .unwrap(),
@@ -397,7 +435,7 @@ mod tests {
                     platform: super::platform_label(),
                     path: Some(".asb/workloads/fixture".into()),
                     digest_sha256: Some(digest.clone()),
-                    capabilities: vec!["external-workload".into()],
+                    capabilities: vec!["external-workload".into(), "adapter-ready".into()],
                     status: ProjectToolStatus::Available,
                 },
             );
