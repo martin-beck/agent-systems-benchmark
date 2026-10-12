@@ -26,9 +26,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair malformed AR-1689 paired qualification evidence before relying on its done state.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "Repair AR-1689 receipt bytes",
-  "updated_at": "2026-10-12T21:55:01+00:00",
+  "updated_at": "2026-10-12T21:55:25+00:00",
   "worktree_key": ""
 }
 ---
@@ -45,3 +45,6 @@ Repair AR-1689’s malformed receipt bytes without changing the reviewed paired 
 
 - 2026-10-12T21:55:01+00:00: Recorded command exit 0; command argv SHA-256
   5f9a636064860b1d2ac68df15f22c2b99cb69058207b1b1832e9d33110a484f1.
+
+- 2026-10-12T21:55:25+00:00: Recorded command exit 0; command argv SHA-256
+  5d35708dfd2d74ec27c9267eea0a99c0cb6e17bc6a84f84e59196622809b5251.
