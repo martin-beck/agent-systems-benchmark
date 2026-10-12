@@ -17,19 +17,19 @@
   "schema_version": 1,
   "spec_acceptance": {
     "evidence_class": "contract-test",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_digest": "sha256:599b7aba34e354a2b56fc1eaf8c3b2b792b62a3eab0cb208893242e65288dc25",
+    "evidence_ref": "quality/AR-1782-postmerge-receipt.json",
     "spec_ref": "specs/AR-1782.json",
     "spec_revision": 2,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1782.json",
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 139,
+  "task_revision": 140,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-12T17:11:39+00:00",
+  "updated_at": "2026-10-12T17:11:57+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -416,3 +416,7 @@ remain mandatory.
 
 - 2026-10-12T17:11:39+00:00: Recorded command exit 0; command argv SHA-256
   571dff0497b1637ff377b1790e920d23fc52639f416423f73de28e24ab4f7f54.
+
+- 2026-10-12T17:11:57+00:00: PR #584 candidate 3be3029d and merge 7ce48461 are included in protected
+  main e058ea2; all ten exact-main post-merge assurance workflows succeeded; receipt records CI run
+  IDs and lifecycle scope.
