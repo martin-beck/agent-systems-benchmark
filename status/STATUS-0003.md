@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | AR-1783 — project layout validation coverage batch is signed and green; latest full workspace coverage is 89.10&#37; lines, below the 90&#37; floor. |
-| Next action | Continue behavior-driven tests in the largest uncovered control/TUI/runtime seams; run full llvm-cov after each bounded batch and reach at least 90&#37; lines with headroom before push/review. |
+| Summary | AR-1783 — safe filesystem and project-layout coverage batches are green; full workspace coverage remains 89.10&#37; lines. |
+| Next action | Continue behavior-driven coverage in largest uncovered control/TUI/runtime seams; reach &gt;=90&#37; lines with headroom before pushing the signed branch. |
 
 ### AR-1784 — Command dependency registry and preflight
 

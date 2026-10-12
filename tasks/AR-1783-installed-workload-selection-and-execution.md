@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Continue behavior-driven tests in the largest uncovered control/TUI/runtime seams; run full llvm-cov after each bounded batch and reach at least 90% lines with headroom before push/review.",
+  "next_action": "Continue behavior-driven coverage in largest uncovered control/TUI/runtime seams; reach >=90% lines with headroom before pushing the signed branch.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 108,
   "observed_head": "6dbe406641649cdcef271d6fbc4757fb15ec67c3",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 project layout validation coverage batch is signed and green; latest full workspace coverage is 89.10% lines, below the 90% floor.",
-  "task_revision": 263,
+  "summary": "AR-1783 \u2014 safe filesystem and project-layout coverage batches are green; full workspace coverage remains 89.10% lines.",
+  "task_revision": 264,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:41:17+00:00",
+  "updated_at": "2026-10-12T22:41:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -707,3 +707,10 @@ the suite from this end-to-end path.
   b48802db5d60864fea266a175aab6561f162cad0de4217481cf349d287ea912d.
 
 - 2026-10-12T22:41:17+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T22:41:25+00:00: Latest signed/DCO local commit 6dbe4066 adds safe_fs invalid-name,
+  existing-entry, write-new collision, and absolute-path boundary tests; focused test passes. Full
+  workspace llvm-cov with RUST_TEST_THREADS=1 completed all suites and reports 89.10% lines (104386
+  covered, 9936 missed of 157712), 84.78% functions, 90.48% regions. An earlier parallel run exited
+  101 without a durable failure diagnostic; deterministic single-thread rerun completed with
+  coverage result. Profraw removed and worktree clean. No push/review/merge.
