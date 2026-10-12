@@ -21,7 +21,7 @@
   "task_revision": 1,
   "title": "Define explicit setup configuration and plan-binding contract",
   "updated_at": "2026-10-12T00:00:00Z",
-  "worktree_key": "agent-systems-benchmark-ar-1822-explicit-setup-config-contract"
+  "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
 

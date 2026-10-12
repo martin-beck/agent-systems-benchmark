@@ -21,7 +21,7 @@
   "task_revision": 1,
   "title": "Author complete explicit benchmark configuration with asb setup",
   "updated_at": "2026-10-12T00:00:00Z",
-  "worktree_key": "agent-systems-benchmark-ar-1823-complete-setup-authoring"
+  "worktree_key": "agent-systems-benchmark-ar-1827-complete-setup-authoring"
 }
 ---
 

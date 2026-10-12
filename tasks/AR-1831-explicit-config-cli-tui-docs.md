@@ -21,7 +21,7 @@
   "task_revision": 1,
   "title": "Align CLI, TUI handoff, and documentation to explicit config workflow",
   "updated_at": "2026-10-12T00:00:00Z",
-  "worktree_key": "agent-systems-benchmark-ar-1827-explicit-config-cli-tui-docs"
+  "worktree_key": "agent-systems-benchmark-ar-1831-explicit-config-cli-tui-docs"
 }
 ---
 

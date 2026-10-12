@@ -21,7 +21,7 @@
   "task_revision": 1,
   "title": "Retire legacy provider selection and implicit configuration surfaces",
   "updated_at": "2026-10-12T00:00:00Z",
-  "worktree_key": "agent-systems-benchmark-ar-1824-retire-provider-selection-surfaces"
+  "worktree_key": "agent-systems-benchmark-ar-1828-retire-provider-selection-surfaces"
 }
 ---
 

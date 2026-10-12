@@ -21,7 +21,7 @@
   "task_revision": 1,
   "title": "Compile config-bound benchmark plans with explicit output",
   "updated_at": "2026-10-12T00:00:00Z",
-  "worktree_key": "agent-systems-benchmark-ar-1825-config-bound-plan-create"
+  "worktree_key": "agent-systems-benchmark-ar-1829-config-bound-plan-create"
 }
 ---
 

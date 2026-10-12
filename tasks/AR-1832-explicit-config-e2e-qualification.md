@@ -21,7 +21,7 @@
   "task_revision": 1,
   "title": "Qualify explicit setup-config benchmark workflow end-to-end",
   "updated_at": "2026-10-12T00:00:00Z",
-  "worktree_key": "agent-systems-benchmark-ar-1828-explicit-config-e2e-qualification"
+  "worktree_key": "agent-systems-benchmark-ar-1832-explicit-config-e2e-qualification"
 }
 ---
 

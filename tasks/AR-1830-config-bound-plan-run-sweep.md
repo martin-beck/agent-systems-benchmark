@@ -21,7 +21,7 @@
   "task_revision": 1,
   "title": "Execute config-bound live runs and sweeps",
   "updated_at": "2026-10-12T00:00:00Z",
-  "worktree_key": "agent-systems-benchmark-ar-1826-config-bound-plan-run-sweep"
+  "worktree_key": "agent-systems-benchmark-ar-1830-config-bound-plan-run-sweep"
 }
 ---
 
