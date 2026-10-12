@@ -1722,7 +1722,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e |
-| Next action | Independent exact-head review approved 4107fcd177efa675f74e1ae08d0ee0bfa15c5216; all 14 PR checks are terminal-success. Merge only through tools/integration/merge_pr.py; do not web-merge. |
+| Next action | Monitor exact-main workflows for repaired merge da0cbe0848a10e61a2cd0b9a3144217842a3369b to terminal success; record post-merge receipt and release AR-1834 without touching unrelated ARs |
 
 
 ## Dependency graph

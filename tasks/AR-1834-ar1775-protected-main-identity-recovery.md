@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T01:42:49+00:00",
   "depends_on": [],
   "id": "AR-1834",
-  "next_action": "Independent exact-head review approved 4107fcd177efa675f74e1ae08d0ee0bfa15c5216; all 14 PR checks are terminal-success. Merge only through tools/integration/merge_pr.py; do not web-merge.",
+  "next_action": "Monitor exact-main workflows for repaired merge da0cbe0848a10e61a2cd0b9a3144217842a3369b to terminal success; record post-merge receipt and release AR-1834 without touching unrelated ARs",
   "observed_dirty": 0,
   "observed_head": "",
   "owner": "ar1805_postmerge_repair",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e",
-  "task_revision": 41,
+  "task_revision": 42,
   "title": "AR-1775 protected-main local identity recovery",
-  "updated_at": "2026-10-12T22:46:33+00:00",
+  "updated_at": "2026-10-12T22:46:49+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1834-ar1775-protected-main-identity"
 }
 ---
@@ -171,3 +171,9 @@ This successor is metadata-only and forward-only. It must not alter `LOCAL_COMMI
 
 - 2026-10-12T22:46:33+00:00: Recorded command exit 0; command argv SHA-256
   6c21977c0b5f93f1452ff83b8d21bc657e614fa9639133ac4f327d9cd34817e6.
+
+- 2026-10-12T22:46:49+00:00: PR #626 merged through tools/integration/merge_pr.py as
+  da0cbe0848a10e61a2cd0b9a3144217842a3369b. Exact parents are
+  356a669e0c6ebbb6cd3675a119cba16fea486283 and 4107fcd177efa675f74e1ae08d0ee0bfa15c5216; tree
+  10a14f91c60aed4e98b9f3f62fc342fdfd9db930; committer Martin Beck <martin.beck2@gmx.de>, SSH
+  signature and matching DCO verified. Local protected-main repository policy passes.
