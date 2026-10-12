@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | AR-1783 — control state/endpoint behavior tests and diagnostic catalog repair are green; serialized full coverage remains 89.11&#37; lines. |
-| Next action | Continue broad behavior-driven tests in uncovered control/TUI/runtime seams; rerun deterministic serialized llvm-cov and reach &gt;=90&#37; lines with headroom before pushing. |
+| Summary | AR-1783 — loopback supervisor boundary tests are green; serialized workspace coverage improved to 89.19&#37; lines, still below 90&#37;. |
+| Next action | Target next largest uncovered control/TUI/runtime behavior cluster from llvm-cov (not another unchanged rerun), add positive/negative tests, then rerun serialized coverage to &gt;=90&#37; with headroom. |
 
 ### AR-1784 — Command dependency registry and preflight
 

@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Continue broad behavior-driven tests in uncovered control/TUI/runtime seams; rerun deterministic serialized llvm-cov and reach >=90% lines with headroom before pushing.",
+  "next_action": "Target next largest uncovered control/TUI/runtime behavior cluster from llvm-cov (not another unchanged rerun), add positive/negative tests, then rerun serialized coverage to >=90% with headroom.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 54,
   "observed_head": "e272b7445a913ab436ae9e19475146ecd5088734",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 control state/endpoint behavior tests and diagnostic catalog repair are green; serialized full coverage remains 89.11% lines.",
-  "task_revision": 328,
+  "summary": "AR-1783 \u2014 loopback supervisor boundary tests are green; serialized workspace coverage improved to 89.19% lines, still below 90%.",
+  "task_revision": 329,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:05:57+00:00",
+  "updated_at": "2026-10-12T23:06:04+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -853,3 +853,9 @@ the suite from this end-to-end path.
   b48802db5d60864fea266a175aab6561f162cad0de4217481cf349d287ea912d.
 
 - 2026-10-12T23:05:57+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T23:06:04+00:00: Latest signed/DCO product commit e272b744 adds actual
+  asb_loopback_supervisor argument, spawn, and supervise success/failure/deadline tests (no
+  duplicated production parser). Focused binary tests pass. Serialized full workspace llvm-cov
+  completed all suites: 89.19% lines (104496 covered, 9855 missed of 157982), 84.97% functions,
+  90.57% regions. Profraw artifacts removed; worktree clean. No push/review/merge.
