@@ -817,13 +817,96 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
                 ),
             );
         }
-        "trusted_tool_invalid" => {
+        "trusted_tool_invalid" | "catalog_tool_entrypoint_not_executable" => {
             return (
                 Cause::IncompatibleInput,
                 Context::new(
                     Subject::Tool,
                     "validate_tool",
                     Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "catalog_tool_entrypoint_inspection_failed"
+        | "catalog_tool_entrypoint_start_failed"
+        | "catalog_tool_entrypoint_failed"
+        | "catalog_tool_entrypoint_observation_failed"
+        | "catalog_source_build_failed"
+        | "catalog_source_cleanup_failed" => {
+            return (
+                Cause::UnexpectedProductFailure,
+                Context::new(
+                    Subject::Tool,
+                    "execute_cli_operation",
+                    Phase::Execute,
+                    StateChange::Unchanged,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
+        "catalog_tool_entrypoint_timeout" => {
+            return (
+                Cause::Timeout,
+                Context::new(
+                    Subject::Tool,
+                    "execute_cli_operation",
+                    Phase::Execute,
+                    StateChange::Unchanged,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
+        "catalog_source_recipe_missing"
+        | "catalog_source_alternative_missing"
+        | "catalog_source_adapter_unavailable" => {
+            return (
+                if code == "catalog_source_adapter_unavailable" {
+                    Cause::UnavailableCapability
+                } else {
+                    Cause::MissingInput
+                },
+                Context::new(
+                    Subject::Catalog,
+                    "inspect_catalog",
+                    Phase::Inspect,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "catalog_source_checkout_invalid" => {
+            return (
+                Cause::IncompatibleInput,
+                Context::new(
+                    Subject::Catalog,
+                    "validate_catalog",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "catalog_source_checkout_failed" => {
+            return (
+                Cause::TransportFailure,
+                Context::new(
+                    Subject::Transport,
+                    "communicate",
+                    Phase::Transport,
+                    StateChange::Unchanged,
+                    Remediation::Retry,
+                ),
+            );
+        }
+        "catalog_source_output_unreadable" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Artifact,
+                    "inspect_artifact",
+                    Phase::Inspect,
                     StateChange::Unchanged,
                     Remediation::CorrectInput,
                 ),
@@ -2023,6 +2106,44 @@ pub const CATALOGUED_CODES: &[(&str, Cause)] = &[
         Cause::UnavailableCapability,
     ),
     ("trusted_tool_invalid", Cause::IncompatibleInput),
+    (
+        "catalog_tool_entrypoint_inspection_failed",
+        Cause::UnexpectedProductFailure,
+    ),
+    (
+        "catalog_tool_entrypoint_not_executable",
+        Cause::IncompatibleInput,
+    ),
+    (
+        "catalog_tool_entrypoint_start_failed",
+        Cause::UnexpectedProductFailure,
+    ),
+    (
+        "catalog_tool_entrypoint_failed",
+        Cause::UnexpectedProductFailure,
+    ),
+    ("catalog_tool_entrypoint_timeout", Cause::Timeout),
+    (
+        "catalog_tool_entrypoint_observation_failed",
+        Cause::UnexpectedProductFailure,
+    ),
+    ("catalog_source_recipe_missing", Cause::MissingInput),
+    ("catalog_source_checkout_invalid", Cause::IncompatibleInput),
+    ("catalog_source_checkout_failed", Cause::TransportFailure),
+    (
+        "catalog_source_build_failed",
+        Cause::UnexpectedProductFailure,
+    ),
+    ("catalog_source_output_unreadable", Cause::MalformedInput),
+    (
+        "catalog_source_cleanup_failed",
+        Cause::UnexpectedProductFailure,
+    ),
+    ("catalog_source_alternative_missing", Cause::MissingInput),
+    (
+        "catalog_source_adapter_unavailable",
+        Cause::UnavailableCapability,
+    ),
     ("transfer_too_large", Cause::MalformedInput),
     ("artifact_transfer_failed", Cause::TransportFailure),
     ("candidate_timeout", Cause::Timeout),
