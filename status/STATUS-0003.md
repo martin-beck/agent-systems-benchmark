@@ -1724,6 +1724,20 @@
 | Summary | Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e |
 | Next action | Monitor exact-main workflows for repaired merge da0cbe0848a10e61a2cd0b9a3144217842a3369b to terminal success; record post-merge receipt and release AR-1834 without touching unrelated ARs |
 
+### AR-1835 — Authenticated control and live-isolation coverage repair
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. |
+| Next action | Promote and claim after dependency and ownership review; implement the bounded authenticated control/live-isolation coverage repair. |
+
 
 ## Dependency graph
 
@@ -2602,6 +2616,7 @@ flowchart LR
         AR_1832["AR-1832 - Planned"]:::status_planned
         AR_1833["AR-1833 - Done"]:::status_done
         AR_1834["AR-1834 - Done"]:::status_done
+        AR_1835["AR-1835 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4519,9 +4534,11 @@ flowchart LR
     AR_1763 --> AR_1764
     AR_1763 --> AR_1765
     AR_1763 --> AR_1783
+    AR_1763 --> AR_1835
     AR_1764 --> AR_1765
     AR_1764 --> AR_1780
     AR_1764 --> AR_1783
+    AR_1764 --> AR_1835
     AR_1766 --> AR_1767
     AR_1766 --> AR_1768
     AR_1767 --> AR_1768
@@ -4552,6 +4569,7 @@ flowchart LR
     AR_1781 --> AR_1782
     AR_1781 --> AR_1794
     AR_1782 --> AR_1783
+    AR_1782 --> AR_1835
     AR_1783 --> AR_1780
     AR_1784 --> AR_1779
     AR_1784 --> AR_1793
@@ -4621,4 +4639,3 @@ flowchart LR
 | [AR-0310](../tasks/AR-0310-provider-profile-contract.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-1001](../tasks/AR-1001-experiment-comparability.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0314](../tasks/AR-0314-recording-source-choice.md), [AR-0318](../tasks/AR-0318-credential-reference-boundary.md), [AR-0857](../tasks/AR-0857-openjiuwen-provenance.md), [AR-0863](../tasks/AR-0863-workbuddy-provenance.md), [AR-1325](../tasks/AR-1325-provider-openrouter.md) |
 | [AR-0311](../tasks/AR-0311-provider-openai.md) | [AR-0301](../tasks/AR-0301-agent-opencode.md), [AR-0302](../tasks/AR-0302-agent-opendesk.md), [AR-0303](../tasks/AR-0303-agent-aider.md), [AR-0304](../tasks/AR-0304-agent-codex.md), [AR-0305](../tasks/AR-0305-agent-gemini.md), [AR-0306](../tasks/AR-0306-agent-qwen-code.md), [AR-0307](../tasks/AR-0307-agent-goose.md), [AR-0308](../tasks/AR-0308-agent-mini-swe.md), [AR-0309](../tasks/AR-0309-agent-openhands.md), [AR-0310](../tasks/AR-0310-provider-profile-contract.md) | [AR-0313](../tasks/AR-0313-all-agents-provider.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md) |
 | [AR-0312](../tasks/AR-0312-provider-ollama.md) | [AR-0301](../tasks/AR-0301-agent-opencode.md), [AR-0302](../tasks/AR-0302-agent-opendesk.md), [AR-0303](../tasks/AR-0303-agent-aider.md), [AR-0304](../tasks/AR-0304-agent-codex.md), [AR-0305](../tasks/AR-0305-agent-gemini.md), [AR-0306](../tasks/AR-0306-agent-qwen-code.md), [AR-0307](../tasks/AR-0307-agent-goose.md), [AR-0308](../tasks/AR-0308-agent-mini-swe.md), [AR-0309](../tasks/AR-0309-agent-openhands.md), [AR-0310](../tasks/AR-0310-provider-profile-contract.md) | [AR-0313](../tasks/AR-0313-all-agents-provider.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0879](../tasks/AR-0879-local-llm-testing-recommendations.md), [AR-0891](../tasks/AR-0891-local-inference-provider-profiles.md) |
-| [AR-0313](../tasks/AR-0313-all-agents-provider.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md) | [AR-0314](../tasks/AR-0314-recording-source-choice.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0804](../tasks/AR-0804-tui-settings-wizard.md), [AR-0869](../tasks/AR-0869-cli-multi-agent-provider-selection.md), [AR-0876](../tasks/AR-0876-provider-aware-agent-launch.md), [AR-0879](../tasks/AR-0879-local-llm-testing-recommendations.md), [AR-0891](../tasks/AR-0891-local-inference-provider-profiles.md), [AR-1100](../tasks/AR-1100.md), [AR-1326](../tasks/AR-1326-openrouter-catalog-selection.md) |
