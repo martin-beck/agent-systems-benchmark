@@ -9,7 +9,7 @@
     "AR-1784"
   ],
   "id": "AR-1779",
-  "next_action": "Independent review and exact-head CI for PR #583 at 7c08cfb0; source-only fallback remains to be resolved before merge.",
+  "next_action": "Independent review and exact-head CI for the current-main repair commit 0c5826a4; then publish a clean PR, merge via protected local integration, and requalify the installed tool path.",
   "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
   "observed_dirty": 0,
   "observed_head": "0c5826a43169deadd82cedd666d90aceb35bae2e",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 49,
+  "task_revision": 50,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:15:43+00:00",
+  "updated_at": "2026-10-12T17:15:56+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -172,3 +172,7 @@ the adapter smoke check failed.
 
 - 2026-10-12T17:15:43+00:00: Recorded command exit 0; command argv SHA-256
   bc768d469b09cb617aad74f023976a0a3a07690ea56cfce6dca19c48e2932243.
+
+- 2026-10-12T17:15:56+00:00: Replaced stale PR #583 next action: its implementation was superseded
+  by merged PR #585. Current-main repair adds receipt-validated catalog reuse and bounded
+  credential-free entrypoint smoke verification; focused tests pass.
