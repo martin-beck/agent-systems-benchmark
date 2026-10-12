@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Independent PR #625 review complete; awaiting hosted required CI",
-  "task_revision": 103,
+  "task_revision": 104,
   "title": "Configurable output router and levels",
-  "updated_at": "2026-10-12T21:41:45+00:00",
+  "updated_at": "2026-10-12T21:42:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1775-configurable-output-router-and-levels"
 }
 ---
@@ -292,3 +292,6 @@ stdout envelope and silences all human/operational output on both streams.
 
 - 2026-10-12T21:41:45+00:00: Recorded command exit 0; command argv SHA-256
   0d1bc3216c754dc49e64ae017b630d1af4145a97db9e2f1df6bd8b89db118f0f.
+
+- 2026-10-12T21:42:50+00:00: Recorded command exit 0; command argv SHA-256
+  7f3558330ef90d4a33f8fd7e8776ffaa4c8b10de661477f80e8bdf1fd5c57e5b.
