@@ -1945,6 +1945,84 @@ const AR1773_RECONCILED_LEGACY_CLI_CATALOG: &[(&str, u32, &str, Cause)] = &[
     ("crates/asb-cli/src/project_run.rs", 147, "legacy_cli_ar1773_reconciled_0809", Cause::UnexpectedProductFailure),
     ("crates/asb-cli/src/project_run.rs", 152, "legacy_cli_ar1773_reconciled_0810", Cause::UnexpectedProductFailure),
 ];
+// Reconciled identities for the current AR-1779 integration branch. The
+// source fallback repair moved historical legacy call sites without changing
+// their public error semantics; keep those reviewed locations explicit until
+// the catalog generator consumes the branch-wide source map.
+#[rustfmt::skip]
+const AR1779_RECONCILED_LEGACY_CLI_CATALOG: &[(&str, u32, &str, Cause)] = &[
+    ("crates/asb-cli/src/lib.rs", 5421, "legacy_cli_ar1779_reconciled_0001", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 5478, "legacy_cli_ar1779_reconciled_0002", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 5579, "legacy_cli_ar1779_reconciled_0003", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 5855, "legacy_cli_ar1779_reconciled_0004", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 5962, "legacy_cli_ar1779_reconciled_0005", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 5992, "legacy_cli_ar1779_reconciled_0006", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 6057, "legacy_cli_ar1779_reconciled_0007", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 6061, "legacy_cli_ar1779_reconciled_0008", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 6397, "legacy_cli_ar1779_reconciled_0009", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 6407, "legacy_cli_ar1779_reconciled_0010", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 6431, "legacy_cli_ar1779_reconciled_0011", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 6752, "legacy_cli_ar1779_reconciled_0012", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 6932, "legacy_cli_ar1779_reconciled_0013", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 6938, "legacy_cli_ar1779_reconciled_0014", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 7127, "legacy_cli_ar1779_reconciled_0015", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 7549, "legacy_cli_ar1779_reconciled_0016", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 7562, "legacy_cli_ar1779_reconciled_0017", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 7692, "legacy_cli_ar1779_reconciled_0018", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 7850, "legacy_cli_ar1779_reconciled_0019", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 7859, "legacy_cli_ar1779_reconciled_0020", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 7870, "legacy_cli_ar1779_reconciled_0021", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 7947, "legacy_cli_ar1779_reconciled_0022", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 8222, "legacy_cli_ar1779_reconciled_0023", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 8228, "legacy_cli_ar1779_reconciled_0024", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 8234, "legacy_cli_ar1779_reconciled_0025", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 8534, "legacy_cli_ar1779_reconciled_0026", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 8542, "legacy_cli_ar1779_reconciled_0027", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 8584, "legacy_cli_ar1779_reconciled_0028", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 8655, "legacy_cli_ar1779_reconciled_0029", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 8861, "legacy_cli_ar1779_reconciled_0030", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 8932, "legacy_cli_ar1779_reconciled_0031", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 8940, "legacy_cli_ar1779_reconciled_0032", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 8973, "legacy_cli_ar1779_reconciled_0033", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9025, "legacy_cli_ar1779_reconciled_0034", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9035, "legacy_cli_ar1779_reconciled_0035", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9049, "legacy_cli_ar1779_reconciled_0036", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9053, "legacy_cli_ar1779_reconciled_0037", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9110, "legacy_cli_ar1779_reconciled_0038", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9113, "legacy_cli_ar1779_reconciled_0039", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9368, "legacy_cli_ar1779_reconciled_0040", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9436, "legacy_cli_ar1779_reconciled_0041", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9442, "legacy_cli_ar1779_reconciled_0042", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9449, "legacy_cli_ar1779_reconciled_0043", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9465, "legacy_cli_ar1779_reconciled_0044", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9526, "legacy_cli_ar1779_reconciled_0045", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9732, "legacy_cli_ar1779_reconciled_0046", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 9735, "legacy_cli_ar1779_reconciled_0047", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 10607, "legacy_cli_ar1779_reconciled_0048", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 10613, "legacy_cli_ar1779_reconciled_0049", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 10746, "legacy_cli_ar1779_reconciled_0050", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 10929, "legacy_cli_ar1779_reconciled_0051", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 10944, "legacy_cli_ar1779_reconciled_0052", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 11033, "legacy_cli_ar1779_reconciled_0053", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 11039, "legacy_cli_ar1779_reconciled_0054", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 11142, "legacy_cli_ar1779_reconciled_0055", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 11925, "legacy_cli_ar1779_reconciled_0056", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 18643, "legacy_cli_ar1779_reconciled_0057", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 19709, "legacy_cli_ar1779_reconciled_0058", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 19742, "legacy_cli_ar1779_reconciled_0059", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 19749, "legacy_cli_ar1779_reconciled_0060", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 19757, "legacy_cli_ar1779_reconciled_0061", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 19768, "legacy_cli_ar1779_reconciled_0062", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 19788, "legacy_cli_ar1779_reconciled_0063", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 19797, "legacy_cli_ar1779_reconciled_0064", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 19829, "legacy_cli_ar1779_reconciled_0065", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 19832, "legacy_cli_ar1779_reconciled_0066", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 19835, "legacy_cli_ar1779_reconciled_0067", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 19838, "legacy_cli_ar1779_reconciled_0068", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 19847, "legacy_cli_ar1779_reconciled_0069", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 19854, "legacy_cli_ar1779_reconciled_0070", Cause::UnexpectedProductFailure),
+];
+
 fn legacy_cli_catalog(file: &str, line: u32) -> Option<(&str, Cause)> {
     LEGACY_CLI_CATALOG
         .iter()
@@ -1953,6 +2031,7 @@ fn legacy_cli_catalog(file: &str, line: u32) -> Option<(&str, Cause)> {
         .chain(AR1782_REVIEWED_LEGACY_CLI_CATALOG.iter())
         .chain(AR1773_RETAINED_AR1793_CATALOG.iter())
         .chain(AR1773_RECONCILED_LEGACY_CLI_CATALOG.iter())
+        .chain(AR1779_RECONCILED_LEGACY_CLI_CATALOG.iter())
         .find(|(catalog_file, catalog_line, _, _)| *catalog_file == file && *catalog_line == line)
         .map(|(_, _, code, cause)| (*code, *cause))
 }

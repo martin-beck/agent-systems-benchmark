@@ -15,6 +15,7 @@ pub enum AcquisitionError {
     UnknownTool,
     UnsupportedPlatform,
     UnverifiedSource,
+    SourceAdapterUnavailable,
     Unavailable,
     TooLarge,
     DigestMismatch,
@@ -28,6 +29,9 @@ impl AcquisitionError {
             Self::UnknownTool => "tool is not present in the pinned acquisition catalog",
             Self::UnsupportedPlatform => "tool has no catalog entry for this platform",
             Self::UnverifiedSource => "tool source is not the catalog primary source",
+            Self::SourceAdapterUnavailable => {
+                "catalog source does not publish a verified executable adapter; use a supported prebuilt release"
+            }
             Self::Unavailable => "official tool source is unavailable or offline",
             Self::TooLarge => "tool artifact exceeds the bounded acquisition limit",
             Self::DigestMismatch => "tool artifact digest does not match the catalog",
@@ -144,19 +148,17 @@ pub fn resolve_for_install(id: &str) -> Result<(ToolEntry, ArtifactAlternative),
     if entry.license.trim().is_empty() {
         return Err(AcquisitionError::LicenseMissing);
     }
+    // Source records remain pinned in the catalog for future adapter work,
+    // but are not installable until their recipe publishes a verified native
+    // executable or launcher. In particular, wheels and tarballs must never
+    // be copied into the executable slot.
     entry
         .alternatives
         .iter()
         .find(|alternative| alternative.kind == "prebuilt")
-        .or_else(|| {
-            entry
-                .build_recipes
-                .first()
-                .and_then(|_| entry.alternatives.iter().find(|a| a.kind == "source"))
-        })
         .cloned()
         .map(|alternative| (entry, alternative))
-        .ok_or(AcquisitionError::UnverifiedSource)
+        .ok_or(AcquisitionError::SourceAdapterUnavailable)
 }
 
 pub fn verify_bytes(
@@ -336,8 +338,23 @@ mod tests {
 
     #[test]
     fn source_only_catalog_entries_never_resolve_as_executables() {
-        for id in ["aider", "gemini", "mini-swe"] {
+        for id in [
+            "aider",
+            "gemini",
+            "mini-swe",
+            "opendesk",
+            "openhands",
+            "openjiuwen",
+            "cli2key",
+            "perf",
+            "bpftool",
+        ] {
             assert_eq!(resolve(id), Err(AcquisitionError::UnverifiedSource), "{id}");
+            assert_eq!(
+                resolve_for_install(id),
+                Err(AcquisitionError::SourceAdapterUnavailable),
+                "{id}"
+            );
         }
     }
 
