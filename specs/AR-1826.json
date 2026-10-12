@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1826.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "explicit-only", "description": "The contract requires an explicit setup --output file and contains no implicit user-home or XDG configuration authority."},
+    {"id": "complete-selection", "description": "One configuration can represent agents, providers, credential references, models, workloads, monitors, measures, and bounded live/sweep execution choices."},
+    {"id": "secret-free", "description": "Schemas, examples, and tests retain only credential references or digests, never secret values."},
+    {"id": "plan-binding", "description": "The configuration-to-plan digest and identity contract permits deterministic mismatch detection at validate, run, and sweep time."}
+  ],
+  "definition_of_done": ["A versioned contract and tests establish the sole configuration authority for all subsequent migration work."],
+  "inputs": [{"id": "existing-project-schema", "description": "Completed AR-1759 project/tool configuration work, reused only where compatible with explicit-file ownership."}],
+  "outputs": [{"id": "explicit-config-contract", "description": "Shared schema and command contract for setup-created configuration and config-bound plans."}],
+  "allowed_tools": ["cargo", "git", "tools/handoffctl"],
+  "forbidden_tools": ["credential-persistence", "implicit-home-config", "provider-selection-revival", "gate-weakening", "history-rewrite", "force-push"],
+  "required_evidence_classes": ["contract-test", "mechanical"],
+  "gates": [{"id": "schema-contract", "description": "Schema and focused CLI contract tests prove explicit path, redaction, and plan-binding semantics."}]
+}
