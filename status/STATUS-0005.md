@@ -1,5 +1,8 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1612](../tasks/AR-1612.md) | [AR-1605](../tasks/AR-1605.md), [AR-1606](../tasks/AR-1606.md), [AR-1608](../tasks/AR-1608.md) | [AR-1613](../tasks/AR-1613.md), [AR-1615](../tasks/AR-1615.md), [AR-1617](../tasks/AR-1617.md), [AR-1618](../tasks/AR-1618.md) |
+| [AR-1613](../tasks/AR-1613.md) | [AR-1603](../tasks/AR-1603.md), [AR-1604](../tasks/AR-1604.md), [AR-1611](../tasks/AR-1611.md), [AR-1612](../tasks/AR-1612.md), [AR-1614](../tasks/AR-1614.md), [AR-1615](../tasks/AR-1615.md), [AR-1641](../tasks/AR-1641.md), [AR-1642](../tasks/AR-1642.md) | [AR-1622](../tasks/AR-1622.md), [AR-1643](../tasks/AR-1643.md), [AR-1653](../tasks/AR-1653.md) |
+| [AR-1614](../tasks/AR-1614.md) | [AR-1604](../tasks/AR-1604.md), [AR-1611](../tasks/AR-1611.md) | [AR-1613](../tasks/AR-1613.md), [AR-1615](../tasks/AR-1615.md), [AR-1617](../tasks/AR-1617.md), [AR-1618](../tasks/AR-1618.md), [AR-1620](../tasks/AR-1620.md), [AR-1623](../tasks/AR-1623.md), [AR-1641](../tasks/AR-1641.md) |
 | [AR-1615](../tasks/AR-1615.md) | [AR-1612](../tasks/AR-1612.md), [AR-1614](../tasks/AR-1614.md), [AR-1617](../tasks/AR-1617.md), [AR-1618](../tasks/AR-1618.md), [AR-1619](../tasks/AR-1619.md), [AR-1620](../tasks/AR-1620.md), [AR-1621](../tasks/AR-1621.md), [AR-1634](../tasks/AR-1634.md), [AR-1635](../tasks/AR-1635.md), [AR-1636](../tasks/AR-1636.md), [AR-1637](../tasks/AR-1637.md), [AR-1638](../tasks/AR-1638.md), [AR-1639](../tasks/AR-1639.md), [AR-1640](../tasks/AR-1640.md) | [AR-1613](../tasks/AR-1613.md), [AR-1622](../tasks/AR-1622.md), [AR-1625](../tasks/AR-1625.md), [AR-1626](../tasks/AR-1626.md), [AR-1627](../tasks/AR-1627.md), [AR-1628](../tasks/AR-1628.md), [AR-1644](../tasks/AR-1644.md) |
 | [AR-1617](../tasks/AR-1617.md) | [AR-1612](../tasks/AR-1612.md), [AR-1614](../tasks/AR-1614.md) | [AR-1615](../tasks/AR-1615.md), [AR-1619](../tasks/AR-1619.md), [AR-1646](../tasks/AR-1646.md) |
 | [AR-1618](../tasks/AR-1618.md) | [AR-1612](../tasks/AR-1612.md), [AR-1614](../tasks/AR-1614.md) | [AR-1615](../tasks/AR-1615.md), [AR-1619](../tasks/AR-1619.md) |
@@ -174,6 +177,7 @@
 | [AR-1798](../tasks/AR-1798-pinned-source-checkout-acquisition.md) | [AR-1776](../tasks/AR-1776-supported-tool-acquisition-catalog.md), [AR-1778](../tasks/AR-1778-pinned-source-build-and-project-dependencies.md) | None |
 | [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md) | [AR-1636](../tasks/AR-1636.md), [AR-1738](../tasks/AR-1738-development-rustup-permission-compatibility.md) | [AR-1800](../tasks/AR-1800-development-warning-only-trust-contract.md) |
 | [AR-1800](../tasks/AR-1800-development-warning-only-trust-contract.md) | [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md) | None |
+| [AR-1821](../tasks/AR-1821-ar1817-pr128-integration-recovery.md) | None | None |
 
 ## Complete AR inventory
 
@@ -381,7 +385,7 @@
 | --- | --- | --- | --- | --- |
 | P4 | [AR-0703](../tasks/AR-0703-native-platform-lab.md): Provision native platform qualification capacity | Unclaimed | Optionally provide native ARM64 Debian/openEuler capacity for future claim-scoped evidence. | When separately authorized, provision genuine ARM64 Debian/openEuler capacity for optional future native evidence; absence must not block any AR. |
 
-### Done (584)
+### Done (585)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -578,5 +582,3 @@
 | P0 | [AR-1495](../tasks/AR-1495-development-unverified-bundle-profile.md): Development-only unverified bundle profile | Unclaimed | Add an explicit development-only unverified bundle profile without weakening production or customer-release verification. | Monitor PR #373 fresh exact signed+DCO head 4d63a66; merge only after all required checks and independent review are green. |
 | P0 | [AR-1496](../tasks/AR-1496-runtime-owned-provider-capture-control.md): Runtime-owned provider capture and control activation | Unclaimed | Complete runtime-owned provider capture, tuple cassette reconciliation and verified offline activation required by the setup wizard. | Done: PR #375 merged at protected main 8c53a4a62ecaa6fecc9eb195a105fc368a3395c8; independent review passed and all seven post-merge workflows succeeded. |
 | P0 | [AR-1497](../tasks/AR-1497-ar1495-topology-repair.md): AR-1495 protected-main topology repair | Unclaimed | Repair AR-1495 protected-main synchronization topology without changing product semantics. | Monitor eight post-merge workflows for exact protected-main merge 45df6590; release AR-1497 only after all terminal SUCCESS. |
-| P0 | [AR-1498](../tasks/AR-1498-authenticated-lifecycle-executor.md): Authenticated lifecycle artifact executor | Unclaimed | PR 376 merged at protected main exact merge commit | Verify origin/main contains merge 9231a660675d4b01277a60b75d838d69c6bba917, run post-merge applicable smoke/build checks, then release AR-1498 durably. |
-| P0 | [AR-1499](../tasks/AR-1499-development-credential-enrollment.md): Development credential enrollment contract | Unclaimed | Repair merged development credential selection binding | Released; no further AR-1499 action. PR #378 merged at protected main ee8ea15; exact main tree and post-merge smoke verified, and all eight post-merge workflows passed. |

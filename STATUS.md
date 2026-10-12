@@ -5,7 +5,7 @@
 
 ## Portfolio overview
 
-**797 ARs tracked** across 8 active status categories.
+**798 ARs tracked** across 8 active status categories.
 
 | Status | Meaning | Count |
 | --- | --- | ---: |
@@ -14,7 +14,7 @@
 | **Blocked** | Cannot proceed until its recorded blocker clears | 85 |
 | **Planned** | Defined work awaiting promotion or dependencies | 88 |
 | **Future** | Deferred roadmap work | 1 |
-| **Done** | Accepted, integrated, and durably verified | 584 |
+| **Done** | Accepted, integrated, and durably verified | 585 |
 | **Cancelled** | Stopped with a recorded rationale | 2 |
 | **Superseded** | Replaced by another AR | 32 |
 
