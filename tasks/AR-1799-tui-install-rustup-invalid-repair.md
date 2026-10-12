@@ -2,7 +2,7 @@
 {
   "branch": "repair/ar-1799-tui-install-rustup-invalid",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-12T15:23:22+00:00",
   "depends_on": [
     "AR-1738",
     "AR-1636"
@@ -12,7 +12,7 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "codex-ar1799-tui-install-rustup-invalid-20261012",
   "plan": "../plans/AR-1799-tui-install-rustup-invalid-repair.md",
   "priority": "P0",
   "schema_version": 1,
@@ -26,11 +26,11 @@
   },
   "spec_ref": "specs/AR-1799.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Repair asb tui install rustup/rustc trusted-tool rejection",
-  "updated_at": "2026-10-12T13:23:02+00:00",
+  "updated_at": "2026-10-12T13:23:22+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1799-tui-install-rustup-invalid"
 }
 ---
@@ -52,3 +52,5 @@ may block development qualification or enter durable state.
 
 - 2026-10-12T13:23:02+00:00: Open P0 repair for the reproduced user-visible asb tui install
   trusted_tool_invalid failure.
+
+- 2026-10-12T13:23:22+00:00: Claimed by codex-ar1799-tui-install-rustup-invalid-20261012.
