@@ -11,7 +11,7 @@
   "id": "AR-1783",
   "next_action": "Coverage repair tests are on signed head 280b39de; local full llvm-cov reached 88.88% lines, still below hard 90% floor. Coordinate broader baseline coverage repair before review; do not merge.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 0,
+  "observed_dirty": 54,
   "observed_head": "32f42827367dbfedcb21304e80234336445ab683",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 173,
+  "task_revision": 174,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:13:36+00:00",
+  "updated_at": "2026-10-12T22:13:41+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
