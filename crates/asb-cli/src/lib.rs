@@ -17320,6 +17320,59 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn installed_workload_run_attempt_uses_project_prepared_tree_end_to_end() {
+        let scratch = Scratch::new("installed-run-attempt");
+        let project = scratch.0.join("project");
+        project_init_with_progress(
+            &[project.display().to_string()],
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+        )
+        .unwrap();
+        let prepared = project.join(".asb/workloads/original.bug-fix/prepared");
+        fs::create_dir_all(&prepared).unwrap();
+        fs::write(prepared.join("manifest.json"), b"installed fixture").unwrap();
+        let mut config = load_tool_project(&project).unwrap();
+        config.workloads.insert(
+            "original.bug-fix".into(),
+            ProjectToolRecordV1 {
+                kind: ProjectToolKind::Workload,
+                source_ref: "fixture://original.bug-fix".into(),
+                version: "fixture-v1".into(),
+                platform: platform_label(),
+                path: Some(".asb/workloads/original.bug-fix".into()),
+                digest_sha256: Some("a".repeat(64)),
+                capabilities: vec!["external-workload".into(), "adapter-ready".into()],
+                status: ProjectToolStatus::Available,
+            },
+        );
+        save_tool_project(&project, &config).unwrap();
+
+        let (_, mut plan) = plan_fixture(&scratch.0, "installed-attempt");
+        plan.work_root = project.join(".asb/work");
+        plan.result_root = project.join("results");
+        prepare_root(&plan.work_root).unwrap();
+        let summary = run_attempt(
+            &plan,
+            &plan.work_root,
+            "installed",
+            0,
+            false,
+            None,
+            plan.measurement_selection.as_ref().unwrap(),
+            Arc::new(AtomicBool::new(false)),
+            false,
+            None,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(summary.outcome, "completed");
+        assert!(summary.grade_passed);
+        assert!(!plan.work_root.join("installed-measured-0").exists());
+    }
+
+    #[test]
     fn executable_replacement_after_validation_never_launches_changed_bytes() {
         let scratch = Scratch::new("replacement");
         let (_, plan) = plan_fixture(&scratch.0, "replacement");
