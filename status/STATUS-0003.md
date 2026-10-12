@@ -1554,7 +1554,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Allow exact-revision roles.remove cleanup of explicitly named expired assignments while preserving fail-closed reads and admission. |
-| Next action | Publish v7 from exact base 06d3a008b624; wait for fresh exact-head review and CI before merge. |
+| Next action | Merged exact reviewed PR #140 at 4cea485091; stale assignment ar1774-pr612-review-ad7f1166 removed at role revision 22 to 23; verify roles list, doctor, and post-merge checks before acceptance and release. |
 
 ### AR-1823 — AR-1820 receipt publication cleanup
 

@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-12T17:21:24+00:00",
   "depends_on": [],
   "id": "AR-1822",
-  "next_action": "Publish v7 from exact base 06d3a008b624; wait for fresh exact-head review and CI before merge.",
+  "next_action": "Merged exact reviewed PR #140 at 4cea485091; stale assignment ar1774-pr612-review-ad7f1166 removed at role revision 22 to 23; verify roles list, doctor, and post-merge checks before acceptance and release.",
   "owner": "ar1822_role_cleanup",
   "plan": "../plans/AR-1822-role-removal-expiry.md",
   "priority": "P0",
@@ -22,9 +22,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Allow exact-revision roles.remove cleanup of explicitly named expired assignments while preserving fail-closed reads and admission.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "Expired role assignment cleanup semantics",
-  "updated_at": "2026-10-12T15:21:24+00:00",
+  "updated_at": "2026-10-12T15:21:37+00:00",
   "worktree_key": "agent-systems-benchmark-state-ar-1822-role-removal-expiry"
 }
 ---
@@ -49,3 +49,6 @@ transactional command.
   gates.
 
 - 2026-10-12T15:21:24+00:00: Claimed by ar1822_role_cleanup.
+
+- 2026-10-12T15:21:37+00:00: Post-merge cleanup executed through repaired roles.remove; no runtime
+  role file was edited directly.
