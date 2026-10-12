@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 signed 94521496 adds authority resolver persistence failure/idempotent teardown coverage; serialized workspace coverage remains 89.27% lines, 85.11% functions, 90.66% regions.",
-  "task_revision": 417,
+  "task_revision": 418,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:34:19+00:00",
+  "updated_at": "2026-10-12T23:36:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1055,3 +1055,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T23:33:49+00:00: Recorded command exit 101; command argv SHA-256
   6bb4e335a580aab66a692d538e9ea8728c11bbc39973b408a87122609acc035e.
+
+- 2026-10-12T23:36:33+00:00: Recorded command exit 0; command argv SHA-256
+  b48802db5d60864fea266a175aab6561f162cad0de4217481cf349d287ea912d.
