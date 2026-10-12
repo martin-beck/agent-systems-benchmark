@@ -270,6 +270,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-pr509-postmerge` | `DETACHED` | `9aeea48c4041` | 0 | behind 499, ahead 0 |
 | `asb218-asb` | `DETACHED` | `62fda2f3417b` | 0 | behind 704, ahead 0 |
 | `review-ar1782` | `DETACHED` | `3be3029d7a1d` | 0 | behind 114, ahead 0 |
+| `review-ar1783` | `DETACHED` | `dad6dd8c06a3` | 0 | behind 0, ahead 6 |
 | `review-pr610` | `DETACHED` | `95a342fde4c5` | 0 | behind 42, ahead 4 |
 | `agent-systems-benchmark-ar-1498` | `feature/ar-1498-authenticated-lifecycle-executor` | `55ff13fb6cb2` | 0 | behind 804, ahead 1275 |
 | `agent-systems-benchmark-ar-1499` | `feature/ar-1499-development-credential-enrollment` | `0a2f6e9c74f9` | 0 | behind 804, ahead 1280 |
