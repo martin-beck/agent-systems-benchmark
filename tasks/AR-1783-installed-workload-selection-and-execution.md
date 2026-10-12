@@ -11,7 +11,7 @@
   "id": "AR-1783",
   "next_action": "Target next largest uncovered control/TUI/runtime behavior cluster from llvm-cov (not another unchanged rerun), add positive/negative tests, then rerun serialized coverage to >=90% with headroom.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 0,
+  "observed_dirty": 1,
   "observed_head": "e272b7445a913ab436ae9e19475146ecd5088734",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 loopback supervisor boundary tests are green; serialized workspace coverage improved to 89.19% lines, still below 90%.",
-  "task_revision": 331,
+  "task_revision": 332,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:07:06+00:00",
+  "updated_at": "2026-10-12T23:07:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
