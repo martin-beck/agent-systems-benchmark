@@ -11,8 +11,8 @@
   "id": "AR-1783",
   "next_action": "CI is running for signed head f52131bc; if policy coverage remains below 90, coordinate baseline coverage repair before review. Do not merge until exact-head CI and independent review are green.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 1,
-  "observed_head": "78dba6fd287e9f0b671e32acca336532001afd81",
+  "observed_dirty": 0,
+  "observed_head": "d46a9deeffefc627d69fb3cec124b92b295ae335",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 148,
+  "task_revision": 149,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:06:14+00:00",
+  "updated_at": "2026-10-12T22:06:19+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
