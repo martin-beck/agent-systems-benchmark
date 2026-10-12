@@ -259,7 +259,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1689](../tasks/AR-1689.md): Paired TUI fresh-user integration and receipt qualification | ar1689-tui-qualification-luna | Qualify the complete current-main TUI journey from wizard setup through valid plan, benchmark, recording, offline replay, comparison, and analysis. | Run ASB project_qualification and diagnostic_journey through handoffctl, then write paired receipt and obtain independent review. |
+| P0 | [AR-1689](../tasks/AR-1689.md): Paired TUI fresh-user integration and receipt qualification | ar1689-tui-qualification-luna | Qualify the complete current-main TUI journey from wizard setup through valid plan, benchmark, recording, offline replay, comparison, and analysis. | Request independent review of receipt commit 9f2238727d, reconcile generated projections, then release AR-1689 done only after review and exact-head verification. |
 | P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | ar1783-workload-selection-luna | Select every development external workload and prove ASB uses its exact project-local identity end to end. | Repair plan workload binding so a project plan cannot substitute an unregistered/built-in workload when an external installed workload is selected; rerun independent exact-head review. |
 
 ### Open (2)

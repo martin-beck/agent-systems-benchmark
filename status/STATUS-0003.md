@@ -28,7 +28,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Qualify the complete current-main TUI journey from wizard setup through valid plan, benchmark, recording, offline replay, comparison, and analysis. |
-| Next action | Run ASB project_qualification and diagnostic_journey through handoffctl, then write paired receipt and obtain independent review. |
+| Next action | Request independent review of receipt commit 9f2238727d, reconcile generated projections, then release AR-1689 done only after review and exact-head verification. |
 
 ### AR-1690 — ASB development-channel current-main materializer
 
