@@ -35,9 +35,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 150,
+  "task_revision": 151,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:56:32+00:00",
+  "updated_at": "2026-10-12T17:56:49+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -435,3 +435,6 @@ the adapter smoke check failed.
 - 2026-10-12T17:56:32+00:00: Source fallback now fails closed for non-executable source/archive
   catalog entries with typed catalog_source_adapter_unavailable; source adapter header checks and
   reconciled diagnostic identities pass focused/full asb-cli gates.
+
+- 2026-10-12T17:56:49+00:00: Recorded command exit 0; command argv SHA-256
+  c5ba738a0efa3f642ee08c1608f448324ef86656753bdf405cd85698fb495dc6.
