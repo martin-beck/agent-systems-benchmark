@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "ar": "AR-1822",
+  "pull_request": 140,
+  "reviewed_head": "5effe4982deee6a622d68ad2143555984384e2c5",
+  "merge_commit": "4cea485091437a02fe42c164ffbc309cebcd2c03",
+  "post_merge_head": "41ee6b96daa960ea2a36128dc7fcc2ecec7a9fc1",
+  "checks": {
+    "awq_shadow": 38268827250,
+    "coordination_exact_head": 38268827591,
+    "source_headers": 38268827136,
+    "formal_contract": 38269426663,
+    "post_merge_coordination": 38269676088
+  },
+  "role_cleanup": {
+    "assignment_id": "ar1774-pr612-review-ad7f1166",
+    "requested_shorthand_absent": "ar1774-pr612-review-ad7f116",
+    "expected_revision": 22,
+    "result_revision": 23
+  },
+  "doctor": "passed",
+  "scope": "No runtime role file was edited directly; no TLC/model-check or live-provider run was required."
+}
