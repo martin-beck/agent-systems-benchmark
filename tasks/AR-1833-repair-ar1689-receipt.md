@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-12T23:54:29+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1689"
   ],
@@ -10,7 +10,7 @@
   "next_action": "Reconcile generated projections and release AR-1833 done after final state verification",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "ar1689-tui-qualification-luna",
+  "owner": "",
   "plan": "../plans/AR-1833-repair-ar1689-receipt.md",
   "priority": "P0",
   "schema_version": 1,
@@ -24,11 +24,11 @@
   },
   "spec_ref": "specs/AR-1833.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Independent review passed: receipt newline repair preserves qualification content",
-  "task_revision": 8,
+  "task_revision": 9,
   "title": "Repair AR-1689 receipt bytes",
-  "updated_at": "2026-10-12T21:56:08+00:00",
+  "updated_at": "2026-10-12T21:56:22+00:00",
   "worktree_key": ""
 }
 ---
@@ -63,3 +63,7 @@ Repair AR-1689’s malformed receipt bytes without changing the reviewed paired 
   credentials, prompts, responses, private paths, tokens, passwords, or key material. Exact paired
   heads and previously reviewed content remain unchanged. Verdict: byte repair accepted; remain
   in_progress pending generated projection reconciliation and final release.
+
+- 2026-10-12T21:56:22+00:00: Independent review 32e47b9873 accepted exact one-byte LF repair commit
+  90d65d8ba1, digest sha256:7eab9f858b87e08bcc4849e6711298c144f77e5e60838fde5b1bd54c740d2928,
+  SSH/DCO/privacy. Receipt JSON validates and paired content is unchanged.
