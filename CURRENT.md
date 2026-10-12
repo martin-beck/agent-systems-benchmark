@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1783](tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Installed workload execution | CI is running for signed head f52131bc; if policy coverage remains below 90, coordinate baseline coverage repair before review. Do not merge until exact-head CI and independent review are green. | ar1783-workload-selection-luna |
+| P0 | [AR-1783](tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Installed workload execution | Run full workspace llvm-cov on signed head d46a9dee and require >=90% lines with headroom; then push any repair and restart exact-head CI. | ar1783-workload-selection-luna |
 
 ## Open
 

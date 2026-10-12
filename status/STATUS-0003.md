@@ -1260,7 +1260,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Installed workload execution |
-| Next action | CI is running for signed head f52131bc; if policy coverage remains below 90, coordinate baseline coverage repair before review. Do not merge until exact-head CI and independent review are green. |
+| Next action | Run full workspace llvm-cov on signed head d46a9dee and require &gt;=90&#37; lines with headroom; then push any repair and restart exact-head CI. |
 
 ### AR-1784 — Command dependency registry and preflight
 

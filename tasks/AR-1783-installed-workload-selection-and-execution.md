@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "CI is running for signed head f52131bc; if policy coverage remains below 90, coordinate baseline coverage repair before review. Do not merge until exact-head CI and independent review are green.",
+  "next_action": "Run full workspace llvm-cov on signed head d46a9dee and require >=90% lines with headroom; then push any repair and restart exact-head CI.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "d46a9deeffefc627d69fb3cec124b92b295ae335",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 151,
+  "task_revision": 152,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:06:33+00:00",
+  "updated_at": "2026-10-12T22:06:48+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -429,3 +429,9 @@ the suite from this end-to-end path.
 
 - 2026-10-12T22:06:33+00:00: Recorded command exit 0; command argv SHA-256
   b3d00ffc79d5956edc9fb3b323c005128b35a9d78b32003296a54525894e5df6.
+
+- 2026-10-12T22:06:48+00:00: Coverage repair batch pushed: signed DCO commits 78dba6fd and d46a9dee
+  add end-to-end installed run_attempt success plus installed source missing/escaping/preparation
+  rejection coverage. Focused tests and formatting pass; branch clean and generated profraw removed
+  through handoffctl. Full workspace coverage is next gate; prior result was 88.85%, below the hard
+  90% floor.
