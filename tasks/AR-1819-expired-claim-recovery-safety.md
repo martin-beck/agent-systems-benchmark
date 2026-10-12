@@ -2,7 +2,7 @@
 {
   "branch": "repair/ar-1819-current-main-v3",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-12T16:47:55+00:00",
+  "claim_expires": "2026-10-12T16:56:47+00:00",
   "depends_on": [],
   "id": "AR-1819",
   "next_action": "Implement fail-closed expired-claim recovery, add focused positive and negative coverage, then independently review and integrate the exact signed head.",
@@ -14,9 +14,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make expired-claim recovery fail closed when the exact current session snapshot is unavailable.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "Fail-closed expired-claim recovery",
-  "updated_at": "2026-10-12T14:48:54+00:00",
+  "updated_at": "2026-10-12T14:56:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1819-current-main-v3"
 }
 ---
@@ -45,3 +45,5 @@ provider run is required for this development repair.
 
 - 2026-10-12T14:48:54+00:00: Bound worktree agent-systems-benchmark-ar-1819-current-main-v3 on
   branch repair/ar-1819-current-main-v3.
+
+- 2026-10-12T14:56:47+00:00: Heartbeat by ar1819_restore_merge.
