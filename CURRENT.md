@@ -8,13 +8,13 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. | ar1686-plan-generation-luna |
+| P0 | [AR-1783](tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Select every development external workload and prove ASB uses its exact project-local identity end to end. | Integrate every development-supported installed workload bundle into selection and prove full run/sweep/report/compare consumes its exact recorded identity. | ar1783-workload-selection-luna |
 
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1779](tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Safety portion complete: PR #621 merged by protected local integration as ab0a791b05d6082fd0c99ab287f8a7883180bcec; all exact-main post-merge workflows passed and handoffctl doctor --live is clean. Keep AR-1779 in progress pending AR-1825 acceptance of the bounded source-to-executable adapter/runtime contract; do not claim source fallback until that acceptance. | - |
-| P0 | [AR-1783](tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Select every development external workload and prove ASB uses its exact project-local identity end to end. | Integrate every development-supported installed workload bundle into selection and prove full run/sweep/report/compare consumes its exact recorded identity. | - |
 | P0 | [AR-1796](tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. | - |
 
 ## Blocked

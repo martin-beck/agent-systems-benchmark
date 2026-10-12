@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-12T22:41:59+00:00",
   "depends_on": [
     "AR-1763",
     "AR-1764",
@@ -13,7 +13,7 @@
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "aca3f79b3256729543e93cc321ce3a85daa78051",
-  "owner": "",
+  "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T20:41:51+00:00",
+  "updated_at": "2026-10-12T20:41:59+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -50,3 +50,5 @@ the suite from this end-to-end path.
 
 - 2026-10-12T20:41:51+00:00: Dependencies AR-1763, AR-1764, and AR-1782 are durably done with
   acceptance evidence; promote for implementation.
+
+- 2026-10-12T20:41:59+00:00: Claimed by ar1783-workload-selection-luna.
