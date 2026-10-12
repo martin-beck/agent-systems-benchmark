@@ -1596,7 +1596,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement bounded source adapter contract |
-| Next action | Exact check_coverage.py rerun passed locally with workspace and critical-package floors; no source changes needed. Clean profiler artifacts, then refresh PR #622 required check and recreate protected merge only after GitHub reports Policy, coverage, and supply chain green. |
+| Next action | Await exact-head PR #622 CI for 9884e34acd91d6ff36724b5f3b33a107a048aa94; inspect policy/coverage result at least every 30 seconds. If all required checks green, recreate protected signed merge with expected base ab0a791b05d6082fd0c99ab287f8a7883180bcec and current exact head/tree. |
 
 
 ## Dependency graph

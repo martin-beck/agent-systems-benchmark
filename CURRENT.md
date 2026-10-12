@@ -8,7 +8,7 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1779](tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Safety portion complete: PR #621 merged by protected local integration as ab0a791b05d6082fd0c99ab287f8a7883180bcec; all exact-main post-merge workflows passed and handoffctl doctor --live is clean. Keep AR-1779 in progress pending AR-1825 acceptance of the bounded source-to-executable adapter/runtime contract; do not claim source fallback until that acceptance. | ar1779-default-install-luna |
-| P0 | [AR-1825](tasks/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md): Bounded source-to-executable adapter/runtime contract | Implement bounded source adapter contract | Exact check_coverage.py rerun passed locally with workspace and critical-package floors; no source changes needed. Clean profiler artifacts, then refresh PR #622 required check and recreate protected merge only after GitHub reports Policy, coverage, and supply chain green. | ar1825-implementation-luna |
+| P0 | [AR-1825](tasks/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md): Bounded source-to-executable adapter/runtime contract | Implement bounded source adapter contract | Await exact-head PR #622 CI for 9884e34acd91d6ff36724b5f3b33a107a048aa94; inspect policy/coverage result at least every 30 seconds. If all required checks green, recreate protected signed merge with expected base ab0a791b05d6082fd0c99ab287f8a7883180bcec and current exact head/tree. | ar1825-implementation-luna |
 
 ## Open
 

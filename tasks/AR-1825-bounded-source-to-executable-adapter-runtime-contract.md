@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1825",
-  "next_action": "Exact check_coverage.py rerun passed locally with workspace and critical-package floors; no source changes needed. Clean profiler artifacts, then refresh PR #622 required check and recreate protected merge only after GitHub reports Policy, coverage, and supply chain green.",
+  "next_action": "Await exact-head PR #622 CI for 9884e34acd91d6ff36724b5f3b33a107a048aa94; inspect policy/coverage result at least every 30 seconds. If all required checks green, recreate protected signed merge with expected base ab0a791b05d6082fd0c99ab287f8a7883180bcec and current exact head/tree.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
   "observed_dirty": 0,
   "observed_head": "9884e34acd91d6ff36724b5f3b33a107a048aa94",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 156,
+  "task_revision": 157,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T19:50:24+00:00",
+  "updated_at": "2026-10-12T19:50:38+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -470,3 +470,8 @@ AR-1825's acceptance evidence is independently reviewed and durable.
 
 - 2026-10-12T19:50:24+00:00: Recorded command exit 0; command argv SHA-256
   8a35ebbca1f7db14387ab2ba6480e982b66fcd505ad59590f04d1983341a840f.
+
+- 2026-10-12T19:50:38+00:00: Added signed DCO commit 9884e34a covering
+  empty/shell/runtime/launcher/matrix validation and smoke missing/nonzero/timeout branches. Focused
+  11 adapter tests pass; exact local tools/quality/check_coverage.py workspace plus critical floors
+  passes. Profiler artifacts removed via handoffctl; pushed exact head to PR #622.
