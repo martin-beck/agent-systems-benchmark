@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | AR-1783 — latest serialized report is 89.28&#37; lines, 85.11&#37; functions, 90.66&#37; regions; all tests pass but fixed 90&#37; line floor remains unmet. |
-| Next action | Coverage report identifies remaining actionable-looking blocks only behind unavailable integration boundaries: live_service request_control_receipt lines 1854-1880, request_control_bootstrap 1888-1927, cancel_control_bootstrap 1931-1970 require an authenticated ControlClient/server fixture; launch_factory live attempt lines 701-721/798-837 and sandbox live spawn lines 766-837 require native delegated isolation. Do not fabricate or weaken these boundaries; create/use a proper bounded control endpoint or containerized native runner before adding tests. |
+| Summary | AR-1783 — local/mock infrastructure investigation complete; latest full coverage remains 89.28&#37; lines, 85.11&#37; functions, 90.66&#37; regions. |
+| Next action | A bounded ControlServer/ControlClient rejection fixture was attempted but hangs at the protocol call and is not safe to retain without a dedicated endpoint contract fixture. Existing asb-control tests prove the endpoint infrastructure exists, but it needs a narrow cross-crate repair AR/fixture exposing a deterministic backend response for runtime receipt/bootstrap/cancel. Native live launch misses still require a containerized delegated-isolation runner. Do not fabricate authority or weaken gates. |
 
 ### AR-1784 — Command dependency registry and preflight
 

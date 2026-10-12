@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Coverage report identifies remaining actionable-looking blocks only behind unavailable integration boundaries: live_service request_control_receipt lines 1854-1880, request_control_bootstrap 1888-1927, cancel_control_bootstrap 1931-1970 require an authenticated ControlClient/server fixture; launch_factory live attempt lines 701-721/798-837 and sandbox live spawn lines 766-837 require native delegated isolation. Do not fabricate or weaken these boundaries; create/use a proper bounded control endpoint or containerized native runner before adding tests.",
+  "next_action": "A bounded ControlServer/ControlClient rejection fixture was attempted but hangs at the protocol call and is not safe to retain without a dedicated endpoint contract fixture. Existing asb-control tests prove the endpoint infrastructure exists, but it needs a narrow cross-crate repair AR/fixture exposing a deterministic backend response for runtime receipt/bootstrap/cancel. Native live launch misses still require a containerized delegated-isolation runner. Do not fabricate authority or weaken gates.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 1,
   "observed_head": "945214967a16a4f4476689545d7ca5ac3b8e8462",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 latest serialized report is 89.28% lines, 85.11% functions, 90.66% regions; all tests pass but fixed 90% line floor remains unmet.",
-  "task_revision": 435,
+  "summary": "AR-1783 \u2014 local/mock infrastructure investigation complete; latest full coverage remains 89.28% lines, 85.11% functions, 90.66% regions.",
+  "task_revision": 436,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:41:21+00:00",
+  "updated_at": "2026-10-12T23:41:27+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1103,3 +1103,10 @@ the suite from this end-to-end path.
   760958eaafc6a50b2e4366ec95d254d4d33c1b9811e12427939e2ac4c7c1fdc0.
 
 - 2026-10-12T23:41:21+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T23:41:27+00:00: No product changes from the failed fixture attempt; all temporary edits
+  removed. Worktree clean, generated profraw removed. Existing public control endpoint tests are in
+  crates/asb-control/tests/endpoint.rs, but runtime cannot currently reuse their private fixtures.
+  Narrow repair candidate: expose a bounded test-only ControlServer fixture API or add an
+  asb-runtime integration fixture; separately provision containerized bwrap/systemd runner. No
+  push/review/merge below 90%.
