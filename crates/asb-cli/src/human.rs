@@ -1368,28 +1368,6 @@ pub(super) fn render_success_with_context(
     write_presentation(&presentation, output, terminal_width())
 }
 
-/// Emit one bounded development-only router detail.  Debug output deliberately
-/// identifies only the public command family; it never serializes arguments,
-/// paths, provider payloads, or credential-bearing material.
-pub(super) fn render_debug(args: &[OsString], output: &mut dyn Write) -> io::Result<()> {
-    let command = args
-        .first()
-        .and_then(|value| value.to_str())
-        .filter(|value| {
-            !value.is_empty()
-                && value.len() <= 32
-                && value
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
-        })
-        .unwrap_or("cli");
-    writeln!(output, "[ OK ] Debug: routed command {command}.")
-}
-
-pub(super) fn is_raw(args: &[OsString]) -> bool {
-    InvocationKind::classify_args(args).is_raw()
-}
-
 /// Project only fields covered by the invocation's typed validator. Unknown
 /// JSON remains machine-visible but cannot silently become a human claim.
 fn project_for_presentation(
@@ -4106,4 +4084,28 @@ mod tests {
             assert!(!output.contains("Result code:"));
         }
     }
+}
+
+#[allow(clippy::items_after_test_module)]
+/// Emit one bounded development-only router detail.  Debug output deliberately
+/// identifies only the public command family; it never serializes arguments,
+/// paths, provider payloads, or credential-bearing material.
+pub(super) fn render_debug(args: &[OsString], output: &mut dyn Write) -> io::Result<()> {
+    let command = args
+        .first()
+        .and_then(|value| value.to_str())
+        .filter(|value| {
+            !value.is_empty()
+                && value.len() <= 32
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+        })
+        .unwrap_or("cli");
+    writeln!(output, "[ OK ] Debug: routed command {command}.")
+}
+
+#[allow(clippy::items_after_test_module)]
+pub(super) fn is_raw(args: &[OsString]) -> bool {
+    InvocationKind::classify_args(args).is_raw()
 }

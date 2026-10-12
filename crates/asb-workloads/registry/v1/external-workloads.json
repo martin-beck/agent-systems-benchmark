@@ -10,7 +10,8 @@
         "repository": "https://github.com/THUDM/AgentBench",
         "commit": "d1e4a10db08c87075c78972e48ecc182be03e2d5",
         "license": "Apache-2.0",
-        "archive_status": "unverified"
+        "archive_status": "verified",
+        "archive_sha256": "cfdb8f02129318d7e524dd39e349b196e9e6e8fe676a3dae2230e3c1314684b8"
       },
       "dataset": {
         "acquisition": "explicit-download",
@@ -48,7 +49,8 @@
         "repository": "https://github.com/ethz-spylab/agentdojo",
         "commit": "089ed468cf3ed0322acc66b0211f26d9d90dbf60",
         "license": "MIT",
-        "archive_status": "unverified"
+        "archive_status": "verified",
+        "archive_sha256": "d7e0ee021be27a69e7e66647979b5a5e0dd10030d38d04ce4102e18a76a228d8"
       },
       "dataset": {
         "acquisition": "explicit-download",
@@ -86,7 +88,8 @@
         "repository": "https://github.com/AgentOps-AI/agentops",
         "commit": "f8e907b92dabe47232978023fdcb01e2a7d4b752",
         "license": "MIT",
-        "archive_status": "unverified"
+        "archive_status": "verified",
+        "archive_sha256": "6f54d4bbbc2156c88bca47de5e32fa09e1f96b0b5e660fed9ae2923185ebf9f3"
       },
       "dataset": {
         "acquisition": "explicit-download",
@@ -125,7 +128,8 @@
         "revision": "v1",
         "license": "NOASSERTION",
         "license_status": "paper-license-not-a-workload-license",
-        "archive_status": "unverified"
+        "archive_status": "verified",
+        "archive_sha256": "e59228a57d763507d9cf69f7770121e52afa033f5c1df5aef5dd4e4a4ab7eaf9"
       },
       "dataset": {
         "acquisition": "explicit-download",
@@ -402,7 +406,8 @@
         "commit": "16bb03ebc11577fb5ea6dc8bb6c968387085e6aa",
         "license": "NOASSERTION",
         "license_status": "missing-at-pinned-revision",
-        "archive_status": "unverified"
+        "archive_status": "verified",
+        "archive_sha256": "fdcfd347d37b16acc5736e18abe734901345a899b20fefbcab6bdde1e490e607"
       },
       "dataset": {
         "acquisition": "explicit-download",
@@ -440,7 +445,8 @@
         "repository": "https://github.com/laude-institute/harbor",
         "commit": "cdb76bae6dc88d5bca1c8f0754bbba300d6574b4",
         "license": "Apache-2.0",
-        "archive_status": "unverified"
+        "archive_status": "verified",
+        "archive_sha256": "3063410428934a84a706d55d3d39aa6ca5db65abe2e721028538496dc331020c"
       },
       "dataset": {
         "acquisition": "explicit-download",
@@ -478,7 +484,8 @@
         "repository": "https://github.com/stanford-crfm/helm",
         "commit": "63754d05db6f874e41a395880fb573890a13e791",
         "license": "Apache-2.0",
-        "archive_status": "unverified"
+        "archive_status": "verified",
+        "archive_sha256": "5e45007e5f9fb1220651ce8b0cc6f97fb3db4b230710a9d9509ad09a958f8c70"
       },
       "dataset": {
         "acquisition": "explicit-download",
@@ -516,7 +523,8 @@
         "repository": "https://github.com/UKGovernmentBEIS/inspect_ai",
         "commit": "1ab0d75f0f2b55c8609538cb8f573347dcd2cdf6",
         "license": "MIT",
-        "archive_status": "unverified"
+        "archive_status": "verified",
+        "archive_sha256": "ac0eb2e23a2e249343db3990929bea7776d4b4e58634b5e04ac34e99a3a1eed2"
       },
       "dataset": {
         "acquisition": "explicit-download",
@@ -737,7 +745,8 @@
         "commit": "51052cede8cc608f95bb00346635e03759013e5a",
         "license": "NOASSERTION",
         "license_status": "missing-at-pinned-revision",
-        "archive_status": "unavailable-at-pinned-revision"
+        "archive_status": "verified",
+        "archive_sha256": "967cdcbe99788f4f5780692abad77a56dbb4ce2655be13cfe761541aaf50a7f1"
       },
       "dataset": {
         "acquisition": "explicit-download",
@@ -875,7 +884,8 @@
         "repository": "https://github.com/SWE-rebench/SWE-bench-fork",
         "commit": "e4907b7a90eafaa1f0a6428fd04fe31cdd8b4284",
         "license": "MIT",
-        "archive_status": "unavailable-at-pinned-revision"
+        "archive_status": "verified",
+        "archive_sha256": "709bce5c0ea9069969bddd2f5e379f427f6703377e953516d5f226fdcc6208f8"
       },
       "dataset": {
         "acquisition": "explicit-download",
@@ -919,7 +929,8 @@
         "repository": "https://github.com/sierra-research/tau-bench",
         "commit": "59a200c6d575d595120f1cb70fea53cef0632f6b",
         "license": "MIT",
-        "archive_status": "unverified"
+        "archive_status": "verified",
+        "archive_sha256": "03ba20e51590dd5f117bcb8b209f02c90035a44a0d24552ee3f52c85b0ded177"
       },
       "dataset": {
         "acquisition": "explicit-download",
