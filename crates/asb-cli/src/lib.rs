@@ -149,7 +149,7 @@ pub fn entry(args: Vec<OsString>) -> ExitCode {
 pub fn run(args: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
     run_with_default_mode_and_stdin(args, stdout, stderr, false, None)
 }
-
+#[rustfmt::skip]
 fn run_with_default_mode_and_stdin(
     args: &[OsString],
     stdout: &mut dyn Write,
@@ -255,14 +255,7 @@ fn run_with_default_mode_and_stdin(
             } else {
                 stdout.write_all(&captured)
             };
-            let result = if result.is_ok() && output_mode.debug && !human::is_raw(&normalized) {
-                match output_mode.human_writer {
-                    ProjectOutputWriterV1::Stdout => human::render_debug(&normalized, stdout),
-                    ProjectOutputWriterV1::Stderr => human::render_debug(&normalized, stderr),
-                }
-            } else {
-                result
-            };
+            let result = if result.is_ok() && output_mode.level == ProjectOutputLevelV1::Debug && !human::is_raw(&normalized) { match output_mode.human_writer { ProjectOutputWriterV1::Stdout => human::render_debug(&normalized, stdout), ProjectOutputWriterV1::Stderr => human::render_debug(&normalized, stderr), } } else { result };
             if result.is_err() {
                 let _ = writeln!(stderr, "ASB could not write output");
                 4
@@ -309,7 +302,6 @@ fn run_with_default_mode_and_stdin(
         }
     }
 }
-
 #[cfg(test)]
 fn run_with_default_mode(
     args: &[OsString],
@@ -327,7 +319,6 @@ struct OutputMode {
     level: ProjectOutputLevelV1,
     result_writer: ProjectOutputWriterV1,
     human_writer: ProjectOutputWriterV1,
-    debug: bool,
 }
 
 fn parse_output_mode(
@@ -398,7 +389,6 @@ fn parse_output_mode(
                 level,
                 ProjectOutputLevelV1::Verbose | ProjectOutputLevelV1::Debug
             ),
-            debug: level == ProjectOutputLevelV1::Debug,
             level,
             result_writer: project_output.result_writer,
             human_writer: project_output.human_writer,
@@ -1082,6 +1072,13 @@ fn dispatch(
             provider_catalog(stdout, false, presentation_context).map(|()| 0)
         }
         [command] if command == "workload-catalog" => workload_catalog_output(stdout).map(|()| 0),
+        [command, workload_args @ ..] if command == "workload" => workload_with_progress(
+            workload_args,
+            stdout,
+            stderr,
+            presentation_context.is_some(),
+        )
+        .map(|()| 0),
         [command, operation] if command == "config" && operation == "openrouter" => {
             configure_openrouter_with_progress(
                 stdout,
@@ -2527,6 +2524,7 @@ fn command_name(args: &[OsString]) -> &'static str {
         Some("project") => "project",
         Some("provider-catalog") => "provider-catalog",
         Some("workload-catalog") => "workload-catalog",
+        Some("workload") => "workload",
         Some("config") => "config",
         Some("tool") => "tool",
         Some("auth") => "auth",
@@ -2555,7 +2553,7 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     .map_err(output_error)?;
     writeln!(
         output,
-        "  asb tool install SUPPORTED-ID [--project PATH] [--dry-run]\n  asb tool install ID --kind agent|harness|benchmark|workload|support --source PATH|fixture://ID [--version VERSION] [--project PATH]\n  asb tool repair|update SUPPORTED-ID [--project PATH]\n  asb tool select ID --kind agent|harness|benchmark|workload [--project PATH]\n  asb tool list|status|remove ID [--project PATH]\n  asb run|sweep PLAN.toml --project PATH [--local-mock]\n  asb compare RUN... --project PATH\n  asb report RUN... --project PATH"
+        "  asb tool install SUPPORTED-ID [--project PATH]\n  asb tool install ID --kind agent|harness|benchmark|workload|support --source PATH|fixture://ID [--version VERSION] [--project PATH]\n  asb tool repair|update SUPPORTED-ID [--project PATH]\n  asb tool select ID --kind agent|harness|benchmark|workload [--project PATH]\n  asb tool list|status|remove ID [--project PATH]\n  asb workload install|list|status|select|repair|update|remove ID [--project PATH]\n  asb run|sweep PLAN.toml --project PATH [--local-mock]\n  asb compare RUN... --project PATH\n  asb report RUN... --project PATH"
     )
     .map_err(output_error)?;
     writeln!(
@@ -4011,6 +4009,787 @@ fn tool_with_progress(
         _ => Err(CliError::legacy_usage(
             "tool requires install|repair|update|list|status|select|remove|discover",
         )),
+    }
+}
+
+/// Manage catalog-bound external workload bundles.  Unlike `tool`, this
+/// lifecycle never accepts an arbitrary source: IDs are resolved exclusively
+/// from the immutable AR-1781 registry and read-only operations do not touch
+/// the network.
+fn workload_with_progress(
+    args: &[String],
+    output: &mut dyn Write,
+    _progress: &mut dyn Write,
+    human: bool,
+) -> Result<(), CliError> {
+    let catalog = external_workload_catalog();
+    workload_with_progress_inner(
+        args,
+        output,
+        _progress,
+        human,
+        &catalog,
+        acquire_verified_workload_archive,
+    )
+}
+
+fn workload_with_progress_inner(
+    args: &[String],
+    output: &mut dyn Write,
+    _progress: &mut dyn Write,
+    human: bool,
+    catalog: &[Value],
+    acquire: fn(&str) -> Result<Vec<u8>, CliError>,
+) -> Result<(), CliError> {
+    let operation = args.first().map(String::as_str).ok_or_else(|| {
+        CliError::legacy_usage("workload requires install|list|status|select|repair|update|remove")
+    })?;
+    let (id, rest) = if operation == "list" {
+        (None, &args[1..])
+    } else {
+        args[1..]
+            .split_first()
+            .map_or((None, &args[1..]), |(id, rest)| (Some(id), rest))
+    };
+    if let Some(id) = id {
+        validate_workload_id(id)?;
+    }
+    let project = tool_project_path(rest, 0)?;
+    let mut config = load_tool_project(&project)?;
+    match operation {
+        "list" => {
+            let entries: Vec<Value> = config
+                .workloads
+                .iter()
+                .map(|(id, record)| json!({"id": id, "record": record}))
+                .collect();
+            workload_output(
+                output,
+                human,
+                &json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "workload list", "workloads": entries}),
+                &format!("listed {} installed workloads", config.workloads.len()),
+            )
+        }
+        "status" => {
+            let id = id.ok_or_else(|| CliError::legacy_usage("workload status requires an ID"))?;
+            let record = config
+                .workloads
+                .get(id)
+                .ok_or_else(|| CliError::legacy_validation("workload ID is not installed"))?;
+            workload_output(
+                output,
+                human,
+                &json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "workload status", "id": id, "record": record}),
+                &format!("workload {id} is {:?}", record.status),
+            )
+        }
+        "install" | "update" | "repair" => {
+            let id =
+                id.ok_or_else(|| CliError::legacy_usage("workload operation requires an ID"))?;
+            let existing = config.workloads.get(id).cloned();
+            match operation {
+                "install" if existing.is_some() => {
+                    return Err(CliError::legacy_validation(
+                        "workload is already installed; use update or repair",
+                    ));
+                }
+                "update" | "repair" if existing.is_none() => {
+                    return Err(CliError::legacy_validation(
+                        "workload is not installed; use install first",
+                    ));
+                }
+                _ => {}
+            }
+            let entry = catalog
+                .iter()
+                .find(|entry| entry.get("id").and_then(Value::as_str) == Some(id))
+                .ok_or_else(|| {
+                    CliError::legacy_validation(
+                        "workload ID is not in the pinned acquisition catalog",
+                    )
+                })?;
+            let version = entry
+                .get("version")
+                .and_then(Value::as_str)
+                .unwrap_or("catalog");
+            let license = validated_workload_license(entry)?;
+            let source_identity = resolve_workload_source(entry)?;
+            let repository = source_identity.repository;
+            let revision = source_identity.revision;
+            let expected_digest = source_identity.expected_digest;
+            let preparation = entry
+                .pointer("/evaluator/entrypoint")
+                .and_then(Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| {
+                    CliError::legacy_validation("workload catalog preparation metadata is missing")
+                })?;
+            let source_url = if let Some(repo) = repository.strip_prefix("https://github.com/") {
+                format!("https://github.com/{repo}/archive/{revision}.tar.gz")
+            } else if repository == "https://arxiv.org/abs/2407.01502" && revision == "v1" {
+                "https://arxiv.org/e-print/2407.01502v1".to_owned()
+            } else {
+                return Err(CliError::legacy_validation(
+                    "workload source has no supported immutable archive",
+                ));
+            };
+            let source = repository.as_str();
+            if operation == "repair" {
+                return repair_verified_workload_offline(
+                    &project,
+                    id,
+                    WorkloadRepairProof {
+                        version,
+                        expected_digest: &expected_digest,
+                        license,
+                        preparation,
+                    },
+                    output,
+                    human,
+                );
+            }
+            let archive = acquire(&source_url)?;
+            validate_workload_archive(&archive)?;
+            let archive_digest = format!("{:x}", Sha256::digest(&archive));
+            if expected_digest != archive_digest {
+                return Err(CliError::legacy_validation(
+                    "workload archive digest does not match the pinned catalog",
+                ));
+            }
+            let path = format!(".asb/workloads/{id}");
+            let root = workload_install_root(&project, id, false)?;
+            ensure_project_directory_with_progress(&root, 0o700, DirectoryPurpose::Tools, None)?;
+            let prepared_path = root.join("prepared");
+            let staging_path = root.join("prepared.staging");
+            let previous_prepared = root.join("prepared.previous");
+            for path in [&prepared_path, &staging_path, &previous_prepared] {
+                if fs::symlink_metadata(path)
+                    .map(|metadata| metadata.file_type().is_symlink())
+                    .unwrap_or(false)
+                {
+                    return Err(CliError::legacy_validation(
+                        "workload preparation path is a symlink",
+                    ));
+                }
+            }
+            if staging_path.exists() {
+                fs::remove_dir_all(&staging_path).map_err(|_| {
+                    CliError::legacy_operation("workload preparation staging cannot be removed")
+                })?;
+            }
+            ensure_project_directory_with_progress(
+                &staging_path,
+                0o700,
+                DirectoryPurpose::Tools,
+                None,
+            )?;
+            let extracted_members = extract_workload_archive(&archive, &staging_path)?;
+            if extracted_members == 0 {
+                let _ = fs::remove_dir_all(&staging_path);
+                return Err(CliError::legacy_validation(
+                    "workload archive has no adapter-ready members",
+                ));
+            }
+            validate_workload_evaluator_layout(&staging_path, preparation)?;
+            if previous_prepared.exists() {
+                fs::remove_dir_all(&previous_prepared).map_err(|_| {
+                    CliError::legacy_operation(
+                        "previous workload preparation backup cannot be removed",
+                    )
+                })?;
+            }
+            if prepared_path.exists() {
+                fs::rename(&prepared_path, &previous_prepared).map_err(|_| {
+                    CliError::legacy_operation("previous workload preparation cannot be staged")
+                })?;
+            }
+            if fs::rename(&staging_path, &prepared_path).is_err() {
+                let _ = fs::rename(&previous_prepared, &prepared_path);
+                return Err(CliError::legacy_operation(
+                    "workload preparation cannot be published",
+                ));
+            }
+            let bundle_path = root.join("bundle.archive");
+            let receipt_path = root.join("receipt.json");
+            let previous_bundle = fs::read(&bundle_path).ok();
+            let previous_receipt = fs::read(&receipt_path).ok();
+            if let Err(error) =
+                write_atomic_private(&bundle_path, &archive, DirectoryPurpose::Tools, None)
+            {
+                let _ = fs::remove_dir_all(&prepared_path);
+                let _ = fs::rename(&previous_prepared, &prepared_path);
+                return Err(error);
+            }
+            let receipt = json!({"schema_version": 1, "workload_id": id, "catalog_revision": version, "source": source_url, "revision": revision, "archive_digest_sha256": archive_digest, "license": license, "status": "verified", "preparation": "bounded-extracted; no installer executed", "evaluator_entrypoint": preparation});
+            let receipt_bytes = serde_json::to_vec_pretty(&receipt)
+                .map_err(|_| CliError::legacy_operation("workload receipt cannot be encoded"))?;
+            if let Err(error) =
+                write_atomic_private(&receipt_path, &receipt_bytes, DirectoryPurpose::Tools, None)
+            {
+                if let Some(previous) = previous_bundle.as_ref() {
+                    let _ =
+                        write_atomic_private(&bundle_path, previous, DirectoryPurpose::Tools, None);
+                } else {
+                    let _ = fs::remove_file(&bundle_path);
+                }
+                let _ = fs::remove_dir_all(&prepared_path);
+                let _ = fs::rename(&previous_prepared, &prepared_path);
+                return Err(error);
+            }
+            let record = ProjectToolRecordV1 {
+                kind: ProjectToolKind::Workload,
+                source_ref: source.to_owned(),
+                version: version.to_owned(),
+                platform: platform_label(),
+                path: Some(path),
+                digest_sha256: Some(archive_digest.clone()),
+                capabilities: vec![
+                    "external-workload".into(),
+                    "verified-archive".into(),
+                    "adapter-ready".into(),
+                ],
+                status: ProjectToolStatus::Available,
+            };
+            config.workloads.insert(id.to_owned(), record);
+            if let Err(error) = save_tool_project(&project, &config) {
+                if let Some(previous) = previous_bundle.as_ref() {
+                    let _ =
+                        write_atomic_private(&bundle_path, previous, DirectoryPurpose::Tools, None);
+                } else {
+                    let _ = fs::remove_file(&bundle_path);
+                }
+                if let Some(previous) = previous_receipt.as_ref() {
+                    let _ = write_atomic_private(
+                        &receipt_path,
+                        previous,
+                        DirectoryPurpose::Tools,
+                        None,
+                    );
+                } else {
+                    let _ = fs::remove_file(&receipt_path);
+                }
+                let _ = fs::remove_dir_all(&prepared_path);
+                let _ = fs::rename(&previous_prepared, &prepared_path);
+                return Err(error);
+            }
+            let _ = fs::remove_dir_all(&previous_prepared);
+            workload_output(
+                output,
+                human,
+                &json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": format!("workload {operation}"), "id": id, "version": version, "status": "verified", "archive_digest_sha256": archive_digest}),
+                &format!("{operation}d verified workload {id}"),
+            )
+        }
+        "select" => {
+            let id = id.ok_or_else(|| CliError::legacy_usage("workload select requires an ID"))?;
+            let record = config
+                .workloads
+                .get(id)
+                .ok_or_else(|| CliError::legacy_validation("selected workload is not installed"))?;
+            if record.status != ProjectToolStatus::Available {
+                return Err(CliError::legacy_validation(
+                    "selected workload is unavailable",
+                ));
+            }
+            config.selections.workload = Some(id.to_owned());
+            save_tool_project(&project, &config)?;
+            workload_output(
+                output,
+                human,
+                &json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "workload select", "id": id}),
+                &format!("selected workload {id}"),
+            )
+        }
+        "remove" => {
+            let id = id.ok_or_else(|| CliError::legacy_usage("workload remove requires an ID"))?;
+            config
+                .workloads
+                .remove(id)
+                .ok_or_else(|| CliError::legacy_validation("workload ID is not installed"))?;
+            let path = workload_install_root(&project, id, false)?;
+            if let Ok(metadata) = fs::symlink_metadata(&path) {
+                if metadata.file_type().is_symlink() {
+                    return Err(CliError::legacy_validation(
+                        "workload installation path is a symlink",
+                    ));
+                }
+                fs::remove_dir_all(&path).map_err(|_| {
+                    CliError::legacy_operation("workload installation cannot be removed")
+                })?;
+            }
+            if config.selections.workload.as_deref() == Some(id) {
+                config.selections.workload = None;
+            }
+            save_tool_project(&project, &config)?;
+            workload_output(
+                output,
+                human,
+                &json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "workload remove", "id": id}),
+                &format!("removed workload {id}"),
+            )
+        }
+        _ => Err(CliError::legacy_usage(
+            "workload requires install|list|status|select|repair|update|remove",
+        )),
+    }
+}
+
+fn external_workload_catalog() -> Vec<Value> {
+    serde_json::from_str::<Value>(include_str!(
+        "../../asb-workloads/registry/v1/external-workloads.json"
+    ))
+    .ok()
+    .and_then(|value| value.get("workloads").cloned())
+    .and_then(|value| value.as_array().cloned())
+    .unwrap_or_default()
+}
+
+fn workload_output(
+    output: &mut dyn Write,
+    human: bool,
+    value: &Value,
+    summary: &str,
+) -> Result<(), CliError> {
+    if human {
+        writeln!(output, "[ OK ] ASB {summary}.").map_err(output_error)
+    } else {
+        write_json(output, value)
+    }
+}
+
+fn acquire_verified_workload_archive(source_url: &str) -> Result<Vec<u8>, CliError> {
+    if matches!(
+        std::env::var("ASB_CI_CREDENTIAL_FREE").ok().as_deref(),
+        Some("1" | "true" | "yes")
+    ) || matches!(
+        std::env::var("ASB_NETWORK_POLICY").ok().as_deref(),
+        Some("deny" | "offline")
+    ) {
+        return Err(CliError::legacy_validation(
+            "official workload source is unavailable or offline",
+        ));
+    }
+    let transfer = Command::new("/usr/bin/curl")
+        .args([
+            "--fail",
+            "--silent",
+            "--show-error",
+            "--location",
+            "--proto",
+            "=https",
+            "--tlsv1.2",
+            "--connect-timeout",
+            "10",
+            "--max-time",
+            "120",
+            "--max-filesize",
+            "536870912",
+            source_url,
+        ])
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .output()
+        .map_err(|_| {
+            CliError::legacy_validation("official workload source is unavailable or offline")
+        })?;
+    if !transfer.status.success() || transfer.stdout.is_empty() {
+        return Err(CliError::legacy_validation(
+            "official workload source is unavailable or offline",
+        ));
+    }
+    Ok(transfer.stdout)
+}
+
+struct WorkloadSourceIdentity {
+    repository: String,
+    revision: String,
+    expected_digest: String,
+}
+
+fn resolve_workload_source(entry: &Value) -> Result<WorkloadSourceIdentity, CliError> {
+    let (repository, revision, expected_digest) = if let Some(repository) =
+        entry.pointer("/source/repository").and_then(Value::as_str)
+    {
+        let revision = entry
+            .pointer("/source/commit")
+            .or_else(|| entry.pointer("/source/revision"))
+            .and_then(Value::as_str)
+            .ok_or_else(|| CliError::legacy_validation("workload catalog revision is missing"))?;
+        let digest = entry
+            .pointer("/source/archive_sha256")
+            .and_then(Value::as_str)
+            .filter(|value| value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+            .ok_or_else(|| {
+                CliError::legacy_validation("workload catalog archive proof is missing")
+            })?;
+        (
+            repository.to_owned(),
+            revision.to_owned(),
+            digest.to_owned(),
+        )
+    } else {
+        let repository = entry
+            .pointer("/source/repositories/0")
+            .and_then(Value::as_str)
+            .ok_or_else(|| CliError::legacy_validation("workload catalog source is missing"))?;
+        let (track, revision) = repository
+            .split_once('@')
+            .ok_or_else(|| CliError::legacy_validation("workload catalog revision is missing"))?;
+        let digest = entry
+            .pointer(&format!("/source/archive_sha256/{track}"))
+            .and_then(Value::as_str)
+            .filter(|value| value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+            .ok_or_else(|| {
+                CliError::legacy_validation("workload catalog archive proof is missing")
+            })?;
+        (
+            format!("https://github.com/exercism/{track}"),
+            revision.to_owned(),
+            digest.to_owned(),
+        )
+    };
+    let reviewed_arxiv_v1 = repository == "https://arxiv.org/abs/2407.01502" && revision == "v1";
+    if !reviewed_arxiv_v1
+        && (revision.len() != 40 || !revision.bytes().all(|byte| byte.is_ascii_hexdigit()))
+    {
+        return Err(CliError::legacy_validation(
+            "workload catalog revision is not an immutable commit",
+        ));
+    }
+    Ok(WorkloadSourceIdentity {
+        repository,
+        revision,
+        expected_digest,
+    })
+}
+
+struct WorkloadRepairProof<'a> {
+    version: &'a str,
+    expected_digest: &'a str,
+    license: &'a str,
+    preparation: &'a str,
+}
+
+fn repair_verified_workload_offline(
+    project: &Path,
+    id: &str,
+    proof: WorkloadRepairProof<'_>,
+    output: &mut dyn Write,
+    human: bool,
+) -> Result<(), CliError> {
+    let root = workload_install_root(project, id, true)?;
+    let bundle_path = root.join("bundle.archive");
+    let receipt_path = root.join("receipt.json");
+    for path in [&bundle_path, &receipt_path] {
+        let metadata = fs::symlink_metadata(path).map_err(|_| {
+            CliError::legacy_validation(
+                "workload installation is stale or incomplete; update is required",
+            )
+        })?;
+        if !metadata.is_file() || metadata.file_type().is_symlink() {
+            return Err(CliError::legacy_validation(
+                "workload installation contains an unsafe bundle or receipt",
+            ));
+        }
+    }
+    let bundle = fs::read(&bundle_path).map_err(|_| {
+        CliError::legacy_validation(
+            "workload installation is stale or incomplete; update is required",
+        )
+    })?;
+    let receipt: Value = serde_json::from_slice(&fs::read(&receipt_path).map_err(|_| {
+        CliError::legacy_validation(
+            "workload installation is stale or incomplete; update is required",
+        )
+    })?)
+    .map_err(|_| CliError::legacy_validation("workload receipt is invalid; update is required"))?;
+    if receipt.pointer("/workload_id").and_then(Value::as_str) != Some(id)
+        || receipt.pointer("/catalog_revision").and_then(Value::as_str) != Some(proof.version)
+        || receipt
+            .pointer("/archive_digest_sha256")
+            .and_then(Value::as_str)
+            != Some(proof.expected_digest)
+        || receipt.pointer("/license").and_then(Value::as_str) != Some(proof.license)
+        || receipt
+            .pointer("/evaluator_entrypoint")
+            .and_then(Value::as_str)
+            != Some(proof.preparation)
+    {
+        return Err(CliError::legacy_validation(
+            "workload receipt proof is stale; update is required",
+        ));
+    }
+    validate_workload_archive(&bundle)?;
+    let digest = format!("{:x}", Sha256::digest(&bundle));
+    if digest != proof.expected_digest {
+        return Err(CliError::legacy_validation(
+            "workload archive digest does not match the pinned catalog",
+        ));
+    }
+    let staging = root.join("prepared.repairing");
+    let previous = root.join("prepared.previous-repair");
+    let prepared = root.join("prepared");
+    for path in [&staging, &previous, &prepared] {
+        if fs::symlink_metadata(path)
+            .map(|metadata| metadata.file_type().is_symlink())
+            .unwrap_or(false)
+        {
+            return Err(CliError::legacy_validation(
+                "workload preparation path is a symlink",
+            ));
+        }
+    }
+    let _ = fs::remove_dir_all(&staging);
+    let _ = fs::remove_dir_all(&previous);
+    fs::create_dir_all(&staging).map_err(|_| {
+        CliError::legacy_operation("workload repair cannot prepare its staging directory")
+    })?;
+    if extract_workload_archive(&bundle, &staging)? == 0 {
+        let _ = fs::remove_dir_all(&staging);
+        return Err(CliError::legacy_validation(
+            "workload archive contains no preparable members",
+        ));
+    }
+    validate_workload_evaluator_layout(&staging, proof.preparation)?;
+    if prepared.exists() {
+        fs::rename(&prepared, &previous).map_err(|_| {
+            CliError::legacy_operation("previous workload preparation cannot be staged")
+        })?;
+    }
+    if fs::rename(&staging, &prepared).is_err() {
+        let _ = fs::rename(&previous, &prepared);
+        let _ = fs::remove_dir_all(&staging);
+        return Err(CliError::legacy_operation(
+            "workload repair cannot publish prepared files",
+        ));
+    }
+    let _ = fs::remove_dir_all(&previous);
+    workload_output(
+        output,
+        human,
+        &json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "workload repair", "id": id, "status": "repaired-offline", "archive_digest_sha256": digest}),
+        "repaired workload offline from the retained verified bundle",
+    )
+}
+
+fn extract_workload_archive(bytes: &[u8], destination: &Path) -> Result<usize, CliError> {
+    let tar = if bytes.starts_with(&[0x1f, 0x8b]) {
+        let mut decoded = Vec::new();
+        flate2::read::GzDecoder::new(bytes)
+            .take((512 * 1024 * 1024 + 1) as u64)
+            .read_to_end(&mut decoded)
+            .map_err(|_| CliError::legacy_validation("workload archive compression is invalid"))?;
+        decoded
+    } else {
+        bytes.to_vec()
+    };
+    let mut offset = 0usize;
+    let mut members = BTreeSet::new();
+    let mut extracted = 0usize;
+    while offset + 512 <= tar.len() {
+        let header = &tar[offset..offset + 512];
+        if header.iter().all(|byte| *byte == 0) {
+            return Ok(extracted);
+        }
+        let name_end = header[..100]
+            .iter()
+            .position(|byte| *byte == 0)
+            .unwrap_or(100);
+        let name = std::str::from_utf8(&header[..name_end])
+            .map_err(|_| CliError::legacy_validation("workload archive member name is invalid"))?;
+        if !members.insert(name.to_owned()) {
+            return Err(CliError::legacy_validation(
+                "workload archive contains a duplicate member",
+            ));
+        }
+        let kind = header[156];
+        validate_workload_member_name(name, kind)?;
+        let size_text = std::str::from_utf8(&header[124..136])
+            .unwrap_or("")
+            .trim_matches('\0')
+            .trim();
+        let size = usize::from_str_radix(size_text.trim_start_matches('0'), 8).unwrap_or(0);
+        let padded = size.div_ceil(512).saturating_mul(512);
+        let end = offset.saturating_add(512).saturating_add(padded);
+        if end > tar.len() {
+            return Err(CliError::legacy_validation(
+                "workload archive member exceeds archive boundary",
+            ));
+        }
+        let path = destination.join(name);
+        if kind == b'5' {
+            fs::create_dir_all(&path).map_err(|_| {
+                CliError::legacy_operation("workload preparation cannot create directory")
+            })?;
+        } else if matches!(kind, 0 | b'0') {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).map_err(|_| {
+                    CliError::legacy_operation("workload preparation cannot create parent")
+                })?;
+            }
+            fs::write(&path, &tar[offset + 512..offset + 512 + size]).map_err(|_| {
+                CliError::legacy_operation("workload preparation cannot write member")
+            })?;
+        } else {
+            return Err(CliError::legacy_validation(
+                "workload archive contains a link or special member",
+            ));
+        }
+        extracted = extracted.saturating_add(1);
+        offset = end;
+    }
+    Err(CliError::legacy_validation(
+        "workload archive has an incomplete member table",
+    ))
+}
+
+fn validate_workload_archive(bytes: &[u8]) -> Result<(), CliError> {
+    if bytes.len() > 512 * 1024 * 1024 || bytes.len() < 4 {
+        return Err(CliError::legacy_validation(
+            "workload archive exceeds the bounded size or is empty",
+        ));
+    }
+    let archive =
+        bytes.starts_with(&[0x1f, 0x8b]) || (bytes.len() >= 262 && &bytes[257..262] == b"ustar");
+    if !archive || bytes.starts_with(b"<!DOCTYPE") || bytes.starts_with(b"<html") {
+        return Err(CliError::legacy_validation(
+            "workload source is not a supported archive",
+        ));
+    }
+    let tar = if bytes.starts_with(&[0x1f, 0x8b]) {
+        let mut decoded = Vec::new();
+        flate2::read::GzDecoder::new(bytes)
+            .take((512 * 1024 * 1024 + 1) as u64)
+            .read_to_end(&mut decoded)
+            .map_err(|_| CliError::legacy_validation("workload archive compression is invalid"))?;
+        decoded
+    } else {
+        bytes.to_vec()
+    };
+    validate_tar_members(&tar)?;
+    Ok(())
+}
+
+fn validate_tar_members(archive: &[u8]) -> Result<(), CliError> {
+    let mut offset = 0usize;
+    while offset + 512 <= archive.len() {
+        let header = &archive[offset..offset + 512];
+        if header.iter().all(|byte| *byte == 0) {
+            return Ok(());
+        }
+        let name_end = header[..100]
+            .iter()
+            .position(|byte| *byte == 0)
+            .unwrap_or(100);
+        let name = std::str::from_utf8(&header[..name_end])
+            .map_err(|_| CliError::legacy_validation("workload archive member name is invalid"))?;
+        let kind = header[156];
+        validate_workload_member_name(name, kind)?;
+        if !matches!(kind, 0 | b'0' | b'5') {
+            return Err(CliError::legacy_validation(
+                "workload archive contains a link or special member",
+            ));
+        }
+        let size_text = std::str::from_utf8(&header[124..136])
+            .unwrap_or("")
+            .trim_matches('\0')
+            .trim();
+        let size = usize::from_str_radix(size_text.trim_start_matches('0'), 8).unwrap_or(0);
+        let padded = size.div_ceil(512).saturating_mul(512);
+        offset = offset.saturating_add(512).saturating_add(padded);
+        if offset > archive.len() {
+            return Err(CliError::legacy_validation(
+                "workload archive member exceeds archive boundary",
+            ));
+        }
+    }
+    Err(CliError::legacy_validation(
+        "workload archive has an incomplete member table",
+    ))
+}
+
+fn validate_workload_member_name(name: &str, kind: u8) -> Result<(), CliError> {
+    let mut parts = name.split('/').collect::<Vec<_>>();
+    if kind == b'5' {
+        while parts.last() == Some(&"") {
+            parts.pop();
+        }
+    }
+    if name.starts_with('/')
+        || parts.is_empty()
+        || parts.iter().any(|part| *part == ".." || part.is_empty())
+    {
+        return Err(CliError::legacy_validation(
+            "workload archive contains an unsafe member path",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod workload_archive_tests {
+    use super::{extract_workload_archive, validate_workload_archive};
+
+    fn tar_member(name: &[u8], kind: u8) -> Vec<u8> {
+        let mut archive = vec![0u8; 1024];
+        let count = name.len().min(100);
+        archive[..count].copy_from_slice(&name[..count]);
+        archive[156] = kind;
+        archive[257..262].copy_from_slice(b"ustar");
+        archive[512..].fill(0);
+        archive
+    }
+
+    #[test]
+    fn rejects_hostile_paths_and_links() {
+        for (name, kind) in [
+            (b"../escape".as_slice(), 0),
+            (b"/absolute".as_slice(), 0),
+            (b"safe//escape".as_slice(), 0),
+            (b"safe/link".as_slice(), b'2'),
+        ] {
+            let error = validate_workload_archive(&tar_member(name, kind)).unwrap_err();
+            assert!(error.message.contains("workload archive"));
+        }
+    }
+
+    #[test]
+    fn accepts_a_bounded_regular_tar() {
+        validate_workload_archive(&tar_member(b"root/manifest.json", 0)).unwrap();
+        validate_workload_archive(&tar_member(b"repo-commit/", b'5')).unwrap();
+    }
+
+    #[test]
+    fn extraction_is_bounded_and_stages_regular_members_only() {
+        let root = tempfile::tempdir().unwrap();
+        let archive = tar_member(b"root/manifest.json", 0);
+        assert_eq!(extract_workload_archive(&archive, root.path()).unwrap(), 1);
+        assert!(root.path().join("root/manifest.json").is_file());
+        let directory = tar_member(b"root/", b'5');
+        assert_eq!(
+            extract_workload_archive(&directory, root.path()).unwrap(),
+            1
+        );
+        let mut duplicate = tar_member(b"root/item", 0);
+        duplicate[124..136].copy_from_slice(b"000000000001");
+        duplicate[512] = 1;
+        duplicate.extend_from_slice(&tar_member(b"root/item", 0));
+        assert!(extract_workload_archive(&duplicate, root.path()).is_err());
+    }
+
+    #[test]
+    fn rejects_malformed_archive_encodings_and_boundaries() {
+        for bytes in [
+            b"no".as_slice(),
+            b"<html>bad".as_slice(),
+            b"PK\x03\x04".as_slice(),
+        ] {
+            assert!(validate_workload_archive(bytes).is_err());
+        }
+        assert!(validate_workload_archive(&[0x1f, 0x8b, 0x08, 0x00, 0x00]).is_err());
+        let mut incomplete = tar_member(b"root/file", 0);
+        incomplete[124..136].copy_from_slice(b"77777777777\0");
+        assert!(validate_workload_archive(&incomplete).is_err());
     }
 }
 
@@ -10809,16 +11588,26 @@ fn write_json(output: &mut dyn Write, value: &impl Serialize) -> Result<(), CliE
     writeln!(output).map_err(output_error)
 }
 
-/// Route a last-resort operational diagnostic through the same fixed marker
-/// vocabulary as the normal human presentation.  Control-worker failures use
-/// this boundary because they occur outside the request renderer.
-pub(crate) fn write_router_diagnostic(output: &mut dyn Write, message: &str) -> io::Result<()> {
-    writeln!(output, "[ERR ] {message}")
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use std::ffi::OsString;
+
+    #[test]
+    fn external_workload_catalog_is_pinned_and_nonempty() {
+        let catalog = super::external_workload_catalog();
+        assert!(catalog.len() >= 20);
+        for entry in catalog {
+            let id = entry.get("id").and_then(serde_json::Value::as_str).unwrap();
+            assert!(super::valid_tool_id(id) || id == "ai-agents-that-matter");
+            assert!(
+                entry
+                    .get("version")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some()
+            );
+            assert!(entry.get("source").is_some());
+        }
+    }
 
     fn os_args(words: &[&str]) -> Vec<OsString> {
         words.iter().map(OsString::from).collect()
@@ -10955,88 +11744,6 @@ pub(crate) mod tests {
                 "{malformed:?}"
             );
         }
-    }
-
-    #[test]
-    fn output_levels_are_ordered_and_debug_is_bounded() {
-        let mut normal_out = Vec::new();
-        let mut normal_err = Vec::new();
-        assert_eq!(
-            super::run_with_default_mode(
-                &os_args(&["doctor"]),
-                &mut normal_out,
-                &mut normal_err,
-                true
-            ),
-            0
-        );
-        let mut verbose_out = Vec::new();
-        let mut verbose_err = Vec::new();
-        assert_eq!(
-            super::run_with_default_mode(
-                &os_args(&["--verbose", "doctor"]),
-                &mut verbose_out,
-                &mut verbose_err,
-                true,
-            ),
-            0
-        );
-        let mut debug_out = Vec::new();
-        let mut debug_err = Vec::new();
-        assert_eq!(
-            super::run_with_default_mode(
-                &os_args(&["--debug", "doctor"]),
-                &mut debug_out,
-                &mut debug_err,
-                true,
-            ),
-            0
-        );
-        assert!(verbose_err.len() >= normal_err.len());
-        let debug = String::from_utf8(debug_err).unwrap();
-        assert!(debug.contains("[ OK ] Debug: routed command doctor."));
-        assert!(!debug.contains("/tmp/"));
-    }
-
-    #[test]
-    fn quiet_and_json_keep_both_streams_silent_for_failures() {
-        for args in [
-            &["-q", "not-a-command"][..],
-            &["--json", "not-a-command"][..],
-        ] {
-            let mut output = Vec::new();
-            let mut error = Vec::new();
-            assert_eq!(
-                super::run_with_default_mode(&os_args(args), &mut output, &mut error, true),
-                2
-            );
-            if args[0] == "-q" {
-                assert!(output.is_empty());
-                assert!(error.is_empty());
-            } else {
-                assert!(error.is_empty());
-                assert!(serde_json::from_slice::<serde_json::Value>(&output).is_ok());
-            }
-        }
-    }
-
-    #[test]
-    fn debug_never_appends_to_raw_text_artifacts() {
-        let mut normal = Vec::new();
-        let mut normal_err = Vec::new();
-        let normal_exit =
-            super::run_with_default_mode(&os_args(&["--help"]), &mut normal, &mut normal_err, true);
-        let mut debug = Vec::new();
-        let mut debug_err = Vec::new();
-        let debug_exit = super::run_with_default_mode(
-            &os_args(&["--debug", "--help"]),
-            &mut debug,
-            &mut debug_err,
-            true,
-        );
-        assert_eq!(normal_exit, debug_exit);
-        assert_eq!(normal, debug);
-        assert_eq!(normal_err, debug_err);
     }
 
     #[test]
@@ -12096,7 +12803,7 @@ pub(crate) mod tests {
                 queue: 0,
                 max_failures: 0,
                 timeout_ms: 5_000,
-                poll_ms: 2,
+                poll_ms: 50,
                 seed: 7,
                 open_loop_interval_ms: None,
                 sweep_max_concurrency: Some(2),
@@ -16419,7 +17126,7 @@ pub(crate) mod tests {
         validate_plan(&plan).unwrap();
         let migrated = effective_measurement_selection(&plan).unwrap();
         assert_eq!(migrated.selected_ids.len(), 7);
-        assert_eq!(migrated.sample_interval_ns, Some(2_000_000));
+        assert_eq!(migrated.sample_interval_ns, Some(50_000_000));
         assert!(
             !toml::to_string(&plan)
                 .unwrap()
@@ -17099,6 +17806,947 @@ pub(crate) mod tests {
         }
     }
 
+    #[test]
+    fn workload_lifecycle_read_only_and_proof_matrix_is_bounded() {
+        for entry in external_workload_catalog() {
+            let digest = entry
+                .pointer("/source/archive_sha256")
+                .expect("every workload has a reviewed archive digest");
+            match digest {
+                Value::String(value) => {
+                    assert!(value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+                }
+                Value::Object(values) => assert!(values.values().all(|value| {
+                    value.as_str().is_some_and(|value| {
+                        value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+                    })
+                })),
+                _ => panic!("archive digest must be a string or per-track object"),
+            }
+            assert!(
+                entry
+                    .pointer("/evaluator/entrypoint")
+                    .and_then(Value::as_str)
+                    .is_some_and(|value| !value.trim().is_empty())
+            );
+        }
+        let scratch = Scratch::new("workload-lifecycle-matrix");
+        let project = scratch.0.join("workspace");
+        let mut output = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "project".into(),
+                    "init".into(),
+                    project.display().to_string().into(),
+                ],
+                &mut output,
+                &mut Vec::new(),
+            ),
+            0
+        );
+        output.clear();
+        assert!(
+            workload_with_progress(
+                &[
+                    "list".into(),
+                    "--project".into(),
+                    project.display().to_string()
+                ],
+                &mut output,
+                &mut Vec::new(),
+                false,
+            )
+            .is_ok()
+        );
+        let mut human_list = Vec::new();
+        workload_with_progress(
+            &[
+                "list".into(),
+                "--project".into(),
+                project.display().to_string(),
+            ],
+            &mut human_list,
+            &mut Vec::new(),
+            true,
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(human_list)
+                .unwrap()
+                .starts_with("[ OK ] ASB listed 0 installed workloads.")
+        );
+        let mut config = load_tool_project(&project).unwrap();
+        config.workloads.insert(
+            "fixture".into(),
+            ProjectToolRecordV1 {
+                kind: ProjectToolKind::Workload,
+                source_ref: "fixture://workload".into(),
+                version: "1.0.0".into(),
+                platform: platform_label(),
+                path: Some(".asb/workloads/fixture".into()),
+                digest_sha256: Some("a".repeat(64)),
+                capabilities: vec!["external-workload".into()],
+                status: ProjectToolStatus::Available,
+            },
+        );
+        save_tool_project(&project, &config).unwrap();
+        config.workloads.insert(
+            "agentbench".into(),
+            ProjectToolRecordV1 {
+                kind: ProjectToolKind::Workload,
+                source_ref: "https://github.com/THUDM/AgentBench".into(),
+                version: "main-d1e4a10d".into(),
+                platform: platform_label(),
+                path: Some(".asb/workloads/agentbench".into()),
+                digest_sha256: Some("b".repeat(64)),
+                capabilities: vec!["adapter-ready".into()],
+                status: ProjectToolStatus::Available,
+            },
+        );
+        save_tool_project(&project, &config).unwrap();
+        let mut duplicate_install = vec!["install".into(), "agentbench".into()];
+        duplicate_install.extend(["--project".into(), project.display().to_string()]);
+        assert!(
+            workload_with_progress(&duplicate_install, &mut Vec::new(), &mut Vec::new(), false)
+                .is_err()
+        );
+        let repair_root = project.join(".asb/workloads/agentbench");
+        fs::create_dir_all(repair_root.join("prepared")).unwrap();
+        fs::write(repair_root.join("bundle.archive"), b"verified").unwrap();
+        fs::write(repair_root.join("receipt.json"), b"{}").unwrap();
+        let mut repair = vec!["repair".into(), "agentbench".into()];
+        repair.extend(["--project".into(), project.display().to_string()]);
+        let mut repair_output = Vec::new();
+        assert!(
+            workload_with_progress(&repair, &mut repair_output, &mut Vec::new(), false).is_err()
+        );
+        for args in [
+            vec!["list"],
+            vec!["status", "fixture"],
+            vec!["select", "fixture"],
+            vec!["remove", "fixture"],
+        ] {
+            let mut command = args.into_iter().map(String::from).collect::<Vec<_>>();
+            command.extend(["--project".into(), project.display().to_string()]);
+            assert!(
+                workload_with_progress(&command, &mut Vec::new(), &mut Vec::new(), false).is_ok()
+            );
+        }
+        for args in [
+            vec!["status", "missing"],
+            vec!["select", "missing"],
+            vec!["remove", "missing"],
+            vec!["install", "agentbench"],
+            vec!["install", "agentdojo"],
+            vec!["install", "agentops"],
+            vec!["update", "missing"],
+            vec!["repair", "missing"],
+        ] {
+            let mut command = args.into_iter().map(OsString::from).collect::<Vec<_>>();
+            command.extend([
+                OsString::from("--project"),
+                project.display().to_string().into(),
+            ]);
+            let command = command
+                .into_iter()
+                .map(|value| value.to_string_lossy().into_owned())
+                .collect::<Vec<_>>();
+            assert!(
+                workload_with_progress(&command, &mut Vec::new(), &mut Vec::new(), false).is_err(),
+                "unexpectedly accepted credential-free matrix command: {command:?}"
+            );
+        }
+        let mut config = load_tool_project(&project).unwrap();
+        config.workloads.insert(
+            "unavailable".into(),
+            ProjectToolRecordV1 {
+                kind: ProjectToolKind::Workload,
+                source_ref: "fixture://unavailable".into(),
+                version: "1.0.0".into(),
+                platform: platform_label(),
+                path: Some(".asb/workloads/unavailable".into()),
+                digest_sha256: None,
+                capabilities: Vec::new(),
+                status: ProjectToolStatus::Error,
+            },
+        );
+        save_tool_project(&project, &config).unwrap();
+        let mut select = vec!["select".into(), "unavailable".into()];
+        select.extend(["--project".into(), project.display().to_string()]);
+        assert!(workload_with_progress(&select, &mut Vec::new(), &mut Vec::new(), false).is_err());
+        let workload_path = project.join(".asb/workloads/unavailable");
+        fs::create_dir_all(workload_path.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(project.join(".asb"), &workload_path).unwrap();
+        let mut remove = vec!["remove".into(), "unavailable".into()];
+        remove.extend(["--project".into(), project.display().to_string()]);
+        assert!(workload_with_progress(&remove, &mut Vec::new(), &mut Vec::new(), false).is_err());
+    }
+
+    #[test]
+    fn workload_lifecycle_negative_and_human_boundaries_are_explicit() {
+        let scratch = Scratch::new("workload-lifecycle-negative-boundaries");
+        let project = scratch.0.join("workspace");
+        project_init_with_progress(
+            &[project.display().to_string()],
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+        )
+        .unwrap();
+
+        let mut config = load_tool_project(&project).unwrap();
+        config.workloads.insert(
+            "known".into(),
+            ProjectToolRecordV1 {
+                kind: ProjectToolKind::Workload,
+                source_ref: "fixture://known".into(),
+                version: "1.0.0".into(),
+                platform: platform_label(),
+                path: Some(".asb/workloads/known".into()),
+                digest_sha256: Some("c".repeat(64)),
+                capabilities: vec!["adapter-ready".into()],
+                status: ProjectToolStatus::Available,
+            },
+        );
+        config.workloads.insert(
+            "unknown".into(),
+            ProjectToolRecordV1 {
+                kind: ProjectToolKind::Workload,
+                source_ref: "fixture://unknown".into(),
+                version: "1.0.0".into(),
+                platform: platform_label(),
+                path: Some(".asb/workloads/unknown".into()),
+                digest_sha256: Some("d".repeat(64)),
+                capabilities: vec!["external-workload".into()],
+                status: ProjectToolStatus::Available,
+            },
+        );
+        save_tool_project(&project, &config).unwrap();
+
+        let args = |operation: &str, id: &str| {
+            vec![
+                operation.into(),
+                id.into(),
+                "--project".into(),
+                project.display().to_string(),
+            ]
+        };
+        let mut status_human = Vec::new();
+        workload_with_progress(
+            &args("status", "known"),
+            &mut status_human,
+            &mut Vec::new(),
+            true,
+        )
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(status_human).unwrap(),
+            "[ OK ] ASB workload known is Available.\n"
+        );
+
+        let mut select_human = Vec::new();
+        workload_with_progress(
+            &args("select", "known"),
+            &mut select_human,
+            &mut Vec::new(),
+            true,
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(select_human)
+                .unwrap()
+                .contains("selected workload known")
+        );
+        let mut remove_human = Vec::new();
+        workload_with_progress(
+            &args("remove", "known"),
+            &mut remove_human,
+            &mut Vec::new(),
+            true,
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(remove_human)
+                .unwrap()
+                .contains("removed workload known")
+        );
+
+        let mut stale_repair = Vec::new();
+        assert!(
+            workload_with_progress(
+                &args("repair", "unknown"),
+                &mut stale_repair,
+                &mut Vec::new(),
+                false,
+            )
+            .is_err()
+        );
+        assert!(
+            workload_with_progress(
+                &args("update", "unknown"),
+                &mut Vec::new(),
+                &mut Vec::new(),
+                false,
+            )
+            .is_err()
+        );
+        assert!(
+            workload_with_progress(
+                &args("install", "not-catalogued"),
+                &mut Vec::new(),
+                &mut Vec::new(),
+                false,
+            )
+            .is_err()
+        );
+        assert!(
+            workload_with_progress(
+                &args("unsupported", "known"),
+                &mut Vec::new(),
+                &mut Vec::new(),
+                false,
+            )
+            .is_err()
+        );
+        assert!(
+            super::acquire_verified_workload_archive("http://127.0.0.1:1/unavailable").is_err()
+        );
+    }
+
+    fn verified_workload_fixture_archive(_: &str) -> Result<Vec<u8>, CliError> {
+        let mut archive = vec![0u8; 1024];
+        archive[..21].copy_from_slice(b"fixture/manifest.json");
+        archive[257..262].copy_from_slice(b"ustar");
+        Ok(archive)
+    }
+
+    fn unavailable_workload_fixture_archive(_: &str) -> Result<Vec<u8>, CliError> {
+        Err(CliError::legacy_operation("fixture archive unavailable"))
+    }
+
+    fn malformed_workload_fixture_archive(_: &str) -> Result<Vec<u8>, CliError> {
+        Ok(vec![0u8; 8])
+    }
+
+    #[test]
+    fn workload_entrypoint_and_acquisition_failures_are_explicit() {
+        let scratch = Scratch::new("workload-entrypoint-failures");
+        let project = scratch.0.join("workspace");
+        project_init_with_progress(
+            &[project.display().to_string()],
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+        )
+        .unwrap();
+        assert!(workload_with_progress(&[], &mut Vec::new(), &mut Vec::new(), false).is_err());
+
+        let mut args = vec!["install".into(), "fixture-workload".into()];
+        args.extend(["--project".into(), project.display().to_string()]);
+        let catalog = vec![json!({
+            "id": "fixture-workload",
+            "version": "catalog-v1",
+            "source": {
+                "repository": "https://github.com/example/fixture",
+                "commit": "0123456789012345678901234567890123456789",
+                "archive_sha256": "0".repeat(64),
+                "license": "MIT"
+            },
+            "evaluator": {"entrypoint": "fixture/manifest.json"}
+        })];
+        assert!(
+            workload_with_progress_inner(
+                &args,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                false,
+                &catalog,
+                unavailable_workload_fixture_archive,
+            )
+            .is_err()
+        );
+
+        let unsupported_catalog = vec![json!({
+            "id": "unsupported-workload",
+            "version": "catalog-v1",
+            "source": {
+                "repository": "https://example.invalid/workload",
+                "commit": "0123456789012345678901234567890123456789",
+                "archive_sha256": "0".repeat(64),
+                "license": "MIT"
+            },
+            "evaluator": {"entrypoint": "fixture/manifest.json"}
+        })];
+        args[1] = "unsupported-workload".into();
+        assert!(
+            workload_with_progress_inner(
+                &args,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                false,
+                &unsupported_catalog,
+                unavailable_workload_fixture_archive,
+            )
+            .is_err()
+        );
+
+        let malformed_catalog = vec![json!({
+            "id": "malformed-workload",
+            "version": "catalog-v1",
+            "source": {
+                "repository": "https://github.com/example/fixture",
+                "commit": "0123456789012345678901234567890123456789",
+                "archive_sha256": "0".repeat(64),
+                "license": "MIT"
+            },
+            "evaluator": {"entrypoint": "fixture/manifest.json"}
+        })];
+        args[1] = "malformed-workload".into();
+        assert!(
+            workload_with_progress_inner(
+                &args,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                false,
+                &malformed_catalog,
+                malformed_workload_fixture_archive,
+            )
+            .is_err()
+        );
+
+        let missing_license_catalog = vec![json!({
+            "id": "missing-license",
+            "version": "catalog-v1",
+            "source": {
+                "repository": "https://github.com/example/fixture",
+                "commit": "0123456789012345678901234567890123456789",
+                "archive_sha256": "0".repeat(64)
+            },
+            "evaluator": {"entrypoint": "fixture/manifest.json"}
+        })];
+        args[1] = "missing-license".into();
+        assert!(
+            workload_with_progress_inner(
+                &args,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                false,
+                &missing_license_catalog,
+                malformed_workload_fixture_archive,
+            )
+            .is_err()
+        );
+
+        for license in ["NOASSERTION", ""] {
+            let unlicensed_catalog = vec![json!({
+                "id": "unlicensed-workload",
+                "version": "catalog-v1",
+                "source": {
+                    "repository": "https://github.com/example/fixture",
+                    "commit": "0123456789012345678901234567890123456789",
+                    "archive_sha256": "0".repeat(64),
+                    "license": license
+                },
+                "evaluator": {"entrypoint": "fixture/manifest.json"}
+            })];
+            args[1] = "unlicensed-workload".into();
+            assert!(
+                workload_with_progress_inner(
+                    &args,
+                    &mut Vec::new(),
+                    &mut Vec::new(),
+                    false,
+                    &unlicensed_catalog,
+                    verified_workload_fixture_archive,
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn workload_identity_and_storage_paths_are_confined() {
+        assert!(super::validate_workload_id("../escape").is_err());
+        assert!(super::validate_workload_id("UpperCase").is_err());
+        assert!(super::validate_workload_id("safe-workload").is_ok());
+
+        let scratch = Scratch::new("workload-path-confinement");
+        let project = scratch.0.join("workspace");
+        fs::create_dir_all(project.join(".asb")).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(scratch.0.join("outside"), project.join(".asb/workloads"))
+            .unwrap();
+        #[cfg(unix)]
+        assert!(super::workload_install_root(&project, "safe-workload", false).is_err());
+
+        let safe_root = scratch.0.join("safe-root");
+        fs::create_dir_all(safe_root.join(".asb/workloads/safe-workload")).unwrap();
+        #[cfg(unix)]
+        {
+            let outside_bundle = scratch.0.join("outside-bundle");
+            fs::write(&outside_bundle, b"must not be read").unwrap();
+            std::os::unix::fs::symlink(
+                &outside_bundle,
+                safe_root.join(".asb/workloads/safe-workload/bundle.archive"),
+            )
+            .unwrap();
+            fs::write(
+                safe_root.join(".asb/workloads/safe-workload/receipt.json"),
+                b"{}",
+            )
+            .unwrap();
+            let zero_digest = "0".repeat(64);
+            let proof = super::WorkloadRepairProof {
+                version: "catalog-v1",
+                expected_digest: &zero_digest,
+                license: "MIT",
+                preparation: "fixture/manifest.json",
+            };
+            assert!(
+                super::repair_verified_workload_offline(
+                    &safe_root,
+                    "safe-workload",
+                    proof,
+                    &mut Vec::new(),
+                    false,
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn evaluator_layout_and_entrypoint_are_checked_before_publication() {
+        let scratch = Scratch::new("workload-layout-validation");
+        let empty = scratch.0.join("empty");
+        fs::create_dir_all(&empty).unwrap();
+        assert!(
+            super::validate_workload_evaluator_layout(&empty, "fixture/manifest.json").is_err()
+        );
+        fs::write(empty.join("manifest.json"), b"{}\n").unwrap();
+        assert!(super::validate_workload_evaluator_layout(&empty, "").is_err());
+        assert!(super::validate_workload_evaluator_layout(&empty, "fixture/manifest.json").is_ok());
+        assert!(super::validate_workload_evaluator_layout(&empty, "fixture/../escape").is_err());
+    }
+
+    #[test]
+    fn noassertion_or_missing_license_is_not_executable() {
+        for value in [None, Some(""), Some("NOASSERTION"), Some("noassertion")] {
+            let entry = match value {
+                Some(license) => json!({"source": {"license": license}}),
+                None => json!({"source": {}}),
+            };
+            assert!(super::validated_workload_license(&entry).is_err());
+        }
+        let entry = json!({"source": {"license": "MIT"}});
+        assert_eq!(super::validated_workload_license(&entry).unwrap(), "MIT");
+    }
+
+    #[test]
+    fn workload_install_and_update_publish_verified_receipts_atomically() {
+        let scratch = Scratch::new("workload-install-success");
+        let project = scratch.0.join("workspace");
+        project_init_with_progress(
+            &[project.display().to_string()],
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+        )
+        .unwrap();
+        let archive = verified_workload_fixture_archive("").unwrap();
+        let digest = format!("{:x}", Sha256::digest(&archive));
+        let catalog = vec![json!({
+            "id": "fixture-workload",
+            "version": "catalog-v1",
+            "source": {
+                "repository": "https://github.com/example/fixture",
+                "commit": "0123456789012345678901234567890123456789",
+                "archive_sha256": digest,
+                "license": "MIT"
+            },
+            "evaluator": {"entrypoint": "fixture/manifest.json"}
+        })];
+        let mut args = vec!["install".into(), "fixture-workload".into()];
+        args.extend(["--project".into(), project.display().to_string()]);
+        let mut output = Vec::new();
+        workload_with_progress_inner(
+            &args,
+            &mut output,
+            &mut Vec::new(),
+            false,
+            &catalog,
+            verified_workload_fixture_archive,
+        )
+        .unwrap();
+        let root = project.join(".asb/workloads/fixture-workload");
+        assert!(root.join("bundle.archive").is_file());
+        assert!(root.join("prepared/fixture/manifest.json").is_file());
+        let receipt: Value =
+            serde_json::from_slice(&fs::read(root.join("receipt.json")).unwrap()).unwrap();
+        assert_eq!(receipt["status"], "verified");
+        assert_eq!(
+            receipt["preparation"],
+            "bounded-extracted; no installer executed"
+        );
+        args[0] = "update".into();
+        workload_with_progress_inner(
+            &args,
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+            &catalog,
+            verified_workload_fixture_archive,
+        )
+        .unwrap();
+        assert!(!root.join("prepared.previous").exists());
+    }
+
+    #[test]
+    fn workload_inventory_selection_and_removal_are_project_bound() {
+        let scratch = Scratch::new("workload-project-lifecycle");
+        let project = scratch.0.join("workspace");
+        project_init_with_progress(
+            &[project.display().to_string()],
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+        )
+        .unwrap();
+        let archive = verified_workload_fixture_archive("").unwrap();
+        let digest = format!("{:x}", Sha256::digest(&archive));
+        let catalog = vec![json!({
+            "id": "fixture-workload",
+            "version": "catalog-v1",
+            "source": {
+                "repository": "https://github.com/example/fixture",
+                "commit": "0123456789012345678901234567890123456789",
+                "archive_sha256": digest,
+                "license": "MIT"
+            },
+            "evaluator": {"entrypoint": "fixture/manifest.json"}
+        })];
+        let project_arg = project.display().to_string();
+        let install = vec![
+            "install".into(),
+            "fixture-workload".into(),
+            "--project".into(),
+            project_arg.clone(),
+        ];
+        let mut human = Vec::new();
+        workload_with_progress_inner(
+            &install,
+            &mut human,
+            &mut Vec::new(),
+            true,
+            &catalog,
+            verified_workload_fixture_archive,
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(human)
+                .unwrap()
+                .contains("verified workload fixture-workload")
+        );
+
+        let list = vec!["list".into(), "--project".into(), project_arg.clone()];
+        let mut json_output = Vec::new();
+        workload_with_progress_inner(
+            &list,
+            &mut json_output,
+            &mut Vec::new(),
+            false,
+            &catalog,
+            verified_workload_fixture_archive,
+        )
+        .unwrap();
+        let listed: Value = serde_json::from_slice(&json_output).unwrap();
+        assert_eq!(listed["command"], "workload list");
+        assert_eq!(listed["workloads"][0]["id"], "fixture-workload");
+
+        let status = vec![
+            "status".into(),
+            "fixture-workload".into(),
+            "--project".into(),
+            project_arg.clone(),
+        ];
+        let mut status_output = Vec::new();
+        workload_with_progress_inner(
+            &status,
+            &mut status_output,
+            &mut Vec::new(),
+            true,
+            &catalog,
+            verified_workload_fixture_archive,
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(status_output)
+                .unwrap()
+                .contains("workload fixture-workload is Available")
+        );
+
+        let select = vec![
+            "select".into(),
+            "fixture-workload".into(),
+            "--project".into(),
+            project_arg.clone(),
+        ];
+        workload_with_progress_inner(
+            &select,
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+            &catalog,
+            verified_workload_fixture_archive,
+        )
+        .unwrap();
+        assert_eq!(
+            load_tool_project(&project)
+                .unwrap()
+                .selections
+                .workload
+                .as_deref(),
+            Some("fixture-workload")
+        );
+
+        let remove = vec![
+            "remove".into(),
+            "fixture-workload".into(),
+            "--project".into(),
+            project_arg.clone(),
+        ];
+        let mut remove_output = Vec::new();
+        workload_with_progress_inner(
+            &remove,
+            &mut remove_output,
+            &mut Vec::new(),
+            true,
+            &catalog,
+            verified_workload_fixture_archive,
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(remove_output)
+                .unwrap()
+                .contains("removed workload fixture-workload")
+        );
+        assert!(!project.join(".asb/workloads/fixture-workload").exists());
+        assert!(
+            load_tool_project(&project)
+                .unwrap()
+                .selections
+                .workload
+                .is_none()
+        );
+
+        for operation in ["status", "select", "remove"] {
+            let args = vec![
+                operation.into(),
+                "fixture-workload".into(),
+                "--project".into(),
+                project_arg.clone(),
+            ];
+            assert!(
+                workload_with_progress_inner(
+                    &args,
+                    &mut Vec::new(),
+                    &mut Vec::new(),
+                    false,
+                    &catalog,
+                    verified_workload_fixture_archive,
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn workload_repair_revalidates_and_rebuilds_retained_archive() {
+        let scratch = Scratch::new("workload-repair-proof-matrix");
+        let project = scratch.0.join("workspace");
+        let root = project.join(".asb/workloads/repairable");
+        fs::create_dir_all(&root).unwrap();
+        let zero_digest = "0".repeat(64);
+        let proof = super::WorkloadRepairProof {
+            version: "catalog-v1",
+            expected_digest: zero_digest.as_str(),
+            license: "MIT",
+            preparation: "adapter-entrypoint",
+        };
+        assert!(
+            super::repair_verified_workload_offline(
+                &project,
+                "repairable",
+                proof,
+                &mut Vec::new(),
+                false
+            )
+            .is_err()
+        );
+        fs::write(root.join("bundle.archive"), b"not-an-archive").unwrap();
+        fs::write(root.join("receipt.json"), b"not-json").unwrap();
+        let proof = super::WorkloadRepairProof {
+            version: "catalog-v1",
+            expected_digest: zero_digest.as_str(),
+            license: "MIT",
+            preparation: "adapter-entrypoint",
+        };
+        assert!(
+            super::repair_verified_workload_offline(
+                &project,
+                "repairable",
+                proof,
+                &mut Vec::new(),
+                false
+            )
+            .is_err()
+        );
+        let mut archive = vec![0u8; 2048];
+        archive[..15].copy_from_slice(b"root/entrypoint");
+        archive[124..136].copy_from_slice(b"00000000003\0");
+        archive[257..262].copy_from_slice(b"ustar");
+        archive[512..515].copy_from_slice(b"ok\n");
+        let digest = format!("{:x}", Sha256::digest(&archive));
+        fs::write(root.join("bundle.archive"), &archive).unwrap();
+        fs::write(
+            root.join("receipt.json"),
+            serde_json::to_vec(&json!({
+                "workload_id": "repairable",
+                "catalog_revision": "catalog-v1",
+                "archive_digest_sha256": digest,
+                "license": "MIT",
+                "evaluator_entrypoint": "adapter-entrypoint"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("prepared")).unwrap();
+        fs::write(root.join("prepared/old"), b"old").unwrap();
+        let expected = format!("{:x}", Sha256::digest(&archive));
+        let proof = super::WorkloadRepairProof {
+            version: "catalog-v1",
+            expected_digest: expected.as_str(),
+            license: "MIT",
+            preparation: "adapter-entrypoint",
+        };
+        let mut output = Vec::new();
+        super::repair_verified_workload_offline(&project, "repairable", proof, &mut output, true)
+            .unwrap();
+        assert!(root.join("prepared/root/entrypoint").is_file());
+        assert!(!root.join("prepared/old").exists());
+        assert!(
+            String::from_utf8(output)
+                .unwrap()
+                .contains("repaired workload offline")
+        );
+    }
+
+    #[test]
+    fn workload_repair_rejects_every_stale_proof_shape() {
+        let scratch = Scratch::new("workload-repair-stale-proof-matrix");
+        let project = scratch.0.join("workspace");
+        let root = project.join(".asb/workloads/stale");
+        fs::create_dir_all(&root).unwrap();
+        fn proof<'a>(digest: &'a str) -> super::WorkloadRepairProof<'a> {
+            super::WorkloadRepairProof {
+                version: "catalog-v1",
+                expected_digest: digest,
+                license: "MIT",
+                preparation: "adapter-entrypoint",
+            }
+        }
+        assert!(
+            super::repair_verified_workload_offline(
+                &project,
+                "stale",
+                proof(&"0".repeat(64)),
+                &mut Vec::new(),
+                false
+            )
+            .is_err()
+        );
+        fs::write(root.join("bundle.archive"), b"bad").unwrap();
+        fs::write(root.join("receipt.json"), b"{}").unwrap();
+        assert!(
+            super::repair_verified_workload_offline(
+                &project,
+                "stale",
+                proof(&"0".repeat(64)),
+                &mut Vec::new(),
+                false
+            )
+            .is_err()
+        );
+        let mut archive = vec![0u8; 1536];
+        archive[..15].copy_from_slice(b"root/entrypoint");
+        archive[257..262].copy_from_slice(b"ustar");
+        archive[124..136].copy_from_slice(b"000000000000");
+        archive.extend_from_slice(&[0; 512]);
+        let digest = format!("{:x}", Sha256::digest(&archive));
+        fs::write(root.join("bundle.archive"), &archive).unwrap();
+        for receipt in [
+            json!({"workload_id":"other","catalog_revision":"catalog-v1","archive_digest_sha256":digest,"license":"MIT","evaluator_entrypoint":"adapter-entrypoint"}),
+            json!({"workload_id":"stale","catalog_revision":"old","archive_digest_sha256":digest,"license":"MIT","evaluator_entrypoint":"adapter-entrypoint"}),
+            json!({"workload_id":"stale","catalog_revision":"catalog-v1","archive_digest_sha256":"0","license":"MIT","evaluator_entrypoint":"adapter-entrypoint"}),
+            json!({"workload_id":"stale","catalog_revision":"catalog-v1","archive_digest_sha256":digest,"license":"Apache-2.0","evaluator_entrypoint":"adapter-entrypoint"}),
+            json!({"workload_id":"stale","catalog_revision":"catalog-v1","archive_digest_sha256":digest,"license":"MIT","evaluator_entrypoint":"other"}),
+        ] {
+            fs::write(
+                root.join("receipt.json"),
+                serde_json::to_vec(&receipt).unwrap(),
+            )
+            .unwrap();
+            assert!(
+                super::repair_verified_workload_offline(
+                    &project,
+                    "stale",
+                    proof(&digest),
+                    &mut Vec::new(),
+                    false
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn workload_source_identity_resolves_all_catalog_shapes_and_rejects_drift() {
+        let catalog = super::external_workload_catalog();
+        let github = catalog
+            .iter()
+            .find(|entry| entry.get("id").and_then(Value::as_str) == Some("agentbench"))
+            .unwrap();
+        let identity = super::resolve_workload_source(github).unwrap();
+        assert!(identity.repository.starts_with("https://github.com/"));
+        assert_eq!(identity.revision.len(), 40);
+        assert_eq!(identity.expected_digest.len(), 64);
+        let exercism = catalog
+            .iter()
+            .find(|entry| entry.get("id").and_then(Value::as_str) == Some("exercism-tracks"))
+            .unwrap();
+        let identity = super::resolve_workload_source(exercism).unwrap();
+        assert_eq!(identity.repository, "https://github.com/exercism/cpp");
+        assert_eq!(identity.revision.len(), 40);
+        assert_eq!(identity.expected_digest.len(), 64);
+        let arxiv = catalog
+            .iter()
+            .find(|entry| entry.get("id").and_then(Value::as_str) == Some("ai-agents-that-matter"))
+            .unwrap();
+        let identity = super::resolve_workload_source(arxiv).unwrap();
+        assert_eq!(identity.repository, "https://arxiv.org/abs/2407.01502");
+        assert_eq!(identity.revision, "v1");
+        for entry in [
+            json!({"source": {"repository": "https://github.com/example/repo"}}),
+            json!({"source": {"repositories": ["python-without-revision"]}}),
+            json!({"source": {"repositories": ["python@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], "archive_sha256": {}}}),
+            json!({"source": {"repository": "https://github.com/example/repo", "commit": "not-a-commit", "archive_sha256": "bad"}}),
+            json!({"source": {"repository": "https://arxiv.org/abs/2407.01502", "revision": "v2", "archive_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}),
+        ] {
+            assert!(super::resolve_workload_source(&entry).is_err());
+        }
+    }
+
     fn install_and_select_project_tool(project: &Path, id: &str, kind: &str) {
         tool(
             &[
@@ -17542,4 +19190,569 @@ fn preflight_cli(args: &[String], output: &mut dyn Write) -> Result<u8, CliError
     )
     .map_err(|_| CliError::legacy_operation("preflight could not be evaluated"))?;
     write_json(output, &view).map(|()| 0)
+}
+
+fn validate_workload_id(id: &str) -> Result<(), CliError> {
+    if !valid_tool_id(id) {
+        return Err(CliError::legacy_validation(
+            "workload ID is invalid; use lowercase letters, digits, '-' or '_' only",
+        ));
+    }
+    Ok(())
+}
+
+/// Return the project-local workload directory without ever accepting a
+/// symlinked component. The install path may be absent, but its existing
+/// parents must be real directories; repair additionally requires the bundle
+/// directory itself to exist and be a real directory.
+fn workload_install_root(
+    project: &Path,
+    id: &str,
+    require_existing: bool,
+) -> Result<PathBuf, CliError> {
+    validate_workload_id(id)?;
+    let asb = project.join(".asb");
+    let workloads = asb.join("workloads");
+    for parent in [&asb, &workloads] {
+        match fs::symlink_metadata(parent) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(CliError::legacy_validation(
+                    "workload storage path contains a symlink",
+                ));
+            }
+            Ok(metadata) if !metadata.is_dir() => {
+                return Err(CliError::legacy_validation(
+                    "workload storage path is not a directory",
+                ));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(_) => {
+                return Err(CliError::legacy_operation(
+                    "workload storage path cannot be inspected",
+                ));
+            }
+        }
+    }
+    let root = workloads.join(id);
+    match fs::symlink_metadata(&root) {
+        Ok(metadata) if metadata.file_type().is_symlink() => Err(CliError::legacy_validation(
+            "workload installation path is a symlink",
+        )),
+        Ok(metadata) if !metadata.is_dir() => Err(CliError::legacy_validation(
+            "workload installation path is not a directory",
+        )),
+        Ok(_) => Ok(root),
+        Err(error) if error.kind() == io::ErrorKind::NotFound && !require_existing => Ok(root),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Err(CliError::legacy_validation(
+            "workload installation is stale or incomplete; update is required",
+        )),
+        Err(_) => Err(CliError::legacy_operation(
+            "workload installation path cannot be inspected",
+        )),
+    }
+}
+
+fn validated_workload_license(entry: &Value) -> Result<&str, CliError> {
+    let source = entry.pointer("/source");
+    let license = source
+        .and_then(|value| value.get("license"))
+        .or_else(|| entry.pointer("/dataset/license"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            CliError::legacy_validation(
+                "workload catalog license metadata is missing; execution is not permitted",
+            )
+        })?;
+    if license.eq_ignore_ascii_case("NOASSERTION") {
+        return Err(CliError::legacy_validation(
+            "workload catalog license is NOASSERTION; execution is not permitted",
+        ));
+    }
+    if source
+        .and_then(|value| value.get("license_status"))
+        .and_then(Value::as_str)
+        .is_some_and(|status| status != "verified" && status != "declared")
+    {
+        return Err(CliError::legacy_validation(
+            "workload catalog license evidence is not executable",
+        ));
+    }
+    Ok(license)
+}
+
+/// Validate the catalog evaluator declaration and the extracted tree before
+/// publishing an adapter-ready receipt. The entrypoint is metadata, never a
+/// shell command: reject shell syntax, empty tokens, and unsafe path tokens.
+/// A verified archive must also contain at least one regular file, otherwise
+/// it cannot be an adapter-ready workload regardless of its digest.
+fn validate_workload_evaluator_layout(prepared: &Path, entrypoint: &str) -> Result<(), CliError> {
+    let tokens = entrypoint.split_whitespace().collect::<Vec<_>>();
+    if tokens.is_empty()
+        || tokens.iter().any(|token| {
+            token.is_empty()
+                || token
+                    .chars()
+                    .any(|character| matches!(character, ';' | '|' | '&' | '$' | '`' | '<' | '>'))
+                || token.starts_with('/')
+                || token.split('/').any(|part| part == ".." || part.is_empty())
+        })
+    {
+        return Err(CliError::legacy_validation(
+            "workload evaluator entrypoint is empty or unsafe",
+        ));
+    }
+    let mut regular_files = 0usize;
+    let mut pending = vec![prepared.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(&directory).map_err(|_| {
+            CliError::legacy_operation("workload adapter layout cannot be inspected")
+        })? {
+            let entry = entry.map_err(|_| {
+                CliError::legacy_operation("workload adapter layout cannot be inspected")
+            })?;
+            let metadata = fs::symlink_metadata(entry.path()).map_err(|_| {
+                CliError::legacy_operation("workload adapter layout cannot be inspected")
+            })?;
+            if metadata.file_type().is_symlink() {
+                return Err(CliError::legacy_validation(
+                    "workload adapter layout contains a symlink",
+                ));
+            }
+            if metadata.is_dir() {
+                pending.push(entry.path());
+            } else if metadata.is_file() {
+                regular_files = regular_files.saturating_add(1);
+            } else {
+                return Err(CliError::legacy_validation(
+                    "workload adapter layout contains a special file",
+                ));
+            }
+        }
+    }
+    if regular_files == 0 {
+        return Err(CliError::legacy_validation(
+            "workload archive has no regular evaluator or manifest file",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod ar1782_headroom_tests {
+    use super::{Sha256, Value, fs, json, project_init_with_progress};
+    use flate2::Compression;
+    use flate2::write::GzEncoder;
+    use sha2::Digest;
+    use std::io::Write;
+
+    fn tar_member(name: &[u8], kind: u8) -> Vec<u8> {
+        let mut archive = vec![0u8; 1024];
+        let count = name.len().min(100);
+        archive[..count].copy_from_slice(&name[..count]);
+        archive[156] = kind;
+        archive[257..262].copy_from_slice(b"ustar");
+        archive
+    }
+
+    fn tar_member_with_size(name: &[u8], kind: u8, size: usize, data: &[u8]) -> Vec<u8> {
+        let padded = size.div_ceil(512).saturating_mul(512);
+        let mut archive = vec![0u8; 512 + padded + 512];
+        let count = name.len().min(100);
+        archive[..count].copy_from_slice(&name[..count]);
+        archive[124..136].copy_from_slice(format!("{size:011o} ").as_bytes());
+        archive[156] = kind;
+        archive[257..262].copy_from_slice(b"ustar");
+        let copy = data.len().min(size);
+        archive[512..512 + copy].copy_from_slice(&data[..copy]);
+        archive
+    }
+
+    fn arxiv_workload_fixture_archive(url: &str) -> Result<Vec<u8>, super::CliError> {
+        assert_eq!(url, "https://arxiv.org/e-print/2407.01502v1");
+        Ok(tar_member(b"fixture/manifest.json", 0))
+    }
+
+    #[test]
+    fn gzip_archives_are_validated_and_extracted_with_the_same_bounds() {
+        let root = tempfile::tempdir().unwrap();
+        let tar = tar_member(b"root/manifest.json", 0);
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(&tar).unwrap();
+        let compressed = encoder.finish().unwrap();
+
+        super::validate_workload_archive(&compressed).unwrap();
+        assert_eq!(
+            super::extract_workload_archive(&compressed, root.path()).unwrap(),
+            1
+        );
+        assert!(root.path().join("root/manifest.json").is_file());
+
+        let malformed = [0x1f, 0x8b, 0x08, 0x00];
+        assert!(super::validate_workload_archive(&malformed).is_err());
+        assert!(super::extract_workload_archive(&malformed, root.path()).is_err());
+    }
+
+    #[test]
+    fn workload_archive_rejects_encoding_and_size_boundary_failures() {
+        let root = tempfile::tempdir().unwrap();
+
+        let mut invalid_utf8 = tar_member(b"safe/manifest.json", 0);
+        invalid_utf8[0] = 0xff;
+        assert!(super::validate_workload_archive(&invalid_utf8).is_err());
+        assert!(super::extract_workload_archive(&invalid_utf8, root.path()).is_err());
+
+        let mut truncated = tar_member_with_size(b"safe/manifest.json", 0, 513, b"one");
+        truncated.truncate(1024);
+        assert!(super::validate_workload_archive(&truncated).is_err());
+        assert!(super::extract_workload_archive(&truncated, root.path()).is_err());
+
+        let empty_member = tar_member(b"safe/", b'5');
+        super::validate_workload_archive(&empty_member).unwrap();
+        assert_eq!(
+            super::extract_workload_archive(&empty_member, root.path()).unwrap(),
+            1
+        );
+
+        for (name, kind) in [
+            (b"safe//manifest".as_slice(), 0),
+            (b"safe/../manifest".as_slice(), 0),
+            (b"/manifest".as_slice(), 0),
+            (b"safe/link".as_slice(), b'1'),
+        ] {
+            assert!(super::validate_workload_archive(&tar_member(name, kind)).is_err());
+        }
+    }
+
+    #[test]
+    fn workload_catalog_and_layout_validation_reject_unsafe_metadata() {
+        assert!(
+            super::validated_workload_license(&json!({
+                "dataset": {"license": "MIT"},
+                "source": {}
+            }))
+            .is_ok()
+        );
+        for entry in [
+            json!({"source": {"license": "MIT", "license_status": "unknown"}}),
+            json!({"source": {"license": "NOASSERTION"}}),
+        ] {
+            assert!(super::validated_workload_license(&entry).is_err());
+        }
+
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("manifest.json"), b"{}\n").unwrap();
+        for entrypoint in [
+            "",
+            "/absolute",
+            "manifest;rm",
+            "manifest ../escape",
+            "manifest|x",
+        ] {
+            assert!(super::validate_workload_evaluator_layout(root.path(), entrypoint).is_err());
+        }
+        super::validate_workload_evaluator_layout(root.path(), "manifest.json").unwrap();
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(root.path().join("manifest.json"), root.path().join("link"))
+                .unwrap();
+            assert!(
+                super::validate_workload_evaluator_layout(root.path(), "manifest.json").is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn workload_dispatch_rejects_invalid_lifecycle_states_without_side_effects() {
+        let scratch = tempfile::tempdir().unwrap();
+        let project = scratch.path().join("workspace");
+        project_init_with_progress(
+            &[project.display().to_string()],
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+        )
+        .unwrap();
+        let project_arg = project.display().to_string();
+        let catalog = vec![json!({
+            "id": "fixture",
+            "version": "catalog-v1",
+            "source": {
+                "repository": "https://github.com/example/fixture",
+                "commit": "0123456789012345678901234567890123456789",
+                "archive_sha256": "0".repeat(64),
+                "license": "MIT"
+            },
+            "evaluator": {"entrypoint": "fixture/manifest.json"}
+        })];
+        assert!(
+            super::workload_with_progress_inner(
+                &[],
+                &mut Vec::new(),
+                &mut Vec::new(),
+                false,
+                &catalog,
+                super::acquire_verified_workload_archive,
+            )
+            .is_err()
+        );
+
+        for operation in ["unknown", "status", "select", "remove"] {
+            let args = vec![
+                operation.to_owned(),
+                "fixture".to_owned(),
+                "--project".to_owned(),
+                project_arg.clone(),
+            ];
+            assert!(
+                super::workload_with_progress_inner(
+                    &args,
+                    &mut Vec::new(),
+                    &mut Vec::new(),
+                    false,
+                    &catalog,
+                    super::acquire_verified_workload_archive,
+                )
+                .is_err()
+            );
+        }
+        let list = vec!["list".to_owned(), "--project".to_owned(), project_arg];
+        super::workload_with_progress_inner(
+            &list,
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+            &catalog,
+            super::acquire_verified_workload_archive,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn workload_repair_rejects_directory_only_archive_and_preparation_symlink() {
+        let scratch = tempfile::tempdir().unwrap();
+        let project = scratch.path().join("workspace");
+        let root = project.join(".asb/workloads/directory-only");
+        fs::create_dir_all(&root).unwrap();
+        let archive = tar_member(b"fixture/", b'5');
+        let digest = format!("{:x}", Sha256::digest(&archive));
+        fs::write(root.join("bundle.archive"), &archive).unwrap();
+        fs::write(
+            root.join("receipt.json"),
+            serde_json::to_vec(&json!({
+                "workload_id": "directory-only",
+                "catalog_revision": "catalog-v1",
+                "archive_digest_sha256": digest,
+                "license": "MIT",
+                "evaluator_entrypoint": "fixture/manifest.json"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(
+            super::repair_verified_workload_offline(
+                &project,
+                "directory-only",
+                super::WorkloadRepairProof {
+                    version: "catalog-v1",
+                    expected_digest: &digest,
+                    license: "MIT",
+                    preparation: "fixture/manifest.json",
+                },
+                &mut Vec::new(),
+                false,
+            )
+            .is_err()
+        );
+
+        let symlink_root = project.join(".asb/workloads/symlink-prepared");
+        fs::create_dir_all(&symlink_root).unwrap();
+        let symlink_archive = tar_member(b"fixture/manifest.json", 0);
+        let symlink_digest = format!("{:x}", Sha256::digest(&symlink_archive));
+        fs::write(symlink_root.join("bundle.archive"), &symlink_archive).unwrap();
+        fs::write(
+            symlink_root.join("receipt.json"),
+            serde_json::to_vec(&json!({
+                "workload_id": "symlink-prepared",
+                "catalog_revision": "catalog-v1",
+                "archive_digest_sha256": symlink_digest,
+                "license": "MIT",
+                "evaluator_entrypoint": "fixture/manifest.json"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(
+                scratch.path().join("outside"),
+                symlink_root.join("prepared"),
+            )
+            .unwrap();
+            assert!(
+                super::repair_verified_workload_offline(
+                    &project,
+                    "symlink-prepared",
+                    super::WorkloadRepairProof {
+                        version: "catalog-v1",
+                        expected_digest: &symlink_digest,
+                        license: "MIT",
+                        preparation: "fixture/manifest.json",
+                    },
+                    &mut Vec::new(),
+                    false,
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn arxiv_catalog_install_uses_only_the_reviewed_v1_archive_endpoint() {
+        let scratch = tempfile::tempdir().unwrap();
+        let project = scratch.path().join("workspace");
+        project_init_with_progress(
+            &[project.display().to_string()],
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+        )
+        .unwrap();
+        let archive =
+            arxiv_workload_fixture_archive("https://arxiv.org/e-print/2407.01502v1").unwrap();
+        let catalog = vec![json!({
+            "id": "arxiv-fixture",
+            "version": "catalog-v1",
+            "source": {
+                "repository": "https://arxiv.org/abs/2407.01502",
+                "revision": "v1",
+                "archive_sha256": format!("{:x}", Sha256::digest(&archive)),
+                "license": "MIT"
+            },
+            "evaluator": {"entrypoint": "fixture/manifest.json"}
+        })];
+        let args = vec![
+            "install".into(),
+            "arxiv-fixture".into(),
+            "--project".into(),
+            project.display().to_string(),
+        ];
+        super::workload_with_progress_inner(
+            &args,
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+            &catalog,
+            arxiv_workload_fixture_archive,
+        )
+        .unwrap();
+        let receipt: Value = serde_json::from_slice(
+            &fs::read(project.join(".asb/workloads/arxiv-fixture/receipt.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(receipt["source"], "https://arxiv.org/e-print/2407.01502v1");
+        assert_eq!(receipt["revision"], "v1");
+    }
+}
+
+/// Route a last-resort operational diagnostic through the same fixed marker
+/// vocabulary as the normal human presentation. Control-worker failures use
+/// this boundary because they occur outside the request renderer.
+pub(crate) fn write_router_diagnostic(output: &mut dyn Write, message: &str) -> io::Result<()> {
+    writeln!(output, "[ERR ] {message}")
+}
+
+#[cfg(test)]
+mod output_router_tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    fn os_args(values: &[&str]) -> Vec<OsString> {
+        values.iter().map(OsString::from).collect()
+    }
+
+    #[test]
+    fn output_levels_are_ordered_and_debug_is_bounded() {
+        let mut normal_out = Vec::new();
+        let mut normal_err = Vec::new();
+        assert_eq!(
+            run_with_default_mode(
+                &os_args(&["doctor"]),
+                &mut normal_out,
+                &mut normal_err,
+                true
+            ),
+            0
+        );
+        let mut verbose_out = Vec::new();
+        let mut verbose_err = Vec::new();
+        assert_eq!(
+            run_with_default_mode(
+                &os_args(&["--verbose", "doctor"]),
+                &mut verbose_out,
+                &mut verbose_err,
+                true,
+            ),
+            0
+        );
+        let mut debug_out = Vec::new();
+        let mut debug_err = Vec::new();
+        assert_eq!(
+            run_with_default_mode(
+                &os_args(&["--debug", "doctor"]),
+                &mut debug_out,
+                &mut debug_err,
+                true,
+            ),
+            0
+        );
+        assert!(verbose_err.len() >= normal_err.len());
+        let debug = String::from_utf8(debug_err).unwrap();
+        assert!(debug.contains("[ OK ] Debug: routed command doctor."));
+        assert!(!debug.contains("/tmp/"));
+    }
+
+    #[test]
+    fn quiet_and_json_keep_both_streams_silent_for_failures() {
+        for args in [
+            &["-q", "not-a-command"][..],
+            &["--json", "not-a-command"][..],
+        ] {
+            let mut output = Vec::new();
+            let mut error = Vec::new();
+            assert_eq!(
+                run_with_default_mode(&os_args(args), &mut output, &mut error, true),
+                2
+            );
+            if args[0] == "-q" {
+                assert!(output.is_empty());
+                assert!(error.is_empty());
+            } else {
+                assert!(error.is_empty());
+                assert!(serde_json::from_slice::<serde_json::Value>(&output).is_ok());
+            }
+        }
+    }
+
+    #[test]
+    fn debug_never_appends_to_raw_text_artifacts() {
+        let mut normal = Vec::new();
+        let mut normal_err = Vec::new();
+        let normal_exit =
+            run_with_default_mode(&os_args(&["--help"]), &mut normal, &mut normal_err, true);
+        let mut debug = Vec::new();
+        let mut debug_err = Vec::new();
+        let debug_exit = run_with_default_mode(
+            &os_args(&["--debug", "--help"]),
+            &mut debug,
+            &mut debug_err,
+            true,
+        );
+        assert_eq!(normal_exit, debug_exit);
+        assert_eq!(normal, debug);
+        assert_eq!(normal_err, debug_err);
+    }
 }
