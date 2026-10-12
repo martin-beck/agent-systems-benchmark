@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Add behavior-driven coverage in the largest uncovered control/TUI/runtime seams (prioritize control and TUI public boundary paths), rerun full llvm-cov to >=90% with headroom, then push a signed exact-head repair.",
+  "next_action": "Continue behavior-driven coverage in largest uncovered control/TUI/runtime seams; add substantial positive/negative tests, rerun full llvm-cov to at least 90% with headroom, then push signed exact-head repair.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 108,
   "observed_head": "6490d4df7f85b15b02fe15aa6a5c442c34905125",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 control boundary tests pass; full workspace coverage is 89.07% lines, below the fixed 90% floor.",
-  "task_revision": 236,
+  "summary": "AR-1783 \u2014 TUI boundary coverage tests pass; latest full workspace llvm-cov is 89.08% lines, still below the fixed 90% floor.",
+  "task_revision": 237,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:30:47+00:00",
+  "updated_at": "2026-10-12T22:30:54+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -646,3 +646,9 @@ the suite from this end-to-end path.
   e61f9d3beb1ca5641341fcbf3eb64bbd6f2035831028208eafe31c5cd951748e.
 
 - 2026-10-12T22:30:47+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T22:30:54+00:00: Latest bounded batch commit 6490d4df7f85b15b02fe15aa6a5c442c34905125 is
+  SSH-signed (G) and DCO-trailered. New TUI status identity/routing/terminal-value tests pass. Full
+  workspace run completed 467 CLI tests and all suites; exact total 89.08% lines (104339 covered of
+  121? report total 157589 with 17213 missed), 84.73% functions, 90.46% regions. Generated profraw
+  removed; branch clean. No push/review/merge until floor is met.
