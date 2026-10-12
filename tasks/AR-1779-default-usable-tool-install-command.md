@@ -11,8 +11,8 @@
   "id": "AR-1779",
   "next_action": "Repair rejected PR #618 findings before further publication: refresh reviewed diagnostic identity allowlist for shifted CliError callsites, add receipt verifier validation with positive/negative reuse tests, and make source fallback produce and validate a real adapter entrypoint rather than package archives. Then sign/DCO, rerun focused/full gates, push exact head, and request independent review again.",
   "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
-  "observed_dirty": 1,
-  "observed_head": "b76659a86dbce1dbf5bf87a6ef0bf7ead3e0286d",
+  "observed_dirty": 0,
+  "observed_head": "ddb0d9313eac52c4e562fea75057fec93c0ecfe8",
   "owner": "ar1779-default-install-luna",
   "plan": "../plans/AR-1779-default-usable-tool-install-command.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 96,
+  "task_revision": 97,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:35:41+00:00",
+  "updated_at": "2026-10-12T17:35:53+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
