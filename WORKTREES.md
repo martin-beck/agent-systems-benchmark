@@ -4,7 +4,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 
 | Worktree | Branch | Head | Dirty | vs origin/main |
 | --- | --- | --- | ---: | --- |
-| `agent-systems-benchmark` | `DETACHED` | `47c29b5a1f2a` | 0 | behind 0, ahead 0 |
+| `agent-systems-benchmark` | `DETACHED` | `b9473eff5349` | 0 | behind 0, ahead 1 |
 | `asb` | `DETACHED` | `62fda2f3417b` | 0 | behind 690, ahead 0 |
 | `asb-ar447.SMPvqN` | `repair-ar447-current` | `18a60c6e6539` | 0 | behind 653, ahead 7 |
 | `asb-base.22r1kh` | `DETACHED` | `96b40ec3f298` | 23 | behind 653, ahead 0 |
