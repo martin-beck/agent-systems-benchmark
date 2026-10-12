@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint.",
-  "task_revision": 8,
+  "task_revision": 9,
   "title": "Repair asb tui install rustup/rustc trusted-tool rejection",
-  "updated_at": "2026-10-12T17:29:19+00:00",
+  "updated_at": "2026-10-12T17:31:31+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1799-tui-install-rustup-invalid"
 }
 ---
@@ -63,3 +63,6 @@ may block development qualification or enter durable state.
   exact-current session snapshot existed.
 
 - 2026-10-12T17:29:19+00:00: Claimed by codex-ar1799-tui-install-rustup-invalid-20261012.
+
+- 2026-10-12T17:31:31+00:00: Recorded command exit 0; command argv SHA-256
+  b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b.
