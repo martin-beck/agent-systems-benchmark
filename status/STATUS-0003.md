@@ -1498,7 +1498,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make development-channel trust, digest, and exact-version mismatches warning-only without weakening stable/production policy. |
-| Next action | Promote and claim AR-1800 after coordinator state is reconciled; inventory every scoped trust validator and define one channel-aware policy before implementation. |
+| Next action | Release done after exact-main 74b391348fc5c1361034a14742f6afef747d72db verification: PR #615 merged, 13/13 exact-main checks green, focused trust tests and full locked workspace tests passed; perform final state reconciliation. |
 
 ### AR-1819 — Fail-closed expired-claim recovery
 

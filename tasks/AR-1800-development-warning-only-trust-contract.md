@@ -7,7 +7,7 @@
     "AR-1799"
   ],
   "id": "AR-1800",
-  "next_action": "Promote and claim AR-1800 after coordinator state is reconciled; inventory every scoped trust validator and define one channel-aware policy before implementation.",
+  "next_action": "Release done after exact-main 74b391348fc5c1361034a14742f6afef747d72db verification: PR #615 merged, 13/13 exact-main checks green, focused trust tests and full locked workspace tests passed; perform final state reconciliation.",
   "observed_branch": "feature/ar-1800-development-warning-only-trust-contract",
   "observed_dirty": 0,
   "observed_head": "961243b302dcb803f426eac507d0f0ce01e2fba0",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make development-channel trust, digest, and exact-version mismatches warning-only without weakening stable/production policy.",
-  "task_revision": 11,
+  "task_revision": 12,
   "title": "Development channel warning-only trust contracts",
-  "updated_at": "2026-10-12T21:23:19+00:00",
+  "updated_at": "2026-10-12T21:24:22+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1800-development-warning-only-trust-contract"
 }
 ---
@@ -77,3 +77,7 @@ in warnings, JSON, logs, or evidence.
 
 - 2026-10-12T21:23:19+00:00: Recorded command exit 0; command argv SHA-256
   5345cd4b5f66285dc80cddfe59c0a95475263f9ff88d25d2639fce3c300aa4b9.
+
+- 2026-10-12T21:24:22+00:00: Focused trust tests passed 3/3. Full cargo test --locked --workspace
+  passed all executed tests and doc tests; wrapper post-reconcile bookkeeping initially failed only
+  on generated handoffctl bytecode size guard, with no product failure.
