@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Coverage audit: installed-workload behavior is covered but workspace floor remains below gate",
-  "task_revision": 191,
+  "task_revision": 192,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:18:23+00:00",
+  "updated_at": "2026-10-12T22:18:36+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -537,3 +537,6 @@ the suite from this end-to-end path.
   32f42827367dbfedcb21304e80234336445ab683 differs from observed state head c2f3759f9962; current
   durable evidence records 89.04% lines and a genuine hard coverage-gate deficit. No merge
   authorization.
+
+- 2026-10-12T22:18:36+00:00: Recorded command exit 0; command argv SHA-256
+  e61f9d3beb1ca5641341fcbf3eb64bbd6f2035831028208eafe31c5cd951748e.
