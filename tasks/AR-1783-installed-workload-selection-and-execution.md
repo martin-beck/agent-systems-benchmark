@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 production development-fixture launch authority path now executes successfully; signed 0bc211b2. Prior serialized coverage: 89.21% lines, 85.03% functions, 90.61% regions.",
-  "task_revision": 363,
+  "task_revision": 364,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:16:49+00:00",
+  "updated_at": "2026-10-12T23:17:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -936,3 +936,6 @@ the suite from this end-to-end path.
   passed. Latest report top missed clusters were launch_factory.rs (201 lines), sandbox.rs (197),
   live_service.rs (215); no unchanged coverage rerun. Worktree clean after signed commit; no
   push/review/merge below 90%.
+
+- 2026-10-12T23:17:08+00:00: Recorded command exit 0; command argv SHA-256
+  f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
