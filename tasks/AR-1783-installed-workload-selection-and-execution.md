@@ -11,8 +11,8 @@
   "id": "AR-1783",
   "next_action": "Repair plan workload binding so a project plan cannot substitute an unregistered/built-in workload when an external installed workload is selected; rerun independent exact-head review.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 5,
-  "observed_head": "dad6dd8c06a3d126db62abbc73585ae389aec56d",
+  "observed_dirty": 0,
+  "observed_head": "aedd3d0109060969617283e3139475479f1b9d6b",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 102,
+  "task_revision": 103,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T21:44:32+00:00",
+  "updated_at": "2026-10-12T21:44:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
