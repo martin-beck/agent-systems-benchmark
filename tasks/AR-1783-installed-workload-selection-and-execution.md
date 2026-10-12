@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 sidecar validation tests are green; bb291c71 raised serialized workspace coverage to 89.21% lines, 85.01% functions, 90.60% regions, still below 90%.",
-  "task_revision": 351,
+  "task_revision": 352,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:12:23+00:00",
+  "updated_at": "2026-10-12T23:15:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -908,3 +908,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T23:12:17+00:00: Recorded command exit 0; command argv SHA-256
   e07c2b551db232b517051f544329a8504df291b0393dfec469d6c67e7cd58ab6.
+
+- 2026-10-12T23:15:28+00:00: Recorded command exit 0; command argv SHA-256
+  b48802db5d60864fea266a175aab6561f162cad0de4217481cf349d287ea912d.
