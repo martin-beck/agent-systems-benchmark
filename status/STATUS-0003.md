@@ -1736,7 +1736,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. |
-| Next action | Add the smallest credential-free ControlServer/ControlClient runtime bootstrap fixture in the isolated worktree, then run focused transport/runtime tests and serialized coverage through handoffctl. |
+| Next action | Implement the fixture by reusing RunnerBackend authenticated catalog setup and the existing control.rs Unix socket harness; add positive bootstrap/cancel and stale/replay negatives, then run focused tests and coverage. |
 
 
 ## Dependency graph

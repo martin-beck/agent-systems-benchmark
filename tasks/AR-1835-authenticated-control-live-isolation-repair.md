@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Add the smallest credential-free ControlServer/ControlClient runtime bootstrap fixture in the isolated worktree, then run focused transport/runtime tests and serialized coverage through handoffctl.",
+  "next_action": "Implement the fixture by reusing RunnerBackend authenticated catalog setup and the existing control.rs Unix socket harness; add positive bootstrap/cancel and stale/replay negatives, then run focused tests and coverage.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "da0cbe0848a10e61a2cd0b9a3144217842a3369b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 14,
+  "task_revision": 15,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-12T23:53:30+00:00",
+  "updated_at": "2026-10-12T23:54:41+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -74,3 +74,11 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
 
 - 2026-10-12T23:53:30+00:00: Recorded command exit 0; command argv SHA-256
   35c718f3137dde4f731cdf7e6673ef7c95f80d2f5c55002d935095e8916fd596.
+
+- 2026-10-12T23:54:41+00:00: Code-level seam audit complete. Existing asb-cli control.rs already has
+  a real ControlServer/ControlClient transport fixture for plan/launch/reconnect, while
+  runtime-control bootstrap tests in lib.rs construct validated responses directly. A safe successor
+  fixture must seed RunnerBackend catalog auth and runtime_authorities through its existing
+  authenticated setup path, then issue RuntimeBootstrap and RuntimeBootstrapCancel over the real
+  Unix socket; copying direct response construction or fabricating authority would violate AR-1835.
+  No speculative product change was made. Focused baseline remains green.
