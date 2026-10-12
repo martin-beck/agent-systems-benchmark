@@ -15,7 +15,7 @@
     "AR-1784"
   ],
   "id": "AR-1779",
-  "next_action": "Protected local integration merged PR #621 at exact main ab0a791b05d6082fd0c99ab287f8a7883180bcec; post-merge assurance is running. Reconcile terminal workflows and retain AR-1825 as prerequisite; do not close AR-1779 until AR-1825 is accepted.",
+  "next_action": "Safety portion complete: PR #621 merged by protected local integration as ab0a791b05d6082fd0c99ab287f8a7883180bcec; all exact-main post-merge workflows passed and handoffctl doctor --live is clean. Keep AR-1779 in progress pending AR-1825 acceptance of the bounded source-to-executable adapter/runtime contract; do not claim source fallback until that acceptance.",
   "observed_branch": "repair/ar-1779-source-fallback-linear4",
   "observed_dirty": 0,
   "observed_head": "80060a79e716b42e021ddd9b116afdc560bc6cc1",
@@ -35,9 +35,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 220,
+  "task_revision": 221,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T18:45:22+00:00",
+  "updated_at": "2026-10-12T18:48:34+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -607,3 +607,10 @@ the adapter smoke check failed.
 - 2026-10-12T18:45:22+00:00: PR #620 safety repair superseded by clean PR #621 provenance forward
   repair; exact PR checks green, merge_pr.py published two-parent merge ab0a791b, portable
   provenance green; post-merge workflows remain in progress.
+
+- 2026-10-12T18:48:34+00:00: Final evidence: PR #620 safety scope replaced by PR #621 forward DCO
+  provenance repair; exact-head PR #621 b00cdba5 all required checks green; merge_pr.py accepted
+  two-parent merge ab0a791b05d6082fd0c99ab287f8a7883180bcec; exact main post-merge workflows all
+  terminal success including Rust, repository quality, aarch64, policy/provenance, formal, fault,
+  credential-free, broker, hosted portability, and headers; reconcile --commit --push and doctor
+  --live OK. AR-1825 remains prerequisite for genuine source adapter/runtime support.

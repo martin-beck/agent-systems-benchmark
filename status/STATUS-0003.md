@@ -1204,7 +1204,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. |
-| Next action | Protected local integration merged PR #621 at exact main ab0a791b05d6082fd0c99ab287f8a7883180bcec; post-merge assurance is running. Reconcile terminal workflows and retain AR-1825 as prerequisite; do not close AR-1779 until AR-1825 is accepted. |
+| Next action | Safety portion complete: PR #621 merged by protected local integration as ab0a791b05d6082fd0c99ab287f8a7883180bcec; all exact-main post-merge workflows passed and handoffctl doctor --live is clean. Keep AR-1779 in progress pending AR-1825 acceptance of the bounded source-to-executable adapter/runtime contract; do not claim source fallback until that acceptance. |
 
 ### AR-1780 — Installed tool and workload execution qualification
 
