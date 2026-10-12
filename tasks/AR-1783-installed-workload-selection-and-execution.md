@@ -1,7 +1,7 @@
 ---
 {
   "branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "checkpoint_commit": "",
+  "checkpoint_commit": "b8fc46907afd281781a49dbd04ccb0aa6337a850",
   "claim_expires": "2026-10-12T22:41:59+00:00",
   "depends_on": [
     "AR-1763",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 8,
+  "task_revision": 9,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T20:42:53+00:00",
+  "updated_at": "2026-10-12T20:43:05+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -55,3 +55,5 @@ the suite from this end-to-end path.
 
 - 2026-10-12T20:42:47+00:00: Recorded command exit 0; command argv SHA-256
   91c481d4f1a058d3265e9102b0531d1eefe09cb45e5c1807ecda5e8c8b6b67d5.
+
+- 2026-10-12T20:43:05+00:00: Checkpointed source commit b8fc46907afd281781a49dbd04ccb0aa6337a850.
