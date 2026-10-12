@@ -35,9 +35,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 186,
+  "task_revision": 187,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T18:05:53+00:00",
+  "updated_at": "2026-10-12T18:07:03+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -515,3 +515,6 @@ the adapter smoke check failed.
 - 2026-10-12T18:05:53+00:00: Created replacement PR
   https://github.com/martin-beck/agent-systems-benchmark/pull/619 from
   repair/ar-1779-source-fallback-linear3. Full asb-cli gates passed at 21372a22.
+
+- 2026-10-12T18:07:03+00:00: Recorded command exit 0; command argv SHA-256
+  0eedf3071659641810b028790aa5997f6409b523d75d089cef51a176df9c53a3.
