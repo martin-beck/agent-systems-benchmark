@@ -181,14 +181,13 @@
 
 ## Complete AR inventory
 
-### In progress (2)
+### In progress (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md): Repair asb tui install rustup/rustc trusted-tool rejection | codex-ar1799-tui-install-rustup-invalid-20261012 | Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint. | PR #613 (63ba8e7973545f65bd8dda56f3aa24d9d339bb16) is open; focused rustup tests, fmt, clippy, and independent review pass. Await remaining exact-head hosted checks, then merge and run post-merge installed-entrypoint qualification. |
-| P0 | [AR-1821](../tasks/AR-1821-ar1817-pr128-integration-recovery.md): AR-1817 PR #128 integration recovery | ar1821_ar1817_integration | Recover the durable task record needed to integrate accepted AR-1817 PR #128 after its original task was removed from current generated state. | Claim this recovery task, verify accepted PR #128 exact head against current main, integrate through the signed local merge path, run exact-main post-merge checks, and close with durable evidence. |
 
-### Open (4)
+### Open (5)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -196,6 +195,7 @@
 | P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | Unclaimed | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Independent review and exact-head CI for PR #583 at 7c08cfb0; source-only fallback remains to be resolved before merge. |
 | P0 | [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md): Verified asb workload installation | Unclaimed | Implement dedicated verified remote external workload installation and lifecycle through asb workload. | PR #584 rebased onto origin/main 24cb72d; exact remote head 96ea497a. Credential-free workload matrix, diagnostic contract, provenance, resolver, and clippy focused gates pass. Poll fresh exact-head CI; do not merge. |
 | P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Unclaimed | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. |
+| P0 | [AR-1821](../tasks/AR-1821-ar1817-pr128-integration-recovery.md): AR-1817 PR #128 integration recovery | Unclaimed | Recover the durable task record needed to integrate accepted AR-1817 PR #128 after its original task was removed from current generated state. | Claim this recovery task, verify accepted PR #128 exact head against current main, integrate through the signed local merge path, run exact-main post-merge checks, and close with durable evidence. |
 
 ### Blocked (85)
 

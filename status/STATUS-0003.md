@@ -1504,11 +1504,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | open |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1821_ar1817_integration |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Recover the durable task record needed to integrate accepted AR-1817 PR #128 after its original task was removed from current generated state. |
@@ -2376,7 +2376,7 @@ flowchart LR
     subgraph series_18["18 - Additional work"]
         direction TB
         AR_1800["AR-1800 - Planned"]:::status_planned
-        AR_1821["AR-1821 - In progress"]:::status_in_progress
+        AR_1821["AR-1821 - Open"]:::status_open
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
