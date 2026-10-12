@@ -10,13 +10,21 @@
   "plan": "../plans/AR-1821-ar1817-pr128-integration-recovery.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "mechanical",
+    "evidence_digest": "sha256:c700228c812e5d2738d6e4b632b489663215e8240ba2b9d1c0a4207a59594799",
+    "evidence_ref": "quality/AR-1821-ar1817-pr128-integration-receipt.txt",
+    "spec_ref": "specs/AR-1821.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1821.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover the durable task record needed to integrate accepted AR-1817 PR #128 after its original task was removed from current generated state.",
-  "task_revision": 11,
+  "task_revision": 12,
   "title": "AR-1817 PR #128 integration recovery",
-  "updated_at": "2026-10-12T14:18:27+00:00",
+  "updated_at": "2026-10-12T14:18:35+00:00",
   "worktree_key": ""
 }
 ---
@@ -55,3 +63,6 @@ reclassifying the work under AR-1820.
 
 - 2026-10-12T14:18:27+00:00: Recorded command exit 0; command argv SHA-256
   738ef131c7f3f849e5ed34e62d30808bb57d4a782e16b2513c220ef948fec1fa.
+
+- 2026-10-12T14:18:35+00:00: Accepted exact signed local integration and post-merge evidence for PR
+  #128.
