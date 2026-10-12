@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 signed 10b8d27 covers local mock authority defaults and cancellation; serialized workspace coverage remains 89.25% lines, 85.04% functions, 90.64% regions.",
-  "task_revision": 388,
+  "task_revision": 389,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:24:35+00:00",
+  "updated_at": "2026-10-12T23:24:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -992,3 +992,6 @@ the suite from this end-to-end path.
   passed. Full serialized workspace suite passed; fixed 90% line floor remains sole failure. Exact
   report total 158220 lines, 104612 covered, 9790 missed; generated profraw removed; worktree clean;
   no push/review/merge.
+
+- 2026-10-12T23:24:51+00:00: Recorded command exit 0; command argv SHA-256
+  f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
