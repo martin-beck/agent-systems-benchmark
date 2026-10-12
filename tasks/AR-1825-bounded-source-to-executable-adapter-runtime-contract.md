@@ -10,8 +10,8 @@
   "id": "AR-1825",
   "next_action": "Exact check_coverage.py rerun passed locally with workspace and critical-package floors; no source changes needed. Clean profiler artifacts, then refresh PR #622 required check and recreate protected merge only after GitHub reports Policy, coverage, and supply chain green.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
-  "observed_dirty": 1,
-  "observed_head": "4e37d542b8244280bc1c3e832920812cdae7a3ff",
+  "observed_dirty": 0,
+  "observed_head": "9884e34acd91d6ff36724b5f3b33a107a048aa94",
   "owner": "ar1825-implementation-luna",
   "plan": "../plans/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md",
   "priority": "P0",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 154,
+  "task_revision": 155,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T19:50:11+00:00",
+  "updated_at": "2026-10-12T19:50:17+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---

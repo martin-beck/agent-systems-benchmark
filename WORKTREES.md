@@ -268,6 +268,5 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `review-pr610` | `DETACHED` | `95a342fde4c5` | 0 | behind 30, ahead 4 |
 | `agent-systems-benchmark-ar-1498` | `feature/ar-1498-authenticated-lifecycle-executor` | `55ff13fb6cb2` | 0 | behind 792, ahead 1275 |
 | `agent-systems-benchmark-ar-1499` | `feature/ar-1499-development-credential-enrollment` | `0a2f6e9c74f9` | 0 | behind 792, ahead 1280 |
-| `agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract` | `feature/ar-1825-source-to-executable-adapter-runtime-contract` | `4e37d542b824` | 1 | behind 0, ahead 7 |
-| changed files | - | - | - | `crates/asb-cli/src/tool_materialization.rs` |
+| `agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract` | `feature/ar-1825-source-to-executable-adapter-runtime-contract` | `9884e34acd91` | 0 | behind 0, ahead 8 |
 | `ar1824-repair.Tp51GE` | `DETACHED` | `c2745e04e231` | 0 | behind 12, ahead 0 |
