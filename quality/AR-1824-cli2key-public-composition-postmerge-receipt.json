@@ -1,0 +1,13 @@
+{
+  "ar": "AR-1824",
+  "pr": 616,
+  "exact_head": "c2745e04e231c592e21a4a0fec655b56166bf091",
+  "web_merge_preserved": "3bac0c0e53c5c89be8ecc7a3142ffe7017789c12",
+  "recovery_pr": 617,
+  "recovery_head": "448c35dcac71fd497fdc9efb76fe721f8c1fb851",
+  "signed_main": "e058ea2b5881e047c2a02a5bc5bd4f23103c28c0",
+  "tree": "639f8f8a21656badfe15e1d0a31c88ac4d67dee2",
+  "checks": "all required exact-main checks passed",
+  "ar_1797": "blocked and preserved",
+  "tlc_development_dependency": false
+}
