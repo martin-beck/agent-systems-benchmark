@@ -1584,6 +1584,20 @@
 | Summary | Add public cli2key provider-plan/catalog construction and direct runtime-authority composition. |
 | Next action | Implement the cli2key provider-plan/catalog and direct runtime-authority composition seam without reopening AR-1797. |
 
+### AR-1825 — Bounded source-to-executable adapter/runtime contract
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Define and implement a bounded source-to-executable adapter and runtime contract for supported ASB tools. |
+| Next action | Implement the bounded source-to-executable adapter/runtime contract, its per-tool support matrix, offline fixtures, receipts, rollback/retention behavior, and hostile negative gates; keep AR-1779 pending until this AR is accepted. |
+
 
 ## Dependency graph
 
@@ -2452,6 +2466,7 @@ flowchart LR
         AR_1822["AR-1822 - Done"]:::status_done
         AR_1823["AR-1823 - Done"]:::status_done
         AR_1824["AR-1824 - Done"]:::status_done
+        AR_1825["AR-1825 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4391,9 +4406,11 @@ flowchart LR
     AR_1776 --> AR_1778
     AR_1776 --> AR_1784
     AR_1776 --> AR_1798
+    AR_1776 --> AR_1825
     AR_1777 --> AR_1779
     AR_1778 --> AR_1779
     AR_1778 --> AR_1798
+    AR_1778 --> AR_1825
     AR_1779 --> AR_1780
     AR_1779 --> AR_1797
     AR_1781 --> AR_1782
@@ -4466,4 +4483,3 @@ flowchart LR
 | [AR-0405](../tasks/AR-0405-performance-workloads.md) | [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0601](../tasks/AR-0601-csb-integration.md), [AR-1002](../tasks/AR-1002-verifier-integrity.md), [AR-1007](../tasks/AR-1007-benchmark-validity.md) | [AR-1394](../tasks/AR-1394-literature-workload-registry.md) |
 | [AR-0406](../tasks/AR-0406-evolving-workloads.md) | [AR-0402](../tasks/AR-0402-external-code-workloads.md), [AR-1007](../tasks/AR-1007-benchmark-validity.md) | [AR-1394](../tasks/AR-1394-literature-workload-registry.md) |
 | [AR-0501](../tasks/AR-0501-replay-evaluation.md) | [AR-0001](../tasks/AR-0001-repository-bootstrap.md) | [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0879](../tasks/AR-0879-local-llm-testing-recommendations.md) |
-| [AR-0502](../tasks/AR-0502-replay-cassettes.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0501](../tasks/AR-0501-replay-evaluation.md) | [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0516](../tasks/AR-0516-opendesk-strict-replay-http-compatibility.md), [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md), [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md), [AR-0520](../tasks/AR-0520-interaction-aware-redaction.md), [AR-0871](../tasks/AR-0871-record-replay-user-workflows.md), [AR-0879](../tasks/AR-0879-local-llm-testing-recommendations.md), [AR-0901](../tasks/AR-0901-formal-assurance.md), [AR-1005](../tasks/AR-1005-trace-interoperability.md), [AR-1330](../tasks/AR-1330-live-capture-sealed-cassette.md) |

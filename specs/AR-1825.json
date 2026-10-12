@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1825.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "immutable-source-contract", "description": "Every supported row binds an immutable catalog source revision and digest to one declared adapter and package/install strategy; unknown strategies fail closed."},
+    {"id": "bounded-runtime-closure", "description": "Adapters materialize only a bounded project-local dependency/runtime closure with finite argument arrays and no runtime downloads or unbounded installers."},
+    {"id": "entrypoint-identity", "description": "Launcher and entrypoint identity, regular-file or approved symlink target, executable mode and runtime compatibility are verified before activation; missing, substituted, archive-only or mismatched outputs fail closed."},
+    {"id": "offline-support-matrix", "description": "The explicit per-tool support matrix has deterministic offline positive fixtures and typed unsupported rows for tools without a safe adapter."},
+    {"id": "receipt-rollback-retention", "description": "Bounded content-minimized receipts bind source, adapter, closure, entrypoint, smoke, rollback and retention facts; failed attempts leave no false usable state and retain the last known-good installation."},
+    {"id": "hostile-negative-gates", "description": "Negative fixtures prove rejection of unknown strategies, archive outputs without adapters, missing entrypoints, runtime mismatch, unbounded installers and runtime downloads before process or state effects."}
+  ],
+  "definition_of_done": [
+    "The source-to-executable adapter/runtime contract and explicit per-tool support matrix are implemented against current main.",
+    "Independent review, exact-head CI, signed protected merge, exact-main post-merge qualification and durable acceptance evidence pass."
+  ],
+  "inputs": [
+    {"id": "catalog", "description": "AR-1776 immutable supported-tool acquisition catalog and verification identities."},
+    {"id": "source-builder", "description": "AR-1778 pinned source builder and bounded project-local dependency materialization."},
+    {"id": "pending-installer", "description": "AR-1779 default installer, which remains pending until this successor is accepted."}
+  ],
+  "outputs": [
+    {"id": "source-executable-contract", "description": "Verified per-tool adapter/runtime contract, support matrix, offline fixtures and bounded receipts."}
+  ],
+  "allowed_tools": ["cargo", "git", "gh", "tools/handoffctl", "credential-free-fakes"],
+  "forbidden_tools": ["unknown-strategy-fallback", "archive-as-entrypoint", "missing-entrypoint-activation", "runtime-mismatch-activation", "unbounded-installer", "runtime-download", "ambient-package-manager", "credential-output", "false-install-success", "gate-weakening", "history-rewrite", "force-push"],
+  "required_evidence_classes": ["contract-test", "mechanical", "environmental"],
+  "gates": [
+    {"id": "offline-adapter-matrix", "description": "Credential-free offline fixtures cover every supported matrix row and explicitly classify unsupported rows."},
+    {"id": "negative-boundary-matrix", "description": "All required hostile source, entrypoint, runtime and installer cases fail closed before process or usable-state effects."},
+    {"id": "receipt-lifecycle", "description": "Positive activation and failed-attempt rollback/retention receipts are bounded, digest-bound and deterministic."}
+  ]
+}
