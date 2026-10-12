@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+# SPDX-License-Identifier: MIT
 """Controlled defects for the status/progress completeness gate."""
 
 from __future__ import annotations
@@ -53,4 +56,3 @@ def test_direct_ansi_renderer_bypass_is_a_controlled_defect(tmp_path: Path) -> N
     result = run(root)
     assert result.returncode == 1
     assert "bypasses the shared progress renderer" in result.stderr
-
