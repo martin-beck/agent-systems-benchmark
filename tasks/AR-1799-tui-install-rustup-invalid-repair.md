@@ -18,19 +18,19 @@
   "schema_version": 1,
   "spec_acceptance": {
     "evidence_class": "environmental",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_digest": "sha256:fbed72ed716527000022c5eabfa62642ad1afad9c5f86d43288bc78a49beceb5",
+    "evidence_ref": "quality/AR-1799-current-main-requalification-20261012.json",
     "spec_ref": "specs/AR-1799.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1799.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint.",
-  "task_revision": 22,
+  "task_revision": 23,
   "title": "Repair asb tui install rustup/rustc trusted-tool rejection",
-  "updated_at": "2026-10-12T17:35:56+00:00",
+  "updated_at": "2026-10-12T17:36:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1799-tui-install-rustup-invalid"
 }
 ---
@@ -104,3 +104,9 @@ may block development qualification or enter durable state.
 
 - 2026-10-12T17:35:56+00:00: Recorded command exit 0; command argv SHA-256
   a08ffcd926a32fc769588e9c189850e7ef064e58edb0c6ede17b1af2e23d21df.
+
+- 2026-10-12T17:36:08+00:00: Current protected main e058ea2b5881e047c2a02a5bc5bd4f23103c28c0
+  requalified: signed historical PR #613 repair is present through signed forward provenance
+  recovery; locked TUI lifecycle suite passed 5/5, release build passed, and installed asb tui
+  install, status, and doctor passed against the exact development bundle without provider
+  credentials. All 10 post-merge workflows at exact head are green.
