@@ -11,7 +11,7 @@
   "id": "AR-1783",
   "next_action": "Continue meaningful behavior-driven tests in uncovered control/TUI/runtime paths; rerun serialized llvm-cov and reach >=90% lines with headroom before push/review.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 0,
+  "observed_dirty": 1,
   "observed_head": "0d50540e1a7507da34987f93b3d0decc5bccfc59",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 sandbox environment-boundary tests are green; serialized full coverage remains 89.11% lines.",
-  "task_revision": 301,
+  "task_revision": 302,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:54:51+00:00",
+  "updated_at": "2026-10-12T22:54:56+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
