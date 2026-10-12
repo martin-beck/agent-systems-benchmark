@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T01:27:39+00:00",
   "depends_on": [],
   "id": "AR-1834",
-  "next_action": "Monitor PR #626 exact-head checks for 4107fcd177efa675f74e1ae08d0ee0bfa15c5216 to terminal success; obtain independent review, then publish only through merge_pr.py",
+  "next_action": "Continue polling PR #626 exact-head checks for 4107fcd177efa675f74e1ae08d0ee0bfa15c5216; obtain independent review only after every required check is terminal-success, then publish with merge_pr.py",
   "observed_dirty": 0,
   "observed_head": "",
   "owner": "ar1805_postmerge_repair",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e",
-  "task_revision": 19,
+  "task_revision": 20,
   "title": "AR-1775 protected-main local identity recovery",
-  "updated_at": "2026-10-12T22:33:45+00:00",
+  "updated_at": "2026-10-12T22:34:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1834-ar1775-protected-main-identity"
 }
 ---
@@ -95,3 +95,8 @@ This successor is metadata-only and forward-only. It must not alter `LOCAL_COMMI
 
 - 2026-10-12T22:33:45+00:00: Recorded command exit 8; command argv SHA-256
   f481b1f12e540160877c01fb3534a947cf2c523f558d8bdb273eadf7cc435f35.
+
+- 2026-10-12T22:34:11+00:00: The subsequent bounded gh pr checks poll exited 8 because GitHub
+  reports pending checks; this is the gh pending-status exit code, not a workflow failure. No
+  required check has failed. Current terminal passes remain Portable provenance, headers, AWQ
+  shadow, Kani, Loom and retained faults; other required checks are still pending.
