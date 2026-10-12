@@ -35,9 +35,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 184,
+  "task_revision": 185,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T18:04:37+00:00",
+  "updated_at": "2026-10-12T18:05:21+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -508,3 +508,6 @@ the adapter smoke check failed.
 - 2026-10-12T18:04:37+00:00: Rebased repair linearly from db08ffb3; full asb-cli suite passes. Prior
   merge-based f1dbe055 remains rejected by portable protected-main provenance and is not to be
   merged.
+
+- 2026-10-12T18:05:21+00:00: Recorded command exit 0; command argv SHA-256
+  e1bcca5b81010d249dd0cf7b783203e8308e1159c8e884089d5ef7376712c8c4.
