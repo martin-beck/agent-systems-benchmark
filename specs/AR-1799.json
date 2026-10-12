@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1799.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "reproduce", "description": "The current-main installed asb tui install path reproduces the reported trusted_tool_invalid failure before the repair and records the exact failing validator."},
+    {"id": "development-warning", "description": "Development permission/ownership findings for the supported rustup/rustc layout are warning-only and do not return trusted_tool_invalid."},
+    {"id": "hard-boundaries", "description": "Traversal, symlink substitution, malformed settings, missing tools, descriptor replacement, and incompatible toolchain pairing remain typed hard failures."},
+    {"id": "paired-install", "description": "The exact current ASB/asb-tui installed-entrypoint journey reaches materialization/status/launch without provider credentials."},
+    {"id": "stable-boundary", "description": "Stable and production trust policy is unchanged; no ambient PATH or arbitrary tool execution is introduced."},
+    {"id": "diagnostics", "description": "Human output remains actionable by default and --json reports the same warning/error facts without secrets."}
+  ],
+  "definition_of_done": ["Signed/DCO repair is independently reviewed and merged on protected ASB main.", "Focused and locked tests pass on the exact reviewed head.", "Post-merge installed-entrypoint evidence proves the user-visible failure is repaired."],
+  "inputs": [{"id": "permission-repair", "description": "AR-1738 development rustup permission compatibility."}, {"id": "rustc-propagation", "description": "AR-1636 trusted rustc propagation."}, {"id": "current-install", "description": "Current ASB/asb-tui installed development channel journey."}],
+  "outputs": [{"id": "repair", "description": "Correct development rustup/rustc validation and propagation."}, {"id": "regression", "description": "Real installed-entrypoint and hostile-path regression coverage."}, {"id": "receipt", "description": "Exact-head review, CI, merge, and post-merge qualification evidence."}],
+  "allowed_tools": ["cargo", "rustup", "rustc", "git", "gh", "make", "tools/handoffctl"],
+  "forbidden_tools": ["sudo", "ambient-path-widening", "arbitrary-shell-wrapper", "stable-policy-weakening", "credential-output", "force-push", "unsafe-clean"],
+  "required_evidence_classes": ["contract-test", "mechanical", "environmental", "hosted", "privacy"],
+  "gates": [{"id": "focused", "description": "Rustup/rustc validator and install materialization tests pass."}, {"id": "negative", "description": "Hostile path, symlink, malformed, unavailable, and pairing cases fail closed."}, {"id": "paired", "description": "Exact installed ASB/asb-tui journey passes on the affected layout."}, {"id": "hosted", "description": "Exact reviewed PR and protected-main post-merge workflows pass."}]
+}
