@@ -2,11 +2,11 @@
 {
   "branch": "repair/ar-1822-role-removal-expiry",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-12T17:21:24+00:00",
+  "claim_expires": "",
   "depends_on": [],
   "id": "AR-1822",
   "next_action": "Merged exact reviewed PR #140 at 4cea485091; stale assignment ar1774-pr612-review-ad7f1166 removed at role revision 22 to 23; verify roles list, doctor, and post-merge checks before acceptance and release.",
-  "owner": "ar1822_role_cleanup",
+  "owner": "",
   "plan": "../plans/AR-1822-role-removal-expiry.md",
   "priority": "P0",
   "schema_version": 1,
@@ -20,11 +20,11 @@
   },
   "spec_ref": "specs/AR-1822.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Allow exact-revision roles.remove cleanup of explicitly named expired assignments while preserving fail-closed reads and admission.",
-  "task_revision": 8,
+  "task_revision": 9,
   "title": "Expired role assignment cleanup semantics",
-  "updated_at": "2026-10-12T15:25:11+00:00",
+  "updated_at": "2026-10-12T15:25:32+00:00",
   "worktree_key": "agent-systems-benchmark-state-ar-1822-role-removal-expiry"
 }
 ---
@@ -56,3 +56,7 @@ transactional command.
 - 2026-10-12T15:25:11+00:00: Exact reviewed PR #140 merged, all required checks green, repaired
   roles.remove removed the actual stored stale assignment at revision 22 to 23, roles list and
   doctor passed.
+
+- 2026-10-12T15:25:32+00:00: AR-1822 complete: PR #140 merged as 4cea485091; post-merge checks and
+  doctor passed; stale assignment cleanup was exact-revision 22 to 23 with actual stored ID
+  ar1774-pr612-review-ad7f1166.
