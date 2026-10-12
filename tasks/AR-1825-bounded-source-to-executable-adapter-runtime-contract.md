@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 157,
+  "task_revision": 158,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T19:50:38+00:00",
+  "updated_at": "2026-10-12T19:51:52+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -475,3 +475,6 @@ AR-1825's acceptance evidence is independently reviewed and durable.
   empty/shell/runtime/launcher/matrix validation and smoke missing/nonzero/timeout branches. Focused
   11 adapter tests pass; exact local tools/quality/check_coverage.py workspace plus critical floors
   passes. Profiler artifacts removed via handoffctl; pushed exact head to PR #622.
+
+- 2026-10-12T19:51:52+00:00: Recorded command exit 8; command argv SHA-256
+  e1976fc4133ed4239856029487119f3cef77ef59afb3ac0e8cc5c25dae9f292c.
