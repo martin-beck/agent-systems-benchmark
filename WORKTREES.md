@@ -59,6 +59,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog_compact.rs`, `crates/asb-cli/src/human.rs` |
 | `agent-systems-benchmark-ar-1779-default-usable-tool-install-command` | `repair/ar-1779-source-fallback-linear4` | `80060a79e716` | 0 | behind 15, ahead 0 |
 | `agent-systems-benchmark-ar-1799-tui-install-rustup-invalid` | `repair/ar-1799-tui-install-rustup-invalid` | `e058ea2b5881` | 0 | behind 21, ahead 0 |
+| `agent-systems-benchmark-ar-1800-development-warning-only-trust-contract` | `feature/ar-1800-development-warning-only-trust-contract` | `961243b302dc` | 0 | behind 29, ahead 0 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 804, ahead 326 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
 | `agent-systems-benchmark-asb-tui-capabilities-command` | `feature/asb-tui-capabilities-command` | `d60d23510044` | 0 | behind 804, ahead 323 |

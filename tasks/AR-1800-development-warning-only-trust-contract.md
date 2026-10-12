@@ -8,6 +8,9 @@
   ],
   "id": "AR-1800",
   "next_action": "Promote and claim AR-1800 after coordinator state is reconciled; inventory every scoped trust validator and define one channel-aware policy before implementation.",
+  "observed_branch": "feature/ar-1800-development-warning-only-trust-contract",
+  "observed_dirty": 0,
+  "observed_head": "961243b302dcb803f426eac507d0f0ce01e2fba0",
   "owner": "ar1800-dev-warning-luna56",
   "plan": "../plans/AR-1800-development-warning-only-trust-contract.md",
   "priority": "P0",
@@ -24,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make development-channel trust, digest, and exact-version mismatches warning-only without weakening stable/production policy.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "Development channel warning-only trust contracts",
-  "updated_at": "2026-10-12T21:19:02+00:00",
+  "updated_at": "2026-10-12T21:19:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1800-development-warning-only-trust-contract"
 }
 ---
