@@ -399,6 +399,7 @@ pub fn safe_environment() -> BTreeMap<&'static str, &'static str> {
 mod tests {
     use super::*;
     use crate::tool_catalog::{OfficialSource, Platform};
+    use tempfile::tempdir;
 
     fn fixture() -> (ToolEntry, BuildRecipe) {
         let tool = ToolEntry {
@@ -488,5 +489,97 @@ mod tests {
         assert!(is_executable_adapter_header(b"\xcf\xfa\xed\xfe"));
         assert!(!is_executable_adapter_header(b"PK\x03\x04"));
         assert!(!is_executable_adapter_header(b"\x1f\x8b\x08\0"));
+    }
+
+    #[test]
+    fn source_builder_compiles_and_publishes_a_pinned_elf_adapter() {
+        let directory = tempdir().unwrap();
+        let source = directory.path().join("source");
+        let staging = directory.path().join("staging");
+        fs::create_dir_all(&source).unwrap();
+        fs::create_dir_all(&staging).unwrap();
+        fs::write(source.join("fixture.c"), b"int main(void) { return 0; }\n").unwrap();
+        let (tool, mut recipe) = fixture();
+        recipe.argv = vec![
+            "cc".into(),
+            "fixture.c".into(),
+            "-o".into(),
+            "fixture".into(),
+        ];
+        let request = BuildRequest {
+            source,
+            project_prefix: directory.path().join("published"),
+            tool,
+            recipe,
+            limits: BuildLimits::default(),
+        };
+        let receipt = build_inner(&request, &staging).unwrap();
+        assert_eq!(receipt.tool_id, "fixture");
+        assert!(receipt.output_bytes > 0);
+        assert!(!receipt.output_digest_sha256.is_empty());
+        assert!(directory.path().join("published/fixture/fixture").is_file());
+    }
+
+    #[test]
+    fn source_builder_rejects_failed_builds_and_ambiguous_outputs() {
+        let directory = tempdir().unwrap();
+        let source = directory.path().join("source");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("broken.c"), b"not valid C\n").unwrap();
+        let staging = directory.path().join("staging");
+        fs::create_dir_all(&staging).unwrap();
+        let (tool, mut recipe) = fixture();
+        recipe.argv = vec![
+            "cc".into(),
+            "broken.c".into(),
+            "-o".into(),
+            "fixture".into(),
+        ];
+        let request = BuildRequest {
+            source: source.clone(),
+            project_prefix: directory.path().join("published"),
+            tool,
+            recipe,
+            limits: BuildLimits::default(),
+        };
+        assert!(matches!(
+            build_inner(&request, &staging),
+            Err(BuildFailure::DependencyBuildFailed)
+        ));
+        fs::write(source.join("one.bin"), b"one").unwrap();
+        fs::write(source.join("two.bin"), b"two").unwrap();
+        assert_eq!(
+            resolve_output(&source, Path::new("*.bin")),
+            Err(BuildFailure::OutputMismatch)
+        );
+        assert_eq!(
+            resolve_output(&source, Path::new("*.missing")),
+            Err(BuildFailure::OutputMismatch)
+        );
+        assert_eq!(
+            resolve_output(&source, Path::new("one*two*")),
+            Err(BuildFailure::PolicyRejected)
+        );
+    }
+
+    #[test]
+    fn build_failure_codes_are_stable_and_exhaustive() {
+        let cases = [
+            (BuildFailure::ToolchainUnavailable, "toolchain_unavailable"),
+            (BuildFailure::PlatformUnsupported, "platform_unsupported"),
+            (
+                BuildFailure::DependencyBuildFailed,
+                "dependency_build_failed",
+            ),
+            (BuildFailure::PolicyRejected, "build_policy_rejected"),
+            (BuildFailure::OutputMismatch, "build_output_mismatch"),
+            (BuildFailure::ResourceLimit, "build_resource_limit"),
+            (BuildFailure::TimedOut, "build_timeout"),
+            (BuildFailure::Cancelled, "build_cancelled"),
+            (BuildFailure::CleanupFailed, "build_cleanup_failed"),
+        ];
+        for (failure, code) in cases {
+            assert_eq!(failure.code(), code);
+        }
     }
 }
