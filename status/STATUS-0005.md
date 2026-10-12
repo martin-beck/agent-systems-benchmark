@@ -204,19 +204,19 @@
 
 ## Complete AR inventory
 
-### In progress (1)
+### In progress (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Repair rejected PR #618 findings before further publication: refresh reviewed diagnostic identity allowlist for shifted CliError callsites, add receipt verifier validation with positive/negative reuse tests, and make source fallback produce and validate a real adapter entrypoint rather than package archives. Then sign/DCO, rerun focused/full gates, push exact head, and request independent review again. |
+| P0 | [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md): Repair asb tui install rustup/rustc trusted-tool rejection | codex-ar1799-tui-install-rustup-invalid-20261012 | Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint. | PR #613 (63ba8e7973545f65bd8dda56f3aa24d9d339bb16) is open; focused rustup tests, fmt, clippy, and independent review pass. Await remaining exact-head hosted checks, then merge and run post-merge installed-entrypoint qualification. |
 
-### Open (3)
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
 | P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Unclaimed | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. |
-| P0 | [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md): Repair asb tui install rustup/rustc trusted-tool rejection | Unclaimed | Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint. | PR #613 (63ba8e7973545f65bd8dda56f3aa24d9d339bb16) is open; focused rustup tests, fmt, clippy, and independent review pass. Await remaining exact-head hosted checks, then merge and run post-merge installed-entrypoint qualification. |
 
 ### Blocked (85)
 

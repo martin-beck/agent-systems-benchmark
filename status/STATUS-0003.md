@@ -1476,11 +1476,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | codex-ar1799-tui-install-rustup-invalid-20261012 |
 | Parent | None |
 | Children | None |
 | Summary | Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint. |
@@ -2441,7 +2441,7 @@ flowchart LR
         AR_1796["AR-1796 - Open"]:::status_open
         AR_1797["AR-1797 - Planned"]:::status_planned
         AR_1798["AR-1798 - Done"]:::status_done
-        AR_1799["AR-1799 - Open"]:::status_open
+        AR_1799["AR-1799 - In progress"]:::status_in_progress
     end
     subgraph series_18["18 - Additional work"]
         direction TB

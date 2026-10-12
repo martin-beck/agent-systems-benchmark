@@ -2,7 +2,7 @@
 {
   "branch": "repair/ar-1799-tui-install-rustup-invalid",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-12T19:29:19+00:00",
   "depends_on": [
     "AR-1738",
     "AR-1636"
@@ -12,7 +12,7 @@
   "observed_branch": "repair/ar-1799-tui-install-rustup-invalid",
   "observed_dirty": 0,
   "observed_head": "e058ea2b5881e047c2a02a5bc5bd4f23103c28c0",
-  "owner": "",
+  "owner": "codex-ar1799-tui-install-rustup-invalid-20261012",
   "plan": "../plans/AR-1799-tui-install-rustup-invalid-repair.md",
   "priority": "P0",
   "schema_version": 1,
@@ -26,11 +26,11 @@
   },
   "spec_ref": "specs/AR-1799.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint.",
-  "task_revision": 7,
+  "task_revision": 8,
   "title": "Repair asb tui install rustup/rustc trusted-tool rejection",
-  "updated_at": "2026-10-12T17:10:58+00:00",
+  "updated_at": "2026-10-12T17:29:19+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1799-tui-install-rustup-invalid"
 }
 ---
@@ -61,3 +61,5 @@ may block development qualification or enter durable state.
 - 2026-10-12T16:51:28+00:00: Released expired stale claim after verified owner process absence;
   preserved PR #613 evidence and exact next action. recover-expired was unavailable because no
   exact-current session snapshot existed.
+
+- 2026-10-12T17:29:19+00:00: Claimed by codex-ar1799-tui-install-rustup-invalid-20261012.
