@@ -1,0 +1,10 @@
+AR-1775 post-merge verification receipt
+PR: 625
+reviewed_head: 67ddb52211144bc79a3d8dca36ba9030b3798085
+merge_commit: 356a669e0c6ebbb6cd3675a119cba16fea486283
+base: 74b391348fc5c1361034a14742f6afef747d72db
+hosted_required_checks: terminal-green
+post_merge_checkout: origin/main exact merge commit
+focused_test: cargo test --manifest-path /srv/data/projects/.ar1775-postmerge/Cargo.toml -p asb-cli --lib --locked
+focused_test_result: 456 passed, 0 failed
+privacy: no credentials or private host data
