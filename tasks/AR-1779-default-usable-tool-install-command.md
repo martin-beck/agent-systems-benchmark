@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 79,
+  "task_revision": 80,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:29:37+00:00",
+  "updated_at": "2026-10-12T17:29:48+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -252,3 +252,6 @@ the adapter smoke check failed.
   a37da01d4d3557122dbe8b3bd595cc9de9b2826e with three concrete findings; diagnostic_contract
   currently reproduces shifted-callsite failure. PR #618 remains unmergeable and will be updated
   only after repair.
+
+- 2026-10-12T17:29:48+00:00: Recorded command exit 101; command argv SHA-256
+  6d2ff482e7ecd968412864b00486eef0e534e806de8cca335fa2a2f5e7b3c976.
