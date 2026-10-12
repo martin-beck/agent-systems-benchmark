@@ -11,14 +11,21 @@
   "plan": "../plans/AR-1834-ar1775-protected-main-identity-recovery.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "hosted", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1834.json", "spec_revision": 1, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "hosted",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1834.json",
+    "spec_revision": 1,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1834.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "AR-1775 protected-main local identity recovery",
-  "updated_at": "2026-10-13T00:30:00+00:00",
+  "updated_at": "2026-10-12T22:27:30+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1834-ar1775-protected-main-identity"
 }
 ---
@@ -28,3 +35,6 @@ Historical AR-1775 merge `356a669e0c6ebbb6cd3675a119cba16fea486283` is immutable
 This successor is metadata-only and forward-only. It must not alter `LOCAL_COMMITTER`, accept arbitrary signers, rewrite main, weaken any gate, change AR-1779 or AR-1783, or touch AR-1826--AR-1832. Use the established AR-1794/AR-1820 recovery path: clean isolated worktree, signed-DCO recovery topic preserving the current tree, independent exact-head review, focused/full gates, and `tools/integration/merge_pr.py` local signed merge.
 
 - 2026-10-13T00:30:00+00:00: Created from current exact-main failures for AR-1775; historical merge and all failed workflow evidence remain immutable inputs.
+
+- 2026-10-12T22:27:30+00:00: Dependencies empty; promote narrow AR-1775 protected-main identity
+  recovery preserving historical merge 356a669e and excluding AR-1779/1783 and AR-1826-1832
