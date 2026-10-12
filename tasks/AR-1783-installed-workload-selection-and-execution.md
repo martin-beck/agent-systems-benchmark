@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 project layout validation coverage batch is signed and green; latest full workspace coverage is 89.10% lines, below the 90% floor.",
-  "task_revision": 250,
+  "task_revision": 251,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:34:08+00:00",
+  "updated_at": "2026-10-12T22:34:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -679,3 +679,6 @@ the suite from this end-to-end path.
   roots; focused test passes. Full workspace llvm-cov completed all suites: 89.10% lines (104363
   covered, 9935 missed of 157645), 84.76% functions, 90.48% regions. Generated profraw removed.
   Worktree clean; no push/review/merge.
+
+- 2026-10-12T22:34:33+00:00: Recorded command exit 0; command argv SHA-256
+  f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
