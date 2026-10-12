@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 sandbox environment-boundary tests are green; serialized full coverage remains 89.11% lines.",
-  "task_revision": 290,
+  "task_revision": 291,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:51:15+00:00",
+  "updated_at": "2026-10-12T22:51:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -769,3 +769,6 @@ the suite from this end-to-end path.
   workspace llvm-cov completed all suites and reports 89.11% lines (104421 covered, 9927 missed of
   157803), 84.78% functions, 90.49% regions; floor remains unmet. Profraw removed, worktree clean,
   no push/review/merge.
+
+- 2026-10-12T22:51:26+00:00: Recorded command exit 0; command argv SHA-256
+  f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
