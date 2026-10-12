@@ -11,7 +11,7 @@
   "next_action": "Implement the bounded source-to-executable adapter/runtime contract, its per-tool support matrix, offline fixtures, receipts, rollback/retention behavior, and hostile negative gates; keep AR-1779 pending until this AR is accepted.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
   "observed_dirty": 0,
-  "observed_head": "96669e6b4b8ba9c9b3e906469a77b779c97e12bc",
+  "observed_head": "5457d5a36e6672e1f7b8ab6b52745a76b7b89e92",
   "owner": "ar1825-implementation-luna",
   "plan": "../plans/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md",
   "priority": "P0",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Define and implement a bounded source-to-executable adapter and runtime contract for supported ASB tools.",
-  "task_revision": 59,
+  "task_revision": 60,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T18:47:34+00:00",
+  "updated_at": "2026-10-12T18:48:21+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
