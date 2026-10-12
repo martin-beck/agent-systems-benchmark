@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "checkpoint_commit": "e0474221c5a95e7e091265738b4ba05938767a47",
-  "claim_expires": "2026-10-12T21:59:50+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1763",
     "AR-1764",
@@ -13,7 +13,7 @@
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 1,
   "observed_head": "4b72fafb37a0eaff47dfda757ee6a9114b75ffb8",
-  "owner": "ar1783-workload-selection-luna",
+  "owner": "",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Installed workload execution",
-  "task_revision": 123,
+  "task_revision": 124,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T21:59:07+00:00",
+  "updated_at": "2026-10-12T22:00:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -357,3 +357,8 @@ the suite from this end-to-end path.
 
 - 2026-10-12T21:59:07+00:00: Recorded command exit 0; command argv SHA-256
   f14a8d7c55fe7fbad25ab881daab3d9aed1cb5ee70a744dfe7d02bfda6440534.
+
+- 2026-10-12T22:00:55+00:00: Recovered expired claim formerly owned by
+  ar1783-workload-selection-luna. Lease expired during bounded workspace coverage run; recovering
+  the same owner to preserve repair work. Coverage reached 88.85% lines after installed-workload
+  tests, still below 90% floor; generated profraw will be cleaned and repair continues.
