@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "checkpoint_commit": "e0474221c5a95e7e091265738b4ba05938767a47",
-  "claim_expires": "2026-10-12T23:15:30+00:00",
+  "claim_expires": "2026-10-12T21:59:50+00:00",
   "depends_on": [
     "AR-1763",
     "AR-1764",
@@ -11,8 +11,8 @@
   "id": "AR-1783",
   "next_action": "Repair plan workload binding so a project plan cannot substitute an unregistered/built-in workload when an external installed workload is selected; rerun independent exact-head review.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 1,
-  "observed_head": "e0474221c5a95e7e091265738b4ba05938767a47",
+  "observed_dirty": 2,
+  "observed_head": "dad6dd8c06a3d126db62abbc73585ae389aec56d",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 67,
+  "task_revision": 91,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T21:26:16+00:00",
+  "updated_at": "2026-10-12T21:36:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -211,3 +211,72 @@ the suite from this end-to-end path.
 
 - 2026-10-12T21:26:16+00:00: Recorded command exit 0; command argv SHA-256
   1c370d6074b72b12c0e0b562e318d930b3628a08d86c31227c66578bebec7737.
+
+- 2026-10-12T21:26:33+00:00: Recorded command exit 0; command argv SHA-256
+  f7e20666638201d8567703a3d7bc028e04a5e8e4c6c509de13d4976b0c91a669.
+
+- 2026-10-12T21:26:49+00:00: Recorded command exit 0; command argv SHA-256
+  1024fc1e6cefa31b078f0b5d2ed85c7ea4586897b388bf1e308f62db58574461.
+
+- 2026-10-12T21:27:14+00:00: Recorded command exit 101; command argv SHA-256
+  534f8613e1c316db8f0f46dd989e44e14a8ca74304a94791b4e4a1c59b2fbb1d.
+
+- 2026-10-12T21:27:34+00:00: Recorded command exit 0; command argv SHA-256
+  c8aae51f164559c1c2734b310b508fd66c2e7b4e955a4544d735ff59c4a48832.
+
+- 2026-10-12T21:28:21+00:00: Recorded command exit 101; command argv SHA-256
+  534f8613e1c316db8f0f46dd989e44e14a8ca74304a94791b4e4a1c59b2fbb1d.
+
+- 2026-10-12T21:29:15+00:00: Independent read-only review of PR #624 head
+  dad6dd8c06a3d126db62abbc73585ae389aec56d against base 74b391348fc5c1361034a14742f6afef747d72db:
+  SSH signature and DCO pass; project_run tests 4/4 pass; diff-check clean. BLOCKER: validation only
+  checks installed receipt/prepared directory (project_run.rs:171-270), while run_attempt still
+  calls built-in prepare_workload(&plan.workload, ...) (lib.rs:10297-10300), and load_and_validate
+  still calls describe_workload(&plan.workload) (lib.rs:8404-8413). Thus external installed workload
+  is not consumed end-to-end and prepared content is not integrity-bound; acceptance exact
+  project-local execution/substitution rejection is unmet. Required exact-head CI not independently
+  green/merge-ready.
+
+- 2026-10-12T21:29:46+00:00: Review repair is dependency-safe: implementation branch contains
+  fail-closed validation; resume to add diagnostic identity mappings and rerun gates.
+
+- 2026-10-12T21:29:50+00:00: Claimed by ar1783-workload-selection-luna.
+
+- 2026-10-12T21:29:55+00:00: Recorded command exit 101; command argv SHA-256
+  d32df0a8f7802e39b9a6743613fff16ac35e4dddba3905aa783a204f77a7e43f.
+
+- 2026-10-12T21:30:18+00:00: Recorded command exit 0; command argv SHA-256
+  7a171fe19b6d670019acee3652bcfd90b32baf0f0440f80f4a1204c6de8939e5.
+
+- 2026-10-12T21:31:18+00:00: Recorded command exit 0; command argv SHA-256
+  bcce9a7b4de1b97de01a8867a3dd2ffecede717b9a6f675c6e38793c483742fc.
+
+- 2026-10-12T21:32:31+00:00: Recorded command exit 1; command argv SHA-256
+  f7e20666638201d8567703a3d7bc028e04a5e8e4c6c509de13d4976b0c91a669.
+
+- 2026-10-12T21:32:35+00:00: Recorded command exit 1; command argv SHA-256
+  8ab3067024628d467277120aa301a690ffb6b3665565e7f59ac557a62fa11f00.
+
+- 2026-10-12T21:33:02+00:00: Recorded command exit 0; command argv SHA-256
+  7a171fe19b6d670019acee3652bcfd90b32baf0f0440f80f4a1204c6de8939e5.
+
+- 2026-10-12T21:33:07+00:00: Recorded command exit 1; command argv SHA-256
+  8ae66ac6337b702f4a8145c24c2df94ddf7c087fd54be25c38aa279187a756da.
+
+- 2026-10-12T21:33:31+00:00: Recorded command exit 101; command argv SHA-256
+  797e93acd653188e1550ffc7d6c824ac4b54d5b4841adbb02558798db33872c9.
+
+- 2026-10-12T21:34:02+00:00: Recorded command exit 101; command argv SHA-256
+  797e93acd653188e1550ffc7d6c824ac4b54d5b4841adbb02558798db33872c9.
+
+- 2026-10-12T21:34:28+00:00: Recorded command exit 0; command argv SHA-256
+  797e93acd653188e1550ffc7d6c824ac4b54d5b4841adbb02558798db33872c9.
+
+- 2026-10-12T21:34:56+00:00: Recorded command exit 0; command argv SHA-256
+  e020366c6bbbf55dce62502aa71dd6be3f33097e363bf7714ce98a30596a2207.
+
+- 2026-10-12T21:36:00+00:00: Recorded command exit 101; command argv SHA-256
+  bcce9a7b4de1b97de01a8867a3dd2ffecede717b9a6f675c6e38793c483742fc.
+
+- 2026-10-12T21:36:24+00:00: Recorded command exit 0; command argv SHA-256
+  b61714ad2b515f73d2b106805bcaac612496dadb8b14b7af894dbb0c1b53784e.

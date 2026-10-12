@@ -20,11 +20,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | planned |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | ar1689-tui-qualification-luna |
 | Parent | None |
 | Children | None |
 | Summary | Qualify the complete current-main TUI journey from wizard setup through valid plan, benchmark, recording, offline replay, comparison, and analysis. |
@@ -1147,8 +1147,8 @@
 | Owner | ar1775-cli2key-runtime-luna |
 | Parent | None |
 | Children | None |
-| Summary | Implement the mandatory configurable output router and project-configured quiet, normal, verbose, and debug levels. |
-| Next action | Implement the sole configurable output router, generated project output defaults, and four-level selection after the output contract is accepted. |
+| Summary | Independent PR #625 review complete; awaiting hosted required CI |
+| Next action | Keep PR #625 pending; recheck exact-head hosted required checks and merge only after all are green |
 
 ### AR-1776 — Supported-tool acquisition catalog
 
@@ -2446,7 +2446,7 @@ flowchart LR
         AR_1686["AR-1686 - Done"]:::status_done
         AR_1687["AR-1687 - Done"]:::status_done
         AR_1688["AR-1688 - Done"]:::status_done
-        AR_1689["AR-1689 - Planned"]:::status_planned
+        AR_1689["AR-1689 - In progress"]:::status_in_progress
         AR_1690["AR-1690 - Done"]:::status_done
         AR_1691["AR-1691 - Planned"]:::status_planned
         AR_1692["AR-1692 - Done"]:::status_done

@@ -55,8 +55,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-all-agents-provider` | `feature/all-agents-provider` | `03962f28571e` | 0 | behind 804, ahead 136 |
 | `agent-systems-benchmark-ar-1652-record-replay` | `repair/ar-1652-record-replay` | `ab0a791b05d6` | 0 | behind 12, ahead 0 |
 | `agent-systems-benchmark-ar-1686` | `qualification/ar-1686` | `93d75e28a758` | 0 | behind 1, ahead 0 |
-| `agent-systems-benchmark-ar-1775-configurable-output-router-and-levels` | `feature/ar-1775-configurable-output-router-and-levels` | `8b8882db69b1` | 2 | behind 0, ahead 6 |
-| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog_compact.rs`, `crates/asb-cli/src/human.rs` |
+| `agent-systems-benchmark-ar-1775-configurable-output-router-and-levels` | `feature/ar-1775-configurable-output-router-and-levels` | `67ddb5221114` | 0 | behind 0, ahead 7 |
 | `agent-systems-benchmark-ar-1779-default-usable-tool-install-command` | `repair/ar-1779-source-fallback-linear4` | `80060a79e716` | 0 | behind 15, ahead 0 |
 | `agent-systems-benchmark-ar-1799-tui-install-rustup-invalid` | `repair/ar-1799-tui-install-rustup-invalid` | `e058ea2b5881` | 0 | behind 21, ahead 0 |
 | `agent-systems-benchmark-ar-1800-development-warning-only-trust-contract` | `feature/ar-1800-development-warning-only-trust-contract` | `961243b302dc` | 0 | behind 29, ahead 0 |
@@ -271,10 +270,11 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-pr509-postmerge` | `DETACHED` | `9aeea48c4041` | 0 | behind 499, ahead 0 |
 | `asb218-asb` | `DETACHED` | `62fda2f3417b` | 0 | behind 704, ahead 0 |
 | `review-ar1782` | `DETACHED` | `3be3029d7a1d` | 0 | behind 114, ahead 0 |
+| `review-ar1783` | `DETACHED` | `dad6dd8c06a3` | 0 | behind 0, ahead 6 |
 | `review-pr610` | `DETACHED` | `95a342fde4c5` | 0 | behind 42, ahead 4 |
 | `agent-systems-benchmark-ar-1498` | `feature/ar-1498-authenticated-lifecycle-executor` | `55ff13fb6cb2` | 0 | behind 804, ahead 1275 |
 | `agent-systems-benchmark-ar-1499` | `feature/ar-1499-development-credential-enrollment` | `0a2f6e9c74f9` | 0 | behind 804, ahead 1280 |
-| `agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution` | `feature/ar-1783-installed-workload-selection-and-execution` | `e0474221c5a9` | 1 | behind 0, ahead 5 |
-| changed files | - | - | - | `crates/asb-cli/src/project_run.rs` |
+| `agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution` | `feature/ar-1783-installed-workload-selection-and-execution` | `dad6dd8c06a3` | 2 | behind 0, ahead 6 |
+| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog_compact.rs`, `crates/asb-cli/src/project_run.rs` |
 | `agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract` | `feature/ar-1825-source-to-executable-adapter-runtime-contract` | `630d380866e4` | 0 | behind 3, ahead 0 |
 | `ar1824-repair.Tp51GE` | `DETACHED` | `c2745e04e231` | 0 | behind 24, ahead 0 |
