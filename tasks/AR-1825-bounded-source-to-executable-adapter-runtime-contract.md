@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 171,
+  "task_revision": 172,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T20:01:03+00:00",
+  "updated_at": "2026-10-12T20:04:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -518,3 +518,6 @@ AR-1825's acceptance evidence is independently reviewed and durable.
   lines 88.59% (17,806 missed of 156,089), while adapter tool_materialization is 91.27% after
   focused repair. AArch64 and Rust checks are green. This is not fixed by more narrow adapter tests;
   the remaining gap is pre-existing/systemic and must be handled as a scoped coverage repair.
+
+- 2026-10-12T20:04:16+00:00: Recorded command exit 0; command argv SHA-256
+  cfddfc1b8766f37e6aede838c174f3c1396c0e28ea1eae79d472cf1b97a74f13.
