@@ -31,18 +31,18 @@ Generated from local Git and GitHub. Do not edit.
 | #612 | `feature/ar-1774-status-progress-completeness-ci@ad7f1166afc5` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | ci: enforce status and progress completeness |
 | #618 | `repair/ar-1779-current-main-smoke@f1dbe055aaeb` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): verify supported tool reuse and entrypoints |
 | #619 | `repair/ar-1779-source-fallback-linear3@21372a22aba3` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
-| #624 | `feature/ar-1783-installed-workload-selection-and-execution@32f42827367d` | `main` | BLOCKED | QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | feat(cli): bind installed workloads before execution |
+| #624 | `feature/ar-1783-installed-workload-selection-and-execution@32f42827367d` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS, IN_PROGRESS: | feat(cli): bind installed workloads before execution |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38315466763 | `32f42827367d` | pull_request | Development formal assurance | in_progress:- |
+| 38315466763 | `32f42827367d` | pull_request | Development formal assurance | completed:success |
 | 38315466744 | `32f42827367d` | pull_request | Cross-repository development broker qualification | in_progress:- |
-| 38315466720 | `32f42827367d` | pull_request | Rust verification | pending:- |
+| 38315466720 | `32f42827367d` | pull_request | Rust verification | in_progress:- |
 | 38315466703 | `32f42827367d` | pull_request | Portable protected-main provenance | completed:success |
-| 38315466687 | `32f42827367d` | pull_request | Emulated aarch64 portability | queued:- |
-| 38315466682 | `32f42827367d` | pull_request | Repository quality | pending:- |
+| 38315466687 | `32f42827367d` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38315466682 | `32f42827367d` | pull_request | Repository quality | in_progress:- |
 | 38315466659 | `32f42827367d` | pull_request | Credential-free benchmark path | in_progress:- |
 | 38315466658 | `32f42827367d` | pull_request | Agent Workflow Quality shadow | completed:success |
 | 38315466652 | `32f42827367d` | pull_request | Hosted portability and native qualification | in_progress:- |
