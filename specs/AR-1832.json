@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1832.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "fresh-user-route", "description": "A clean project completes setup --output through plan create --config --output, validate, run, sweep, report, and compare with no hidden user configuration."},
+    {"id": "matrix-covered", "description": "Deterministic qualification covers supported selection combinations and unavailable choices produce typed remediation."},
+    {"id": "live-development-smoke", "description": "Opt-in redacted development live smoke covers each available supported adapter; CI remains credential-free."},
+    {"id": "legacy-absent", "description": "No legacy command, ProviderSelection artifact, API-key persistence, or implicit config state is usable."}
+  ],
+  "definition_of_done": ["The explicit configuration route is qualified as the complete default ASB setup-to-live-benchmark workflow."],
+  "inputs": [{"id": "setup-authoring", "description": "AR-1827."}, {"id": "legacy-removal", "description": "AR-1828."}, {"id": "plan-compiler", "description": "AR-1829."}, {"id": "execution", "description": "AR-1830."}, {"id": "user-experience", "description": "AR-1831."}],
+  "outputs": [{"id": "e2e-receipt", "description": "Exact-main qualification receipt for the complete explicit configuration route."}],
+  "allowed_tools": ["cargo", "git", "gh", "tools/handoffctl", "credential-free-fakes", "opt-in-live-test"],
+  "forbidden_tools": ["credential-output", "implicit-home-config", "provider-selection-file", "provider-fallback", "production-promotion", "gate-weakening", "history-rewrite", "force-push"],
+  "required_evidence_classes": ["contract-test", "environmental", "mechanical"],
+  "gates": [{"id": "full-route", "description": "Fresh-user deterministic route and redacted opt-in live evidence pass on the exact merged head."}]
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1828.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "commands-removed", "description": "Public asb config, provider-catalog, and provider-plan command routes and help/completion entries are absent."},
+    {"id": "selection-removed", "description": "ProviderSelection types, files, schemas, and --provider-selection inputs are removed from normal product interfaces."},
+    {"id": "no-implicit-authority", "description": "No normal CLI or TUI route reads or writes XDG/user-home provider configuration."},
+    {"id": "migration-diagnostic", "description": "Legacy invocations receive an actionable typed migration message that names setup --output."}
+  ],
+  "definition_of_done": ["The explicit setup configuration is the only public provider/model selection authority."],
+  "inputs": [{"id": "setup-authoring", "description": "AR-1827 complete setup route."}],
+  "outputs": [{"id": "legacy-surface-removal", "description": "Removed legacy command and selection interfaces with migration diagnostics."}],
+  "allowed_tools": ["cargo", "git", "tools/handoffctl"],
+  "forbidden_tools": ["compatibility-alias", "implicit-home-config", "provider-selection-file", "silent-fallback", "gate-weakening", "history-rewrite", "force-push"],
+  "required_evidence_classes": ["contract-test", "mechanical"],
+  "gates": [{"id": "removal-audit", "description": "CLI/help/schema/source audit and negative integration tests prove retirement is complete."}]
+}

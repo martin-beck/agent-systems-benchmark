@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1831.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "one-route-documented", "description": "Help, examples, completion, and TUI handoff consistently document only explicit setup output and config-bound plan execution."},
+    {"id": "migration-useful", "description": "Legacy/missing-path messages identify the failed path or removed command and give a copyable next command."},
+    {"id": "json-clean", "description": "JSON mode contains only its machine envelope, not human progress/status output."}
+  ],
+  "definition_of_done": ["Users are not directed back to any removed configuration or provider-selection route."],
+  "inputs": [{"id": "full-config-execution", "description": "AR-1827 through AR-1830 completed command contract."}],
+  "outputs": [{"id": "explicit-config-ux", "description": "Aligned help, docs, completions, and TUI integration boundary."}],
+  "allowed_tools": ["cargo", "git", "tools/handoffctl"],
+  "forbidden_tools": ["provider-selection-docs", "implicit-config-docs", "json-status-output", "asb-tui-rendering-work", "gate-weakening", "history-rewrite", "force-push"],
+  "required_evidence_classes": ["contract-test", "mechanical"],
+  "gates": [{"id": "ux-drift", "description": "Help/completion/docs and golden output checks reject legacy workflow references."}]
+}
