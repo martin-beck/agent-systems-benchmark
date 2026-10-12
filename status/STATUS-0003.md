@@ -1476,11 +1476,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | open |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1799-tui-install-rustup-invalid-20261012 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint. |
@@ -1569,6 +1569,20 @@
 | Children | None |
 | Summary | Publish the already-verified AR-1820 provenance receipt and durable done state. |
 | Next action | Publish the already-verified AR-1820 receipt and done transition from the durable current-main state; do not change product or historical PR evidence. |
+
+### AR-1824 — cli2key public provider composition
+
+| Field | Value |
+| --- | --- |
+| Status | done |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Add public cli2key provider-plan/catalog construction and direct runtime-authority composition. |
+| Next action | Implement the cli2key provider-plan/catalog and direct runtime-authority composition seam without reopening AR-1797. |
 
 
 ## Dependency graph
@@ -2427,7 +2441,7 @@ flowchart LR
         AR_1796["AR-1796 - Open"]:::status_open
         AR_1797["AR-1797 - Planned"]:::status_planned
         AR_1798["AR-1798 - Done"]:::status_done
-        AR_1799["AR-1799 - In progress"]:::status_in_progress
+        AR_1799["AR-1799 - Open"]:::status_open
     end
     subgraph series_18["18 - Additional work"]
         direction TB
@@ -2437,6 +2451,7 @@ flowchart LR
         AR_1821["AR-1821 - Done"]:::status_done
         AR_1822["AR-1822 - Done"]:::status_done
         AR_1823["AR-1823 - Done"]:::status_done
+        AR_1824["AR-1824 - Done"]:::status_done
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
