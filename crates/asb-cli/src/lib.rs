@@ -149,7 +149,7 @@ pub fn entry(args: Vec<OsString>) -> ExitCode {
 pub fn run(args: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
     run_with_default_mode_and_stdin(args, stdout, stderr, false, None)
 }
-
+#[rustfmt::skip]
 fn run_with_default_mode_and_stdin(
     args: &[OsString],
     stdout: &mut dyn Write,
@@ -255,14 +255,7 @@ fn run_with_default_mode_and_stdin(
             } else {
                 stdout.write_all(&captured)
             };
-            let result = if result.is_ok() && output_mode.debug && !human::is_raw(&normalized) {
-                match output_mode.human_writer {
-                    ProjectOutputWriterV1::Stdout => human::render_debug(&normalized, stdout),
-                    ProjectOutputWriterV1::Stderr => human::render_debug(&normalized, stderr),
-                }
-            } else {
-                result
-            };
+            let result = if result.is_ok() && output_mode.level == ProjectOutputLevelV1::Debug && !human::is_raw(&normalized) { match output_mode.human_writer { ProjectOutputWriterV1::Stdout => human::render_debug(&normalized, stdout), ProjectOutputWriterV1::Stderr => human::render_debug(&normalized, stderr), } } else { result };
             if result.is_err() {
                 let _ = writeln!(stderr, "ASB could not write output");
                 4
@@ -309,7 +302,6 @@ fn run_with_default_mode_and_stdin(
         }
     }
 }
-
 #[cfg(test)]
 fn run_with_default_mode(
     args: &[OsString],
@@ -327,7 +319,6 @@ struct OutputMode {
     level: ProjectOutputLevelV1,
     result_writer: ProjectOutputWriterV1,
     human_writer: ProjectOutputWriterV1,
-    debug: bool,
 }
 
 fn parse_output_mode(
@@ -398,7 +389,6 @@ fn parse_output_mode(
                 level,
                 ProjectOutputLevelV1::Verbose | ProjectOutputLevelV1::Debug
             ),
-            debug: level == ProjectOutputLevelV1::Debug,
             level,
             result_writer: project_output.result_writer,
             human_writer: project_output.human_writer,
@@ -11598,13 +11588,6 @@ fn write_json(output: &mut dyn Write, value: &impl Serialize) -> Result<(), CliE
     writeln!(output).map_err(output_error)
 }
 
-/// Route a last-resort operational diagnostic through the same fixed marker
-/// vocabulary as the normal human presentation.  Control-worker failures use
-/// this boundary because they occur outside the request renderer.
-pub(crate) fn write_router_diagnostic(output: &mut dyn Write, message: &str) -> io::Result<()> {
-    writeln!(output, "[ERR ] {message}")
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use std::ffi::OsString;
@@ -11761,88 +11744,6 @@ pub(crate) mod tests {
                 "{malformed:?}"
             );
         }
-    }
-
-    #[test]
-    fn output_levels_are_ordered_and_debug_is_bounded() {
-        let mut normal_out = Vec::new();
-        let mut normal_err = Vec::new();
-        assert_eq!(
-            super::run_with_default_mode(
-                &os_args(&["doctor"]),
-                &mut normal_out,
-                &mut normal_err,
-                true
-            ),
-            0
-        );
-        let mut verbose_out = Vec::new();
-        let mut verbose_err = Vec::new();
-        assert_eq!(
-            super::run_with_default_mode(
-                &os_args(&["--verbose", "doctor"]),
-                &mut verbose_out,
-                &mut verbose_err,
-                true,
-            ),
-            0
-        );
-        let mut debug_out = Vec::new();
-        let mut debug_err = Vec::new();
-        assert_eq!(
-            super::run_with_default_mode(
-                &os_args(&["--debug", "doctor"]),
-                &mut debug_out,
-                &mut debug_err,
-                true,
-            ),
-            0
-        );
-        assert!(verbose_err.len() >= normal_err.len());
-        let debug = String::from_utf8(debug_err).unwrap();
-        assert!(debug.contains("[ OK ] Debug: routed command doctor."));
-        assert!(!debug.contains("/tmp/"));
-    }
-
-    #[test]
-    fn quiet_and_json_keep_both_streams_silent_for_failures() {
-        for args in [
-            &["-q", "not-a-command"][..],
-            &["--json", "not-a-command"][..],
-        ] {
-            let mut output = Vec::new();
-            let mut error = Vec::new();
-            assert_eq!(
-                super::run_with_default_mode(&os_args(args), &mut output, &mut error, true),
-                2
-            );
-            if args[0] == "-q" {
-                assert!(output.is_empty());
-                assert!(error.is_empty());
-            } else {
-                assert!(error.is_empty());
-                assert!(serde_json::from_slice::<serde_json::Value>(&output).is_ok());
-            }
-        }
-    }
-
-    #[test]
-    fn debug_never_appends_to_raw_text_artifacts() {
-        let mut normal = Vec::new();
-        let mut normal_err = Vec::new();
-        let normal_exit =
-            super::run_with_default_mode(&os_args(&["--help"]), &mut normal, &mut normal_err, true);
-        let mut debug = Vec::new();
-        let mut debug_err = Vec::new();
-        let debug_exit = super::run_with_default_mode(
-            &os_args(&["--debug", "--help"]),
-            &mut debug,
-            &mut debug_err,
-            true,
-        );
-        assert_eq!(normal_exit, debug_exit);
-        assert_eq!(normal, debug);
-        assert_eq!(normal_err, debug_err);
     }
 
     #[test]
@@ -19754,5 +19655,104 @@ mod ar1782_headroom_tests {
         .unwrap();
         assert_eq!(receipt["source"], "https://arxiv.org/e-print/2407.01502v1");
         assert_eq!(receipt["revision"], "v1");
+    }
+}
+
+/// Route a last-resort operational diagnostic through the same fixed marker
+/// vocabulary as the normal human presentation. Control-worker failures use
+/// this boundary because they occur outside the request renderer.
+pub(crate) fn write_router_diagnostic(output: &mut dyn Write, message: &str) -> io::Result<()> {
+    writeln!(output, "[ERR ] {message}")
+}
+
+#[cfg(test)]
+mod output_router_tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    fn os_args(values: &[&str]) -> Vec<OsString> {
+        values.iter().map(OsString::from).collect()
+    }
+
+    #[test]
+    fn output_levels_are_ordered_and_debug_is_bounded() {
+        let mut normal_out = Vec::new();
+        let mut normal_err = Vec::new();
+        assert_eq!(
+            run_with_default_mode(
+                &os_args(&["doctor"]),
+                &mut normal_out,
+                &mut normal_err,
+                true
+            ),
+            0
+        );
+        let mut verbose_out = Vec::new();
+        let mut verbose_err = Vec::new();
+        assert_eq!(
+            run_with_default_mode(
+                &os_args(&["--verbose", "doctor"]),
+                &mut verbose_out,
+                &mut verbose_err,
+                true,
+            ),
+            0
+        );
+        let mut debug_out = Vec::new();
+        let mut debug_err = Vec::new();
+        assert_eq!(
+            run_with_default_mode(
+                &os_args(&["--debug", "doctor"]),
+                &mut debug_out,
+                &mut debug_err,
+                true,
+            ),
+            0
+        );
+        assert!(verbose_err.len() >= normal_err.len());
+        let debug = String::from_utf8(debug_err).unwrap();
+        assert!(debug.contains("[ OK ] Debug: routed command doctor."));
+        assert!(!debug.contains("/tmp/"));
+    }
+
+    #[test]
+    fn quiet_and_json_keep_both_streams_silent_for_failures() {
+        for args in [
+            &["-q", "not-a-command"][..],
+            &["--json", "not-a-command"][..],
+        ] {
+            let mut output = Vec::new();
+            let mut error = Vec::new();
+            assert_eq!(
+                run_with_default_mode(&os_args(args), &mut output, &mut error, true),
+                2
+            );
+            if args[0] == "-q" {
+                assert!(output.is_empty());
+                assert!(error.is_empty());
+            } else {
+                assert!(error.is_empty());
+                assert!(serde_json::from_slice::<serde_json::Value>(&output).is_ok());
+            }
+        }
+    }
+
+    #[test]
+    fn debug_never_appends_to_raw_text_artifacts() {
+        let mut normal = Vec::new();
+        let mut normal_err = Vec::new();
+        let normal_exit =
+            run_with_default_mode(&os_args(&["--help"]), &mut normal, &mut normal_err, true);
+        let mut debug = Vec::new();
+        let mut debug_err = Vec::new();
+        let debug_exit = run_with_default_mode(
+            &os_args(&["--debug", "--help"]),
+            &mut debug,
+            &mut debug_err,
+            true,
+        );
+        assert_eq!(normal_exit, debug_exit);
+        assert_eq!(normal, debug);
+        assert_eq!(normal_err, debug_err);
     }
 }
