@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1835.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "authenticated-control-fixture", "description": "A test-only ControlServer and ControlClient fixture performs a bounded authenticated request/response against a deterministic credential-free backend without fabricating runner, provider, lease, or authority state."},
+    {"id": "runtime-branch-coverage", "description": "The fixture exercises the existing live-service bootstrap, launch-factory and sandbox rejection/teardown branches needed by AR-1783, with positive and negative assertions and no production fallback."},
+    {"id": "delegated-isolation", "description": "A bounded delegated-isolation runner or equivalent fixture exercises the authenticated live launch path when the pinned native capability is available and records unavailable capability explicitly otherwise."},
+    {"id": "coverage-and-cleanliness", "description": "Serialized workspace coverage, focused tests, formatting and clippy are run through handoffctl; generated profiles and temporary artifacts are removed and the product tree is clean."},
+    {"id": "privacy-and-authority", "description": "Tests retain no credentials, prompts, provider responses, private paths or fabricated authority and preserve all existing gates."}
+  ],
+  "definition_of_done": [
+    "The narrow cross-crate test fixture is reviewed and merged on a signed DCO commit.",
+    "Exact focused and serialized full-gate evidence is recorded durably.",
+    "AR-1783 remains in progress until its own acceptance and coverage gate are satisfied."
+  ],
+  "inputs": [
+    {"id": "ar1783-gap", "description": "AR-1783 coverage evidence identifying the missing authenticated control/live-isolation seam."},
+    {"id": "control-contract", "description": "The existing public ControlServer/ControlClient protocol and test-only backend interfaces."},
+    {"id": "runtime-branches", "description": "Existing live_service, launch_factory and sandbox branches under test."}
+  ],
+  "outputs": [
+    {"id": "control-fixture", "description": "A bounded credential-free authenticated ControlClient/ControlServer test fixture and positive/negative tests."},
+    {"id": "isolation-evidence", "description": "Bounded delegated-isolation test evidence with explicit capability classification."},
+    {"id": "coverage-receipt", "description": "Exact focused/full test, coverage, cleanup and privacy evidence."}
+  ],
+  "allowed_tools": ["git", "cargo", "cargo-llvm-cov", "python3", "tools/handoffctl", "bwrap", "systemd-run", "systemctl", "taskset"],
+  "forbidden_tools": ["provider-network", "credential-output", "fabricated-authority", "gate-weakening", "raw-transcript-retention"],
+  "required_evidence_classes": ["contract-test", "mechanical", "environmental"],
+  "gates": [
+    {"id": "focused", "description": "Focused control/runtime fixture tests pass, including positive and hostile cases."},
+    {"id": "full", "description": "Serialized workspace coverage and native quality gates pass at their unchanged thresholds."},
+    {"id": "privacy", "description": "Exact-tree privacy and generated-artifact checks pass."},
+    {"id": "review", "description": "Independent exact-head review and signed DCO verification pass."}
+  ]
+}
