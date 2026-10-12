@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e",
-  "task_revision": 11,
+  "task_revision": 12,
   "title": "AR-1775 protected-main local identity recovery",
-  "updated_at": "2026-10-12T22:29:14+00:00",
+  "updated_at": "2026-10-12T22:30:27+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1834-ar1775-protected-main-identity"
 }
 ---
@@ -67,3 +67,6 @@ This successor is metadata-only and forward-only. It must not alter `LOCAL_COMMI
 
 - 2026-10-12T22:29:14+00:00: Recorded command exit 0; command argv SHA-256
   cc286686915075c87a0404fa93736b9508c3c7199bbb678b5e15984489777beb.
+
+- 2026-10-12T22:30:27+00:00: Recorded command exit 0; command argv SHA-256
+  c91971cb9346daffdb348fc5a435e52a22fc06f3718d0d7c9b948e9a91caaf5b.
