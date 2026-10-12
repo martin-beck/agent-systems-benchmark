@@ -2,11 +2,11 @@
 {
   "branch": "repair/ar-1822-role-removal-expiry",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-12T17:21:24+00:00",
   "depends_on": [],
   "id": "AR-1822",
   "next_action": "Publish v7 from exact base 06d3a008b624; wait for fresh exact-head review and CI before merge.",
-  "owner": "",
+  "owner": "ar1822_role_cleanup",
   "plan": "../plans/AR-1822-role-removal-expiry.md",
   "priority": "P0",
   "schema_version": 1,
@@ -20,11 +20,11 @@
   },
   "spec_ref": "specs/AR-1822.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Allow exact-revision roles.remove cleanup of explicitly named expired assignments while preserving fail-closed reads and admission.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "Expired role assignment cleanup semantics",
-  "updated_at": "2026-10-12T15:14:45+00:00",
+  "updated_at": "2026-10-12T15:21:24+00:00",
   "worktree_key": "agent-systems-benchmark-state-ar-1822-role-removal-expiry"
 }
 ---
@@ -47,3 +47,5 @@ transactional command.
 
 - 2026-10-12T15:14:45+00:00: Publish ownerless v7 current-main successor; preserve fresh review/CI
   gates.
+
+- 2026-10-12T15:21:24+00:00: Claimed by ar1822_role_cleanup.
