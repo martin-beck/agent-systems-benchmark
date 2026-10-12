@@ -1,6 +1,6 @@
 ---
 {
-  "branch": "",
+  "branch": "repair/ar-1823-ar1820-receipt",
   "checkpoint_commit": "",
   "claim_expires": "2026-10-12T17:01:26+00:00",
   "depends_on": [],
@@ -14,10 +14,10 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Publish the already-verified AR-1820 provenance receipt and durable done state.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "AR-1820 receipt publication cleanup",
-  "updated_at": "2026-10-12T15:01:26+00:00",
-  "worktree_key": ""
+  "updated_at": "2026-10-12T15:01:53+00:00",
+  "worktree_key": "agent-systems-benchmark-state-ar-1823-receipt"
 }
 ---
 
@@ -36,3 +36,6 @@ reclassify any other AR.
   receipt and done state.
 
 - 2026-10-12T15:01:26+00:00: Claimed by ar1823_receipt_cleanup.
+
+- 2026-10-12T15:01:53+00:00: Bound worktree agent-systems-benchmark-state-ar-1823-receipt on branch
+  repair/ar-1823-ar1820-receipt.
