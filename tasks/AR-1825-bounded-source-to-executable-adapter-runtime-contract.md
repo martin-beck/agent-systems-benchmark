@@ -10,7 +10,7 @@
   "id": "AR-1825",
   "next_action": "Repair coverage gate: add meaningful adapter-contract tests until workspace line coverage is at least 90%; rerun policy check, then recreate protected merge for exact head 4e37d542.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
-  "observed_dirty": 54,
+  "observed_dirty": 108,
   "observed_head": "4e37d542b8244280bc1c3e832920812cdae7a3ff",
   "owner": "ar1825-implementation-luna",
   "plan": "../plans/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 133,
+  "task_revision": 134,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T19:36:48+00:00",
+  "updated_at": "2026-10-12T19:36:54+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
