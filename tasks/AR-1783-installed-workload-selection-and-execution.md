@@ -11,8 +11,8 @@
   "id": "AR-1783",
   "next_action": "Continue substantive uncovered runtime behavior, prioritizing live_service authority resolver/bootstrap transitions and remaining SandboxBackend spawn/cleanup error branches; inspect current coverage report, add positive/negative tests, and rerun focused plus serialized coverage toward >=90%.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 1,
-  "observed_head": "ccf0a92fb4df10d2080fb43366a1942f80cecc70",
+  "observed_dirty": 0,
+  "observed_head": "945214967a16a4f4476689545d7ca5ac3b8e8462",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 signed ccf0a92f adds production development sandbox lifecycle/cleanup coverage; serialized workspace coverage improved to 89.27% lines, 85.11% functions, 90.66% regions.",
-  "task_revision": 406,
+  "task_revision": 407,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:29:43+00:00",
+  "updated_at": "2026-10-12T23:29:48+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
