@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
   "checkpoint_commit": "693a105cae096dccc719820a27cbcf5df6a612f9",
-  "claim_expires": "2026-10-12T21:10:51+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1776",
     "AR-1778"
@@ -12,7 +12,7 @@
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
   "observed_dirty": 0,
   "observed_head": "9884e34acd91d6ff36724b5f3b33a107a048aa94",
-  "owner": "ar1825-implementation-luna",
+  "owner": "",
   "plan": "../plans/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md",
   "priority": "P0",
   "schema_version": 1,
@@ -26,11 +26,11 @@
   },
   "spec_ref": "specs/AR-1825.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 190,
+  "task_revision": 191,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T20:35:38+00:00",
+  "updated_at": "2026-10-12T20:35:44+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -580,3 +580,7 @@ AR-1825's acceptance evidence is independently reviewed and durable.
   exact-head CI green, repository-quality workflow 38303791801 terminal success, focused 13/13
   adapter tests, full asb-cli 443/443, and full workspace rerun passing after one non-reproducible
   fixture failure.
+
+- 2026-10-12T20:35:44+00:00: AR-1825 complete: protected merge b8fc4690 published to main 99f8c531;
+  exact-head CI and post-merge full verification green. Acceptance evidence recorded in
+  sessions/AR-1825.jsonl.

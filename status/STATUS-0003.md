@@ -1588,11 +1588,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1825-implementation-luna |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Implement bounded source adapter contract |
@@ -2466,7 +2466,7 @@ flowchart LR
         AR_1822["AR-1822 - Done"]:::status_done
         AR_1823["AR-1823 - Done"]:::status_done
         AR_1824["AR-1824 - Done"]:::status_done
-        AR_1825["AR-1825 - In progress"]:::status_in_progress
+        AR_1825["AR-1825 - Done"]:::status_done
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003

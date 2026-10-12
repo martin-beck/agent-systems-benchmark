@@ -209,12 +209,11 @@
 
 ## Complete AR inventory
 
-### In progress (2)
+### In progress (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Safety portion complete: PR #621 merged by protected local integration as ab0a791b05d6082fd0c99ab287f8a7883180bcec; all exact-main post-merge workflows passed and handoffctl doctor --live is clean. Keep AR-1779 in progress pending AR-1825 acceptance of the bounded source-to-executable adapter/runtime contract; do not claim source fallback until that acceptance. |
-| P0 | [AR-1825](../tasks/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md): Bounded source-to-executable adapter/runtime contract | ar1825-implementation-luna | Implement bounded source adapter contract | Post-merge exact-main workspace rerun completed with all tests passing, including source_checkout::tests::exact_fixture_checkout_is_returned_and_cleanup_is_explicit (443 asb-cli unit tests passed; workspace integration/doc tests passed). Initial 442/1 Unavailable was not reproducible and appears a one-time environmental/concurrency failure. Before acceptance, reconcile exact-main evidence and confirm required AArch64/Rust/repository-quality workflows terminal green; preserve AR-1779 expiry warning. |
 
 ### Open (2)
 
@@ -411,7 +410,7 @@
 | --- | --- | --- | --- | --- |
 | P4 | [AR-0703](../tasks/AR-0703-native-platform-lab.md): Provision native platform qualification capacity | Unclaimed | Optionally provide native ARM64 Debian/openEuler capacity for future claim-scoped evidence. | When separately authorized, provision genuine ARM64 Debian/openEuler capacity for optional future native evidence; absence must not block any AR. |
 
-### Done (593)
+### Done (594)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -596,3 +595,5 @@
 | P0 | [AR-1479](../tasks/AR-1479-rust-ci-flake-repair.md): Rust CI timing and state-root flake repair | Unclaimed | Repair the unrelated Rust state-root collision and malformed-ready-marker timing flakes blocking AR-1420 exact-head CI. | Monitor exact-main post-merge workflows for 1015a461; after all seven green, release AR-1479 and requalify AR-1420 PR #350 head 2884508. |
 | P0 | [AR-1480](../tasks/AR-1480-runtime-control-cli-composition.md): Runtime-control CLI composition | Unclaimed | Compose authenticated runtime enrollment into opaque normal CLI run and sweep dispatch. | Run reconcile and doctor --live, then release AR-1480 done ownerless with complete merge/post-merge evidence. |
 | P0 | [AR-1484](../tasks/AR-1484-runtime-control-owner-contract.md): Runtime/control process-owner contract | Unclaimed | Define stable runtime/control process-owner lifecycle and opaque handoff contract. | Reconcile/doctor, then release AR-1484 done ownerless with complete merge/post-merge evidence. |
+| P0 | [AR-1485](../tasks/AR-1485-process-owner-local-mock-lifecycle.md): Process-owner local/mock lifecycle | Unclaimed | Implement runtime-owned local/mock process lifecycle and opaque-source handoff. | Release complete; retain exact merge and eight workflow evidence. |
+| P0 | [AR-1486](../tasks/AR-1486-runtime-owner-cli-entry-wiring.md): Runtime-owner CLI entry wiring | Unclaimed | Wire the runtime-owned local/mock process owner into ordinary CLI run and sweep. | Release complete; retain exact merge and eight workflow evidence. |
