@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 19,
+  "task_revision": 20,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-12T23:57:22+00:00",
+  "updated_at": "2026-10-12T23:57:34+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -97,4 +97,7 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
 - 2026-10-12T23:55:59+00:00: Checkpointed source commit 5cafc95ec5acdebf7c323e21597666ac0798dfdc.
 
 - 2026-10-12T23:57:17+00:00: Recorded command exit 101; command argv SHA-256
+  26d93d2ede288ab44350cfe476efa2cb95e872e072e80e8d7d11a3572ba83ef8.
+
+- 2026-10-12T23:57:34+00:00: Recorded command exit 101; command argv SHA-256
   26d93d2ede288ab44350cfe476efa2cb95e872e072e80e8d7d11a3572ba83ef8.
