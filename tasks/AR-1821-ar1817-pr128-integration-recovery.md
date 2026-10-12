@@ -2,21 +2,21 @@
 {
   "branch": "repair/ar-1821-ar1817-integration",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-12T16:15:18+00:00",
   "depends_on": [],
   "id": "AR-1821",
   "next_action": "Claim this recovery task, verify accepted PR #128 exact head against current main, integrate through the signed local merge path, run exact-main post-merge checks, and close with durable evidence.",
-  "owner": "",
+  "owner": "ar1817_schema_contract",
   "plan": "../plans/AR-1821-ar1817-pr128-integration-recovery.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1821.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Recover the durable task record needed to integrate accepted AR-1817 PR #128 after its original task was removed from current generated state.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "AR-1817 PR #128 integration recovery",
-  "updated_at": "2026-10-12T14:15:17+00:00",
+  "updated_at": "2026-10-12T14:15:18+00:00",
   "worktree_key": ""
 }
 ---
@@ -32,3 +32,5 @@ reclassifying the work under AR-1820.
 
 - 2026-10-12T14:15:17+00:00: Transfer recovery ownership to the existing coordinator role for signed
   integration.
+
+- 2026-10-12T14:15:18+00:00: Claimed by ar1817_schema_contract.
