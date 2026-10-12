@@ -1204,7 +1204,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. |
-| Next action | Repair source fallback by failing closed on non-executable source/archive catalog entries; focused tests and full workspace gates next, then push a signed exact-head PR and request fresh independent review. |
+| Next action | Signed repair f1dbe055 is pushed to PR #618; request independent review and exact-head CI, then protected merge and post-merge verification. |
 
 ### AR-1780 — Installed tool and workload execution qualification
 

@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1779](tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Repair source fallback by failing closed on non-executable source/archive catalog entries; focused tests and full workspace gates next, then push a signed exact-head PR and request fresh independent review. | ar1779-default-install-luna |
+| P0 | [AR-1779](tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Signed repair f1dbe055 is pushed to PR #618; request independent review and exact-head CI, then protected merge and post-merge verification. | ar1779-default-install-luna |
 
 ## Open
 
