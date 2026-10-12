@@ -7,7 +7,6 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1689](tasks/AR-1689.md): Paired TUI fresh-user integration and receipt qualification | Independent review passed; exact paired receipt verified, pending final reconciliation/release | Reconcile generated projections and perform final exact-head/post-merge verification; then release AR-1689 done | ar1689-tui-qualification-luna |
 | P0 | [AR-1783](tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Installed workload execution | Await exact-head CI, then obtain independent review of 4b72fafb against main 356a669; merge only after green review and CI. | ar1783-workload-selection-luna |
 
 ## Open

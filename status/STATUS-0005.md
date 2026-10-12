@@ -255,11 +255,10 @@
 
 ## Complete AR inventory
 
-### In progress (2)
+### In progress (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1689](../tasks/AR-1689.md): Paired TUI fresh-user integration and receipt qualification | ar1689-tui-qualification-luna | Independent review passed; exact paired receipt verified, pending final reconciliation/release | Reconcile generated projections and perform final exact-head/post-merge verification; then release AR-1689 done |
 | P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | ar1783-workload-selection-luna | Installed workload execution | Await exact-head CI, then obtain independent review of 4b72fafb against main 356a669; merge only after green review and CI. |
 
 ### Open (2)
@@ -460,7 +459,7 @@
 | --- | --- | --- | --- | --- |
 | P4 | [AR-0703](../tasks/AR-0703-native-platform-lab.md): Provision native platform qualification capacity | Unclaimed | Optionally provide native ARM64 Debian/openEuler capacity for future claim-scoped evidence. | When separately authorized, provision genuine ARM64 Debian/openEuler capacity for optional future native evidence; absence must not block any AR. |
 
-### Done (597)
+### Done (598)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -623,3 +622,4 @@
 | P0 | [AR-1447](../tasks/AR-1447-asb-local-campaign-qualification.md): ASB local campaign qualification | Unclaimed | Qualify the complete credential-free ASB local campaign and replay journey. | Done: ASB-only local campaign qualification verified on protected merge 2872a31f2ee90ac5df1a47203b2a618b1829cfec. Targeted guided-local and exact-campaign tests plus full asb-cli library tests (107/107) passed; AR-1338 remains a separate enhancement. |
 | P0 | [AR-1448](../tasks/AR-1448-runtime-replay-authority-source.md): Runtime replay authority source | Unclaimed | Materialize runtime-owned strict replay authority for normal CLI replay. | Done: signed PR #326 merged as f03d9e484d6ca73eacdbd5476980bf33ca737540; all seven exact-main post-merge workflows and local runtime/CLI verification passed. |
 | P0 | [AR-1450](../tasks/AR-1450-runtime-owned-local-replay-acquisition.md): Runtime-owned local replay acquisition factory | Unclaimed | Keep local replay authority acquisition inside the runtime boundary. | Release-ready: PR #328 head 2832912 passed exact-head checks and independent review; merge 452f3ca was repaired by AR-1454 merge a0bd63d3 with all seven post-merge workflows green. |
+| P0 | [AR-1451](../tasks/AR-1451-central-orchestration-authority-design.md): Central orchestration authority contract and ASB redesign | Unclaimed | Freeze one runtime-owned orchestration authority for every ASB run and attempt. | PR #329 merged as 071167d. Monitor seven exact-main post-merge workflows 36170798957, 36170798948, 36170798971, 36170798901, 36170798918, 36170798954, 36170798887 to terminal success; then release AR-1451 and promote AR-1452. |

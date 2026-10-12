@@ -20,11 +20,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1689-tui-qualification-luna |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Independent review passed; exact paired receipt verified, pending final reconciliation/release |
@@ -2446,7 +2446,7 @@ flowchart LR
         AR_1686["AR-1686 - Done"]:::status_done
         AR_1687["AR-1687 - Done"]:::status_done
         AR_1688["AR-1688 - Done"]:::status_done
-        AR_1689["AR-1689 - In progress"]:::status_in_progress
+        AR_1689["AR-1689 - Done"]:::status_done
         AR_1690["AR-1690 - Done"]:::status_done
         AR_1691["AR-1691 - Planned"]:::status_planned
         AR_1692["AR-1692 - Done"]:::status_done
