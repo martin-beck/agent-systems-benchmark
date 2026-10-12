@@ -38,7 +38,7 @@ Generated from local Git and GitHub. Do not edit.
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
 | 38318493591 | `da0cbe0848a1` | push | Hosted portability and native qualification | in_progress:- |
-| 38318493561 | `da0cbe0848a1` | push | Development formal assurance | in_progress:- |
+| 38318493561 | `da0cbe0848a1` | push | Development formal assurance | completed:success |
 | 38318493520 | `da0cbe0848a1` | push | Portable protected-main provenance | completed:success |
 | 38318493494 | `da0cbe0848a1` | push | Emulated aarch64 portability | in_progress:- |
 | 38318493490 | `da0cbe0848a1` | push | Repository quality | in_progress:- |
