@@ -35,9 +35,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 152,
+  "task_revision": 153,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:57:29+00:00",
+  "updated_at": "2026-10-12T17:57:44+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -441,3 +441,6 @@ the adapter smoke check failed.
 
 - 2026-10-12T17:57:29+00:00: Exact CI failure recorded: merge commit 309dc039 introduced daf2d3ee as
   a non-first-parent range; do not merge or force-push this branch.
+
+- 2026-10-12T17:57:44+00:00: Recorded command exit 0; command argv SHA-256
+  7c67220b578ee248f7bdf8065befcd1530454fe558210d16b6b74d3c437005aa.
