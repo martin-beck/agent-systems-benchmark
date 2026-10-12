@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 43,
+  "task_revision": 44,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:15:10+00:00",
+  "updated_at": "2026-10-12T17:15:13+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -160,3 +160,6 @@ the adapter smoke check failed.
   42f52f2ec3ac69b9c6003b4ad6846f961979646df01a2180f045c085e92c9f6b.
 
 - 2026-10-12T17:15:10+00:00: Heartbeat by ar1779-default-install-luna.
+
+- 2026-10-12T17:15:13+00:00: Recorded command exit 0; command argv SHA-256
+  4d94e1c9d16ce91bd609909f42b81fd617d1ad62144380ed0bcc223f3f35deb4.
