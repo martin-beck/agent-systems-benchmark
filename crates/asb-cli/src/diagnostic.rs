@@ -858,9 +858,15 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
                 ),
             );
         }
-        "catalog_source_recipe_missing" | "catalog_source_alternative_missing" => {
+        "catalog_source_recipe_missing"
+        | "catalog_source_alternative_missing"
+        | "catalog_source_adapter_unavailable" => {
             return (
-                Cause::MissingInput,
+                if code == "catalog_source_adapter_unavailable" {
+                    Cause::UnavailableCapability
+                } else {
+                    Cause::MissingInput
+                },
                 Context::new(
                     Subject::Catalog,
                     "inspect_catalog",
@@ -2134,6 +2140,10 @@ pub const CATALOGUED_CODES: &[(&str, Cause)] = &[
         Cause::UnexpectedProductFailure,
     ),
     ("catalog_source_alternative_missing", Cause::MissingInput),
+    (
+        "catalog_source_adapter_unavailable",
+        Cause::UnavailableCapability,
+    ),
     ("transfer_too_large", Cause::MalformedInput),
     ("artifact_transfer_failed", Cause::TransportFailure),
     ("candidate_timeout", Cause::Timeout),
