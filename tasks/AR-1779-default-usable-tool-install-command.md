@@ -15,7 +15,7 @@
     "AR-1784"
   ],
   "id": "AR-1779",
-  "next_action": "Portable protected-main provenance rejected merge-based f1dbe055 because PR range is not first-parent linear. Create a clean linear signed repair branch from protected main by cherry-picking the repair, rerun full gates, and request fresh review.",
+  "next_action": "Clean linear branch repair/ar-1779-source-fallback-linear3 is pushed at 21372a22; create/update replacement PR from this exact head, obtain independent review and exact-head CI, then protected merge and post-merge verification.",
   "observed_branch": "repair/ar-1779-source-fallback-linear3",
   "observed_dirty": 0,
   "observed_head": "21372a22aba32cf1b6e07c7a75c9723795262206",
@@ -35,9 +35,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 183,
+  "task_revision": 184,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T18:04:13+00:00",
+  "updated_at": "2026-10-12T18:04:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -504,3 +504,7 @@ the adapter smoke check failed.
 
 - 2026-10-12T18:04:13+00:00: Recorded command exit 0; command argv SHA-256
   37d22c542864e938a37a43b7b4eac607d3aaf8310e12f64fd4d4129e17fd4360.
+
+- 2026-10-12T18:04:37+00:00: Rebased repair linearly from db08ffb3; full asb-cli suite passes. Prior
+  merge-based f1dbe055 remains rejected by portable protected-main provenance and is not to be
+  merged.
