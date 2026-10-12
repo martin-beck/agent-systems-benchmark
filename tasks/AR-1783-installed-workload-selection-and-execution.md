@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 152,
+  "task_revision": 153,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:06:48+00:00",
+  "updated_at": "2026-10-12T22:08:15+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -435,3 +435,6 @@ the suite from this end-to-end path.
   rejection coverage. Focused tests and formatting pass; branch clean and generated profraw removed
   through handoffctl. Full workspace coverage is next gate; prior result was 88.85%, below the hard
   90% floor.
+
+- 2026-10-12T22:08:15+00:00: Recorded command exit 101; command argv SHA-256
+  e61f9d3beb1ca5641341fcbf3eb64bbd6f2035831028208eafe31c5cd951748e.
