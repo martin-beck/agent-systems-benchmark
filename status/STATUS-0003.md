@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | AR-1783 — signed 10b8d27 covers local mock authority defaults and cancellation; serialized workspace coverage remains 89.25&#37; lines, 85.04&#37; functions, 90.64&#37; regions. |
-| Next action | Coverage report shows remaining dominant runtime misses in live_service authority resolver/bootstrap and SandboxBackend spawn/cleanup; add a larger behavior-driven batch around runtime-owned local mock lifecycle and sandbox cleanup/error transitions, then rerun focused and serialized coverage. |
+| Summary | AR-1783 — signed ccf0a92f adds production development sandbox lifecycle/cleanup coverage; serialized workspace coverage improved to 89.27&#37; lines, 85.11&#37; functions, 90.66&#37; regions. |
+| Next action | Continue substantive uncovered runtime behavior, prioritizing live_service authority resolver/bootstrap transitions and remaining SandboxBackend spawn/cleanup error branches; inspect current coverage report, add positive/negative tests, and rerun focused plus serialized coverage toward &gt;=90&#37;. |
 
 ### AR-1784 — Command dependency registry and preflight
 

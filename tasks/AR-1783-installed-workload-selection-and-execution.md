@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Coverage report shows remaining dominant runtime misses in live_service authority resolver/bootstrap and SandboxBackend spawn/cleanup; add a larger behavior-driven batch around runtime-owned local mock lifecycle and sandbox cleanup/error transitions, then rerun focused and serialized coverage.",
+  "next_action": "Continue substantive uncovered runtime behavior, prioritizing live_service authority resolver/bootstrap transitions and remaining SandboxBackend spawn/cleanup error branches; inspect current coverage report, add positive/negative tests, and rerun focused plus serialized coverage toward >=90%.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 54,
   "observed_head": "ccf0a92fb4df10d2080fb43366a1942f80cecc70",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 signed 10b8d27 covers local mock authority defaults and cancellation; serialized workspace coverage remains 89.25% lines, 85.04% functions, 90.64% regions.",
-  "task_revision": 399,
+  "summary": "AR-1783 \u2014 signed ccf0a92f adds production development sandbox lifecycle/cleanup coverage; serialized workspace coverage improved to 89.27% lines, 85.11% functions, 90.66% regions.",
+  "task_revision": 400,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:28:15+00:00",
+  "updated_at": "2026-10-12T23:28:21+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1015,3 +1015,8 @@ the suite from this end-to-end path.
   b48802db5d60864fea266a175aab6561f162cad0de4217481cf349d287ea912d.
 
 - 2026-10-12T23:28:15+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T23:28:21+00:00: Focused development_spawn_exposes_bounded_process_lifecycle_and_cleanup
+  passed. Full serialized workspace tests passed; fixed 90% line floor remains sole failure. Exact
+  report total 158276 lines, 104641 covered, 9771 missed; generated profraw removed; worktree clean;
+  no push/review/merge.
