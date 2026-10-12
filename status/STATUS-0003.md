@@ -1260,7 +1260,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Coverage audit: installed-workload behavior is covered but workspace floor remains below gate |
-| Next action | Add behavior-driven baseline tests across lib/control/tui/runtime seams; rerun isolated serialized llvm-cov until hard 90&#37; floor passes; keep PR unapproved |
+| Next action | PR #624 is at remote exact head 32f42827367dbfedcb21304e80234336445ab683; local declared worktree remains c2f3759f9962 with clean tree but state is stale. Keep unapproved: add behavior-driven coverage and rerun serialized workspace llvm-cov until unchanged 90&#37; floor passes; then refresh exact-head CI and independent review. |
 
 ### AR-1784 — Command dependency registry and preflight
 

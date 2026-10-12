@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Add behavior-driven baseline tests across lib/control/tui/runtime seams; rerun isolated serialized llvm-cov until hard 90% floor passes; keep PR unapproved",
+  "next_action": "PR #624 is at remote exact head 32f42827367dbfedcb21304e80234336445ab683; local declared worktree remains c2f3759f9962 with clean tree but state is stale. Keep unapproved: add behavior-driven coverage and rerun serialized workspace llvm-cov until unchanged 90% floor passes; then refresh exact-head CI and independent review.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "c2f3759f9962e8aac874479843789f313e97be86",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Coverage audit: installed-workload behavior is covered but workspace floor remains below gate",
-  "task_revision": 189,
+  "task_revision": 190,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:16:42+00:00",
+  "updated_at": "2026-10-12T22:17:52+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -532,3 +532,8 @@ the suite from this end-to-end path.
 
 - 2026-10-12T22:16:36+00:00: Recorded command exit 0; command argv SHA-256
   57e481616da2e954fe2c522540db85efbf1ec5d882fd9e696446690771286f24.
+
+- 2026-10-12T22:17:52+00:00: Dependency-safe PR audit found PR #624 remote head
+  32f42827367dbfedcb21304e80234336445ab683 differs from observed state head c2f3759f9962; current
+  durable evidence records 89.04% lines and a genuine hard coverage-gate deficit. No merge
+  authorization.

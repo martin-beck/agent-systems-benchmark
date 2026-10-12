@@ -269,7 +269,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | ar1783-workload-selection-luna | Coverage audit: installed-workload behavior is covered but workspace floor remains below gate | Add behavior-driven baseline tests across lib/control/tui/runtime seams; rerun isolated serialized llvm-cov until hard 90&#37; floor passes; keep PR unapproved |
+| P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | ar1783-workload-selection-luna | Coverage audit: installed-workload behavior is covered but workspace floor remains below gate | PR #624 is at remote exact head 32f42827367dbfedcb21304e80234336445ab683; local declared worktree remains c2f3759f9962 with clean tree but state is stale. Keep unapproved: add behavior-driven coverage and rerun serialized workspace llvm-cov until unchanged 90&#37; floor passes; then refresh exact-head CI and independent review. |
 
 ### Open (2)
 
