@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 67,
+  "task_revision": 68,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:21:19+00:00",
+  "updated_at": "2026-10-12T17:21:59+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -222,3 +222,6 @@ the adapter smoke check failed.
   stale PR #583 and its branch were preserved, never force-updated. Current-head checks: Kani, Loom,
   retained faults, platform evidence, provenance, headers, and AWQ shadow green; Rust,
   credential-free, aarch64, policy/coverage, fuzz/mutation, and TUI checks still running.
+
+- 2026-10-12T17:21:59+00:00: Recorded command exit 0; command argv SHA-256
+  a63d7df09166ff1c467a7bf4582f5ad38227203a2ff00aa9802ac4b575c6e577.
