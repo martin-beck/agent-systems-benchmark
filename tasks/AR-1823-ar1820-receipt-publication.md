@@ -2,11 +2,11 @@
 {
   "branch": "repair/ar-1823-ar1820-receipt",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-12T17:01:26+00:00",
+  "claim_expires": "",
   "depends_on": [],
   "id": "AR-1823",
   "next_action": "Publish the already-verified AR-1820 receipt and done transition from the durable current-main state; do not change product or historical PR evidence.",
-  "owner": "ar1823_receipt_cleanup",
+  "owner": "",
   "plan": "../plans/AR-1823-ar1820-receipt-publication.md",
   "priority": "P0",
   "schema_version": 1,
@@ -20,11 +20,11 @@
   },
   "spec_ref": "specs/AR-1823.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Publish the already-verified AR-1820 provenance receipt and durable done state.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "AR-1820 receipt publication cleanup",
-  "updated_at": "2026-10-12T15:09:01+00:00",
+  "updated_at": "2026-10-12T15:09:08+00:00",
   "worktree_key": "agent-systems-benchmark-state-ar-1823-receipt"
 }
 ---
@@ -50,3 +50,6 @@ reclassify any other AR.
 
 - 2026-10-12T15:09:01+00:00: AR-1820 task, plan, spec, session history, and exact receipt are now
   durable on current main; Coordination verification 38267827300 and live doctor pass.
+
+- 2026-10-12T15:09:08+00:00: AR-1823 complete: AR-1820 verified closure and exact receipt published
+  on d77b4ba5cf; post-merge Coordination verification 38267827300 and doctor passed.

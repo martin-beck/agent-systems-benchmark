@@ -1546,11 +1546,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1823_receipt_cleanup |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Publish the already-verified AR-1820 provenance receipt and durable done state. |
@@ -2421,7 +2421,7 @@ flowchart LR
         AR_1819["AR-1819 - Done"]:::status_done
         AR_1820["AR-1820 - Done"]:::status_done
         AR_1821["AR-1821 - Done"]:::status_done
-        AR_1823["AR-1823 - In progress"]:::status_in_progress
+        AR_1823["AR-1823 - Done"]:::status_done
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
