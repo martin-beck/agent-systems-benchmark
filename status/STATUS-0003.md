@@ -1710,6 +1710,20 @@
 | Summary | Independent review passed: receipt newline repair preserves qualification content |
 | Next action | Reconcile generated projections and release AR-1833 done after final state verification |
 
+### AR-1834 — AR-1775 protected-main local identity recovery
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e |
+| Next action | Claim a clean product worktree, create a signed-DCO metadata-only recovery topic from immutable main 356a669e, and publish only through merge_pr.py after independent review and green exact-head checks |
+
 
 ## Dependency graph
 
@@ -2587,6 +2601,7 @@ flowchart LR
         AR_1831["AR-1831 - Planned"]:::status_planned
         AR_1832["AR-1832 - Planned"]:::status_planned
         AR_1833["AR-1833 - Done"]:::status_done
+        AR_1834["AR-1834 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
