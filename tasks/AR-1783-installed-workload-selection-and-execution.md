@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "PR #624 is at remote exact head 32f42827367dbfedcb21304e80234336445ab683; local declared worktree remains c2f3759f9962 with clean tree but state is stale. Keep unapproved: add behavior-driven coverage and rerun serialized workspace llvm-cov until unchanged 90% floor passes; then refresh exact-head CI and independent review.",
+  "next_action": "Coverage remains below floor: full llvm-cov on latest local test batch is 89.05% lines. Continue meaningful coverage for installed workload sweep/report/compare and touched paths; no push/review/merge until >=90% with headroom.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "c2f3759f9962e8aac874479843789f313e97be86",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "Coverage audit: installed-workload behavior is covered but workspace floor remains below gate",
-  "task_revision": 195,
+  "summary": "Installed workload execution",
+  "task_revision": 196,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:18:58+00:00",
+  "updated_at": "2026-10-12T22:19:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -545,3 +545,8 @@ the suite from this end-to-end path.
   0bd9bff7dffe484fe4b8432c4f1544b887400c963364a952b9000a38291cf28b.
 
 - 2026-10-12T22:18:58+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T22:19:08+00:00: Full workspace llvm-cov completed 464 CLI tests and workspace suites.
+  Latest result: 89.05% lines, 84.71% functions, 90.43% regions, hard 90% line floor still fails.
+  Source-builder preflight negative tests pass; generated profraw removed through handoffctl. New
+  signed product commit c2f3759f is local only and not pushed because coverage is not qualifying.

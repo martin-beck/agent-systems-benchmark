@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | Coverage audit: installed-workload behavior is covered but workspace floor remains below gate |
-| Next action | PR #624 is at remote exact head 32f42827367dbfedcb21304e80234336445ab683; local declared worktree remains c2f3759f9962 with clean tree but state is stale. Keep unapproved: add behavior-driven coverage and rerun serialized workspace llvm-cov until unchanged 90&#37; floor passes; then refresh exact-head CI and independent review. |
+| Summary | Installed workload execution |
+| Next action | Coverage remains below floor: full llvm-cov on latest local test batch is 89.05&#37; lines. Continue meaningful coverage for installed workload sweep/report/compare and touched paths; no push/review/merge until &gt;=90&#37; with headroom. |
 
 ### AR-1784 — Command dependency registry and preflight
 

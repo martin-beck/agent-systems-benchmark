@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1783](tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Coverage audit: installed-workload behavior is covered but workspace floor remains below gate | PR #624 is at remote exact head 32f42827367dbfedcb21304e80234336445ab683; local declared worktree remains c2f3759f9962 with clean tree but state is stale. Keep unapproved: add behavior-driven coverage and rerun serialized workspace llvm-cov until unchanged 90% floor passes; then refresh exact-head CI and independent review. | ar1783-workload-selection-luna |
+| P0 | [AR-1783](tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Installed workload execution | Coverage remains below floor: full llvm-cov on latest local test batch is 89.05% lines. Continue meaningful coverage for installed workload sweep/report/compare and touched paths; no push/review/merge until >=90% with headroom. | ar1783-workload-selection-luna |
 
 ## Open
 
