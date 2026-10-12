@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1825",
-  "next_action": "Await independent re-review of exact head 4e37d542 and remaining PR #622 CI (emulated-aarch64, Rust checks, policy/coverage/supply-chain); merge only after all required checks green.",
+  "next_action": "Repair coverage gate: add meaningful adapter-contract tests until workspace line coverage is at least 90%; rerun policy check, then recreate protected merge for exact head 4e37d542.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
   "observed_dirty": 54,
   "observed_head": "4e37d542b8244280bc1c3e832920812cdae7a3ff",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 131,
+  "task_revision": 132,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T19:35:39+00:00",
+  "updated_at": "2026-10-12T19:35:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -411,3 +411,8 @@ AR-1825's acceptance evidence is independently reviewed and durable.
 
 - 2026-10-12T19:35:34+00:00: Recorded command exit 0; command argv SHA-256
   11aa7892ee38d3a937558ce5f68e38a693ff8b89e160ec2c02b25ddf17ea330b.
+
+- 2026-10-12T19:35:50+00:00: Protected merge attempt generated signed merge
+  a90ef0fd78385c602e7664dd03aaf5686c041e92 but GitHub rejected publication: required Policy,
+  coverage, and supply chain check failed. Exact run 38296804232 coverage was 88.57%; local cargo
+  llvm-cov was 88.78% (all tests passed). No merge bypass.

@@ -214,7 +214,7 @@
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Safety portion complete: PR #621 merged by protected local integration as ab0a791b05d6082fd0c99ab287f8a7883180bcec; all exact-main post-merge workflows passed and handoffctl doctor --live is clean. Keep AR-1779 in progress pending AR-1825 acceptance of the bounded source-to-executable adapter/runtime contract; do not claim source fallback until that acceptance. |
-| P0 | [AR-1825](../tasks/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md): Bounded source-to-executable adapter/runtime contract | ar1825-implementation-luna | Implement bounded source adapter contract | Await independent re-review of exact head 4e37d542 and remaining PR #622 CI (emulated-aarch64, Rust checks, policy/coverage/supply-chain); merge only after all required checks green. |
+| P0 | [AR-1825](../tasks/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md): Bounded source-to-executable adapter/runtime contract | ar1825-implementation-luna | Implement bounded source adapter contract | Repair coverage gate: add meaningful adapter-contract tests until workspace line coverage is at least 90&#37;; rerun policy check, then recreate protected merge for exact head 4e37d542. |
 
 ### Open (2)
 

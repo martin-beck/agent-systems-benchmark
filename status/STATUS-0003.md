@@ -1596,7 +1596,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement bounded source adapter contract |
-| Next action | Await independent re-review of exact head 4e37d542 and remaining PR #622 CI (emulated-aarch64, Rust checks, policy/coverage/supply-chain); merge only after all required checks green. |
+| Next action | Repair coverage gate: add meaningful adapter-contract tests until workspace line coverage is at least 90&#37;; rerun policy check, then recreate protected merge for exact head 4e37d542. |
 
 
 ## Dependency graph
