@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 local/mock infrastructure investigation complete; latest full coverage remains 89.28% lines, 85.11% functions, 90.66% regions.",
-  "task_revision": 436,
+  "task_revision": 437,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:41:27+00:00",
+  "updated_at": "2026-10-12T23:43:13+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1110,3 +1110,6 @@ the suite from this end-to-end path.
   Narrow repair candidate: expose a bounded test-only ControlServer fixture API or add an
   asb-runtime integration fixture; separately provision containerized bwrap/systemd runner. No
   push/review/merge below 90%.
+
+- 2026-10-12T23:43:13+00:00: Recorded command exit 0; command argv SHA-256
+  81656827fb76aee22b81f0a0af3e6b3438da65d0727d76385005b27ac615c6d1.
