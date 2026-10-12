@@ -2,13 +2,13 @@
 {
   "branch": "feature/ar-1800-development-warning-only-trust-contract",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-12T23:17:01+00:00",
   "depends_on": [
     "AR-1799"
   ],
   "id": "AR-1800",
   "next_action": "Promote and claim AR-1800 after coordinator state is reconciled; inventory every scoped trust validator and define one channel-aware policy before implementation.",
-  "owner": "",
+  "owner": "ar1800-dev-warning-luna56",
   "plan": "../plans/AR-1800-development-warning-only-trust-contract.md",
   "priority": "P0",
   "schema_version": 1,
@@ -22,11 +22,11 @@
   },
   "spec_ref": "specs/AR-1800.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Make development-channel trust, digest, and exact-version mismatches warning-only without weakening stable/production policy.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Development channel warning-only trust contracts",
-  "updated_at": "2026-10-12T21:16:57+00:00",
+  "updated_at": "2026-10-12T21:17:01+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1800-development-warning-only-trust-contract"
 }
 ---
@@ -52,3 +52,5 @@ in warnings, JSON, logs, or evidence.
 - 2026-10-12T21:16:57+00:00: Dependency AR-1799 is durably done at revision 24 with merged PR #613,
   protected-main provenance, installed-entrypoint qualification, and 10/10 exact-head workflows
   green; reconciled implementer role assignment.
+
+- 2026-10-12T21:17:01+00:00: Claimed by ar1800-dev-warning-luna56.

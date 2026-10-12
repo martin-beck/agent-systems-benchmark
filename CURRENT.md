@@ -9,6 +9,7 @@ Never edit this file directly.
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1775](tasks/AR-1775-configurable-output-router-and-levels.md): Configurable output router and levels | Implement the mandatory configurable output router and project-configured quiet, normal, verbose, and debug levels. | Implement the sole configurable output router, generated project output defaults, and four-level selection after the output contract is accepted. | ar1775-cli2key-runtime-luna |
 | P0 | [AR-1783](tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Select every development external workload and prove ASB uses its exact project-local identity end to end. | Integrate every development-supported installed workload bundle into selection and prove full run/sweep/report/compare consumes its exact recorded identity. | ar1783-workload-selection-luna |
+| P0 | [AR-1800](tasks/AR-1800-development-warning-only-trust-contract.md): Development channel warning-only trust contracts | Make development-channel trust, digest, and exact-version mismatches warning-only without weakening stable/production policy. | Promote and claim AR-1800 after coordinator state is reconciled; inventory every scoped trust validator and define one channel-aware policy before implementation. | ar1800-dev-warning-luna56 |
 
 ## Open
 
@@ -16,7 +17,6 @@ Never edit this file directly.
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1779](tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Safety portion complete: PR #621 merged by protected local integration as ab0a791b05d6082fd0c99ab287f8a7883180bcec; all exact-main post-merge workflows passed and handoffctl doctor --live is clean. Keep AR-1779 in progress pending AR-1825 acceptance of the bounded source-to-executable adapter/runtime contract; do not claim source fallback until that acceptance. | - |
 | P0 | [AR-1796](tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. | - |
-| P0 | [AR-1800](tasks/AR-1800-development-warning-only-trust-contract.md): Development channel warning-only trust contracts | Make development-channel trust, digest, and exact-version mismatches warning-only without weakening stable/production policy. | Promote and claim AR-1800 after coordinator state is reconciled; inventory every scoped trust validator and define one channel-aware policy before implementation. | - |
 
 ## Blocked
 
