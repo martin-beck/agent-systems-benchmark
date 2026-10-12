@@ -1528,6 +1528,20 @@
 | Summary | Recover the durable task record needed to integrate accepted AR-1817 PR #128 after its original task was removed from current generated state. |
 | Next action | Claim this recovery task, verify accepted PR #128 exact head against current main, integrate through the signed local merge path, run exact-main post-merge checks, and close with durable evidence. |
 
+### AR-1823 — AR-1820 receipt publication cleanup
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Publish the already-verified AR-1820 provenance receipt and durable done state. |
+| Next action | Publish the already-verified AR-1820 receipt and done transition from the durable current-main state; do not change product or historical PR evidence. |
+
 
 ## Dependency graph
 
@@ -2392,6 +2406,7 @@ flowchart LR
         AR_1800["AR-1800 - Planned"]:::status_planned
         AR_1819["AR-1819 - Done"]:::status_done
         AR_1821["AR-1821 - Done"]:::status_done
+        AR_1823["AR-1823 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
