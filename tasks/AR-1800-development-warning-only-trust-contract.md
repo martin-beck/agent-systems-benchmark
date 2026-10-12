@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make development-channel trust, digest, and exact-version mismatches warning-only without weakening stable/production policy.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "Development channel warning-only trust contracts",
-  "updated_at": "2026-10-12T21:17:55+00:00",
+  "updated_at": "2026-10-12T21:19:02+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1800-development-warning-only-trust-contract"
 }
 ---
@@ -59,3 +59,6 @@ in warnings, JSON, logs, or evidence.
 
 - 2026-10-12T21:17:55+00:00: Recorded command exit 255; command argv SHA-256
   65ee7987d961cc6752211276ff0975933066ca846574d4232ce63ad7c487271d.
+
+- 2026-10-12T21:19:02+00:00: Recorded command exit 0; command argv SHA-256
+  5e300cad686da9675076850c3e714464f5f16e34f08f4151abbcd1681fba265e.
