@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 signed e6fa73b0 adds live authority rejection coverage; serialized workspace coverage improved to 89.25% lines, 85.03% functions, 90.63% regions.",
-  "task_revision": 384,
+  "task_revision": 385,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:22:06+00:00",
+  "updated_at": "2026-10-12T23:24:17+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -982,3 +982,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T23:22:00+00:00: Recorded command exit 0; command argv SHA-256
   a3ac7de5d22913e4537b34962628c85158534d5ceee58207786feee60f7fb7c7.
+
+- 2026-10-12T23:24:17+00:00: Recorded command exit 0; command argv SHA-256
+  b48802db5d60864fea266a175aab6561f162cad0de4217481cf349d287ea912d.
