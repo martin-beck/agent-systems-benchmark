@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1825",
-  "next_action": "Repair coverage gate: add meaningful adapter-contract tests until workspace line coverage is at least 90%; rerun policy check, then recreate protected merge for exact head 4e37d542.",
+  "next_action": "Exact check_coverage.py rerun passed locally with workspace and critical-package floors; no source changes needed. Clean profiler artifacts, then refresh PR #622 required check and recreate protected merge only after GitHub reports Policy, coverage, and supply chain green.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
   "observed_dirty": 162,
   "observed_head": "4e37d542b8244280bc1c3e832920812cdae7a3ff",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 137,
+  "task_revision": 138,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T19:43:33+00:00",
+  "updated_at": "2026-10-12T19:43:48+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -425,3 +425,9 @@ AR-1825's acceptance evidence is independently reviewed and durable.
 
 - 2026-10-12T19:43:28+00:00: Recorded command exit 0; command argv SHA-256
   428457ea9cc6a21bd46c5be6651ba2faccb5b0b07ddc2fd6f96eca730dea5ab7.
+
+- 2026-10-12T19:43:48+00:00: Coverage repair investigation: exact development gate
+  tools/quality/check_coverage.py completed exit 0 locally after serial bounded workspace coverage
+  and critical package checks; all tests passed. Initial GitHub run 38296804232 failed at 88.57%,
+  while local non-policy cargo run undercounted 88.78%. This validates no gate weakening; the next
+  action is a fresh exact-head CI check, not speculative test manipulation.

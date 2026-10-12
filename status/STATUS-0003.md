@@ -1596,7 +1596,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement bounded source adapter contract |
-| Next action | Repair coverage gate: add meaningful adapter-contract tests until workspace line coverage is at least 90&#37;; rerun policy check, then recreate protected merge for exact head 4e37d542. |
+| Next action | Exact check_coverage.py rerun passed locally with workspace and critical-package floors; no source changes needed. Clean profiler artifacts, then refresh PR #622 required check and recreate protected merge only after GitHub reports Policy, coverage, and supply chain green. |
 
 
 ## Dependency graph
