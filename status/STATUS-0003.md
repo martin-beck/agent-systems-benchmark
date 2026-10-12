@@ -1596,7 +1596,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement bounded source adapter contract |
-| Next action | Independent review PR #622 at exact head 19ce8875; wait for required CI, then merge through protected integration and verify post-merge. |
+| Next action | Repair PR #622 review findings: transactional rename/fsync rollback, race-safe launcher validation/smoke, bounded output capture, and source-build staging cleanup; rerun focused/full gates and republish. |
 
 
 ## Dependency graph

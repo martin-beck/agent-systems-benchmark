@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1825",
-  "next_action": "Independent review PR #622 at exact head 19ce8875; wait for required CI, then merge through protected integration and verify post-merge.",
+  "next_action": "Repair PR #622 review findings: transactional rename/fsync rollback, race-safe launcher validation/smoke, bounded output capture, and source-build staging cleanup; rerun focused/full gates and republish.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
   "observed_dirty": 0,
   "observed_head": "19ce887552b0c2921c437df420bf7a8f0563f60a",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 79,
+  "task_revision": 80,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T18:59:17+00:00",
+  "updated_at": "2026-10-12T19:00:17+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -255,3 +255,8 @@ AR-1825's acceptance evidence is independently reviewed and durable.
 
 - 2026-10-12T18:59:17+00:00: Recorded command exit 8; command argv SHA-256
   7db1d034ff356e5d652eb0517359ac6a7bdf36e5eb39faad512d73620f2fad76.
+
+- 2026-10-12T19:00:17+00:00: Independent review found four concrete safety defects before merge:
+  rename-before-directory-fsync can orphan executable without receipt/config; pathname
+  validation/smoke replacement race; smoke output capture is unbounded before max check;
+  source-build staging leaks on inspection/read failure. No merge authorized.
