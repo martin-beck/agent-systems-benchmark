@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 runtime launch bootstrap validation tests are green; serialized full coverage is 89.11% lines, still below 90%.",
-  "task_revision": 278,
+  "task_revision": 279,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:46:16+00:00",
+  "updated_at": "2026-10-12T22:46:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -746,3 +746,6 @@ the suite from this end-to-end path.
   Serialized full workspace llvm-cov completed all suites and reports 89.11% lines (104410 covered,
   9930 missed of 157780), 84.78% functions, 90.49% regions; floor failure is solely below 90% line
   threshold. Profraw removed, worktree clean, no push/review/merge.
+
+- 2026-10-12T22:46:37+00:00: Recorded command exit 0; command argv SHA-256
+  f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
