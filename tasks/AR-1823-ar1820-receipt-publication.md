@@ -2,21 +2,21 @@
 {
   "branch": "repair/ar-1823-ar1820-receipt",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-12T17:01:26+00:00",
   "depends_on": [],
   "id": "AR-1823",
   "next_action": "Publish the already-verified AR-1820 receipt and done transition from the durable current-main state; do not change product or historical PR evidence.",
-  "owner": "",
+  "owner": "ar1823_receipt_cleanup",
   "plan": "../plans/AR-1823-ar1820-receipt-publication.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1823.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Publish the already-verified AR-1820 provenance receipt and durable done state.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "AR-1820 receipt publication cleanup",
-  "updated_at": "2026-10-12T15:01:20+00:00",
+  "updated_at": "2026-10-12T15:01:26+00:00",
   "worktree_key": ""
 }
 ---
@@ -34,3 +34,5 @@ reclassify any other AR.
 
 - 2026-10-12T15:01:20+00:00: Dependencies verified: publish only the existing verified AR-1820
   receipt and done state.
+
+- 2026-10-12T15:01:26+00:00: Claimed by ar1823_receipt_cleanup.
