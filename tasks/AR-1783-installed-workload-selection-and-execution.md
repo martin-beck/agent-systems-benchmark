@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Coverage audit: installed-workload behavior is covered but workspace floor remains below gate",
-  "task_revision": 186,
+  "task_revision": 187,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:15:51+00:00",
+  "updated_at": "2026-10-12T22:16:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -526,3 +526,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T22:15:51+00:00: Recorded command exit 0; command argv SHA-256
   f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
+
+- 2026-10-12T22:16:11+00:00: Recorded command exit 0; command argv SHA-256
+  7cec78d3e28752faa02e03923a6e53b6b7a3794cfe12e3b74ce42c844403abf8.
