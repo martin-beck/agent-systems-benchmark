@@ -11,8 +11,8 @@
   "id": "AR-1783",
   "next_action": "Target substantive runtime paths named by latest report: LocalReplayProvisioner::acquire_with_backend validation/materialization, LiveLaunchFactory::issue/acquire, LiveProviderAttempt::start_relay/spawn/relay, and SandboxBackend::spawn_with_identity live/development branches. Add behavior-driven success and rejection tests, then rerun focused and serialized coverage.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 1,
-  "observed_head": "0bc211b2752b97c58ab807b17557ddd46062bda9",
+  "observed_dirty": 0,
+  "observed_head": "e6fa73b0b5e42d8555ed299a6c366e6ef5f588c8",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 production development-fixture launch authority path now executes successfully; signed 0bc211b2. Prior serialized coverage: 89.21% lines, 85.03% functions, 90.61% regions.",
-  "task_revision": 370,
+  "task_revision": 371,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:17:57+00:00",
+  "updated_at": "2026-10-12T23:18:01+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
