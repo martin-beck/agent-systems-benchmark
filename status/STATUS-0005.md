@@ -209,11 +209,16 @@
 
 ## Complete AR inventory
 
-### Open (3)
+### In progress (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
+| P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | ar1686-plan-generation-luna | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
+
+### Open (2)
+
+| Priority | AR | Owner | Summary | Next action |
+| --- | --- | --- | --- | --- |
 | P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | Unclaimed | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Safety portion complete: PR #621 merged by protected local integration as ab0a791b05d6082fd0c99ab287f8a7883180bcec; all exact-main post-merge workflows passed and handoffctl doctor --live is clean. Keep AR-1779 in progress pending AR-1825 acceptance of the bounded source-to-executable adapter/runtime contract; do not claim source fallback until that acceptance. |
 | P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Unclaimed | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. |
 
@@ -592,4 +597,3 @@
 | P0 | [AR-1484](../tasks/AR-1484-runtime-control-owner-contract.md): Runtime/control process-owner contract | Unclaimed | Define stable runtime/control process-owner lifecycle and opaque handoff contract. | Reconcile/doctor, then release AR-1484 done ownerless with complete merge/post-merge evidence. |
 | P0 | [AR-1485](../tasks/AR-1485-process-owner-local-mock-lifecycle.md): Process-owner local/mock lifecycle | Unclaimed | Implement runtime-owned local/mock process lifecycle and opaque-source handoff. | Release complete; retain exact merge and eight workflow evidence. |
 | P0 | [AR-1486](../tasks/AR-1486-runtime-owner-cli-entry-wiring.md): Runtime-owner CLI entry wiring | Unclaimed | Wire the runtime-owned local/mock process owner into ordinary CLI run and sweep. | Release complete; retain exact merge and eight workflow evidence. |
-| P0 | [AR-1487](../tasks/AR-1487-owner-backed-first-customer-qualification.md): Owner-backed first-customer qualification | Unclaimed | Qualify the owner-backed credential-free local/mock/replay first-customer journey. | Reconcile and doctor state projection; retain known generated WORKTREES/PROJECT_STATE caveat if reported. |
