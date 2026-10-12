@@ -204,12 +204,11 @@
 
 ## Complete AR inventory
 
-### In progress (2)
+### In progress (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Repair rejected PR #618 findings before further publication: refresh reviewed diagnostic identity allowlist for shifted CliError callsites, add receipt verifier validation with positive/negative reuse tests, and make source fallback produce and validate a real adapter entrypoint rather than package archives. Then sign/DCO, rerun focused/full gates, push exact head, and request independent review again. |
-| P0 | [AR-1799](../tasks/AR-1799-tui-install-rustup-invalid-repair.md): Repair asb tui install rustup/rustc trusted-tool rejection | codex-ar1799-tui-install-rustup-invalid-20261012 | Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint. | PR #613 (63ba8e7973545f65bd8dda56f3aa24d9d339bb16) is open; focused rustup tests, fmt, clippy, and independent review pass. Await remaining exact-head hosted checks, then merge and run post-merge installed-entrypoint qualification. |
 
 ### Open (2)
 
@@ -407,7 +406,7 @@
 | --- | --- | --- | --- | --- |
 | P4 | [AR-0703](../tasks/AR-0703-native-platform-lab.md): Provision native platform qualification capacity | Unclaimed | Optionally provide native ARM64 Debian/openEuler capacity for future claim-scoped evidence. | When separately authorized, provision genuine ARM64 Debian/openEuler capacity for optional future native evidence; absence must not block any AR. |
 
-### Done (591)
+### Done (592)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -594,3 +593,5 @@
 | P0 | [AR-1484](../tasks/AR-1484-runtime-control-owner-contract.md): Runtime/control process-owner contract | Unclaimed | Define stable runtime/control process-owner lifecycle and opaque handoff contract. | Reconcile/doctor, then release AR-1484 done ownerless with complete merge/post-merge evidence. |
 | P0 | [AR-1485](../tasks/AR-1485-process-owner-local-mock-lifecycle.md): Process-owner local/mock lifecycle | Unclaimed | Implement runtime-owned local/mock process lifecycle and opaque-source handoff. | Release complete; retain exact merge and eight workflow evidence. |
 | P0 | [AR-1486](../tasks/AR-1486-runtime-owner-cli-entry-wiring.md): Runtime-owner CLI entry wiring | Unclaimed | Wire the runtime-owned local/mock process owner into ordinary CLI run and sweep. | Release complete; retain exact merge and eight workflow evidence. |
+| P0 | [AR-1487](../tasks/AR-1487-owner-backed-first-customer-qualification.md): Owner-backed first-customer qualification | Unclaimed | Qualify the owner-backed credential-free local/mock/replay first-customer journey. | Reconcile and doctor state projection; retain known generated WORKTREES/PROJECT_STATE caveat if reported. |
+| P0 | [AR-1488](../tasks/AR-1488-owner-backed-user-journey.md): Owner-backed first-customer user journey | Unclaimed | Qualify the owner-backed first-customer install, operation, replay, evidence, and cleanup journey. | Reconcile and doctor state projection; retain known generated WORKTREES/PROJECT_STATE caveat if reported. |

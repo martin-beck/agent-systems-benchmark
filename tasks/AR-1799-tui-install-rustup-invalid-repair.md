@@ -2,7 +2,7 @@
 {
   "branch": "repair/ar-1799-tui-install-rustup-invalid",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-12T19:32:11+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1738",
     "AR-1636"
@@ -12,7 +12,7 @@
   "observed_branch": "repair/ar-1799-tui-install-rustup-invalid",
   "observed_dirty": 0,
   "observed_head": "e058ea2b5881e047c2a02a5bc5bd4f23103c28c0",
-  "owner": "codex-ar1799-tui-install-rustup-invalid-20261012",
+  "owner": "",
   "plan": "../plans/AR-1799-tui-install-rustup-invalid-repair.md",
   "priority": "P0",
   "schema_version": 1,
@@ -26,11 +26,11 @@
   },
   "spec_ref": "specs/AR-1799.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint.",
-  "task_revision": 23,
+  "task_revision": 24,
   "title": "Repair asb tui install rustup/rustc trusted-tool rejection",
-  "updated_at": "2026-10-12T17:36:08+00:00",
+  "updated_at": "2026-10-12T17:36:15+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1799-tui-install-rustup-invalid"
 }
 ---
@@ -110,3 +110,10 @@ may block development qualification or enter durable state.
   recovery; locked TUI lifecycle suite passed 5/5, release build passed, and installed asb tui
   install, status, and doctor passed against the exact development bundle without provider
   credentials. All 10 post-merge workflows at exact head are green.
+
+- 2026-10-12T17:36:15+00:00: Released done after current-main requalification. PR #613 was already
+  merged at reviewed head 63ba8e7973545f65bd8dda56f3aa24d9d339bb16; its signed local
+  merge/provenance recovery is present on protected main e058ea2b5881e047c2a02a5bc5bd4f23103c28c0.
+  Receipt quality/AR-1799-current-main-requalification-20261012.json records 5/5 focused tests,
+  release build, installed asb tui install/status/doctor success with development bundle and no
+  credentials, and 10/10 exact-head post-merge workflows green.

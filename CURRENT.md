@@ -8,7 +8,6 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1779](tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Repair rejected PR #618 findings before further publication: refresh reviewed diagnostic identity allowlist for shifted CliError callsites, add receipt verifier validation with positive/negative reuse tests, and make source fallback produce and validate a real adapter entrypoint rather than package archives. Then sign/DCO, rerun focused/full gates, push exact head, and request independent review again. | ar1779-default-install-luna |
-| P0 | [AR-1799](tasks/AR-1799-tui-install-rustup-invalid-repair.md): Repair asb tui install rustup/rustc trusted-tool rejection | Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint. | PR #613 (63ba8e7973545f65bd8dda56f3aa24d9d339bb16) is open; focused rustup tests, fmt, clippy, and independent review pass. Await remaining exact-head hosted checks, then merge and run post-merge installed-entrypoint qualification. | codex-ar1799-tui-install-rustup-invalid-20261012 |
 
 ## Open
 
