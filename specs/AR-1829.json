@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1829.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "two-required-paths", "description": "Plan creation refuses missing --config or --output and never selects a default plan filename."},
+    {"id": "fully-bound-plan", "description": "A valid setup file compiles all selected agents, providers/models, workloads, monitors, measures, and sweep limits into one immutable plan."},
+    {"id": "config-binding", "description": "The plan carries config identity/digest and required registry/tool/workload evidence for later validation."},
+    {"id": "no-selection-input", "description": "Plan creation has no ProviderSelection or provider-selection-path input."}
+  ],
+  "definition_of_done": ["The canonical setup-to-plan command creates a deterministic explicit-output benchmark plan."],
+  "inputs": [{"id": "explicit-config-contract", "description": "AR-1826 schema."}, {"id": "setup-authoring", "description": "AR-1827 setup output."}, {"id": "legacy-removal", "description": "AR-1828 removal of competing selection inputs."}],
+  "outputs": [{"id": "config-bound-plan", "description": "Explicit-output immutable benchmark plan."}],
+  "allowed_tools": ["cargo", "git", "tools/handoffctl", "credential-free-fakes"],
+  "forbidden_tools": ["default-plan-path", "implicit-config", "provider-selection-file", "credential-output", "gate-weakening", "history-rewrite", "force-push"],
+  "required_evidence_classes": ["contract-test", "property-or-fuzz"],
+  "gates": [{"id": "plan-compiler", "description": "Focused CLI and property tests prove mandatory paths, deterministic binding, and atomic output."}]
+}

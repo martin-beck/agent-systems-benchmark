@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1830.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "config-required", "description": "Plan validation, run, and sweep reject a missing --config input."},
+    {"id": "match-before-effect", "description": "Config/plan mismatch or stale/incompatible selection fails before result/work-root creation or provider dispatch."},
+    {"id": "live-no-fallback", "description": "An explicit live run resolves only its referenced credential and fails typed without mock, replay, provider, or model substitution."},
+    {"id": "bounded-sweep", "description": "Configured multi-agent/model/workload/repetition sweeps expand deterministically with stable resumable point identities and limits."}
+  ],
+  "definition_of_done": ["A setup-authored config and its compiled plan can validate, run, and sweep live benchmarks without a provider-selection artifact."],
+  "inputs": [{"id": "legacy-removal", "description": "AR-1828 public selection removal."}, {"id": "config-bound-plan", "description": "AR-1829 plan compiler."}],
+  "outputs": [{"id": "config-bound-execution", "description": "Validated live run and sweep execution from explicit config plus plan."}],
+  "allowed_tools": ["cargo", "git", "tools/handoffctl", "credential-free-fakes", "opt-in-live-test"],
+  "forbidden_tools": ["provider-selection-file", "implicit-config", "credential-output", "provider-fallback", "unbounded-sweep", "gate-weakening", "history-rewrite", "force-push"],
+  "required_evidence_classes": ["contract-test", "environmental", "property-or-fuzz"],
+  "gates": [{"id": "execution-pair", "description": "Fake and opt-in live tests prove config-plan pairing, typed preflight, bounded execution, and redaction."}]
+}

@@ -1598,6 +1598,104 @@
 | Summary | Implement bounded source adapter contract |
 | Next action | Post-merge exact-main workspace rerun completed with all tests passing, including source_checkout::tests::exact_fixture_checkout_is_returned_and_cleanup_is_explicit (443 asb-cli unit tests passed; workspace integration/doc tests passed). Initial 442/1 Unavailable was not reproducible and appears a one-time environmental/concurrency failure. Before acceptance, reconcile exact-main evidence and confirm required AArch64/Rust/repository-quality workflows terminal green; preserve AR-1779 expiry warning. |
 
+### AR-1826 — Define explicit setup configuration and plan-binding contract
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. |
+| Next action | Define and approve the one-file explicit setup configuration and plan-binding contract before implementing any command migration. |
+
+### AR-1827 — Author complete explicit benchmark configuration with asb setup
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Make asb setup --output the complete authoring route for agents, live providers/models, workloads, monitors, measures, and bounded execution choices. |
+| Next action | Implement the complete interactive and noninteractive setup authoring route against the explicit configuration contract. |
+
+### AR-1828 — Retire legacy provider selection and implicit configuration surfaces
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Retire public config/catalog/provider-plan commands and all ProviderSelection artifacts in favor of setup-created explicit config. |
+| Next action | Remove legacy public config, provider-catalog, provider-plan, and ProviderSelection surfaces after setup contains their user-facing selection responsibilities. |
+
+### AR-1829 — Compile config-bound benchmark plans with explicit output
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Make asb plan create compile a complete setup file into an explicit-output immutable benchmark plan with no provider-selection inputs. |
+| Next action | Implement config-only benchmark plan compilation with mandatory --config and --output arguments. |
+
+### AR-1830 — Execute config-bound live runs and sweeps
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Make plan validation, run, and sweep require the setup config and safely execute complete live benchmark selections from config-bound plans. |
+| Next action | Require explicit config validation for plan validation, live run, and live sweep, then wire bounded multi-agent execution. |
+
+### AR-1831 — Align CLI, TUI handoff, and documentation to explicit config workflow
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P1 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Make every CLI, TUI handoff, help page, completion, and example teach the explicit setup-output and plan-config workflow. |
+| Next action | Align CLI help, human output, completions, TUI handoff, examples, and migration documentation to the explicit setup-config route. |
+
+### AR-1832 — Qualify explicit setup-config benchmark workflow end-to-end
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Qualify fresh-user setup-output through explicit config-bound plan creation, validation, live run, sweep, reporting, and legacy-surface absence. |
+| Next action | Qualify the full fresh-user explicit-config route across supported selection matrices and live development execution. |
+
 
 ## Dependency graph
 
@@ -2467,6 +2565,13 @@ flowchart LR
         AR_1823["AR-1823 - Done"]:::status_done
         AR_1824["AR-1824 - Done"]:::status_done
         AR_1825["AR-1825 - Done"]:::status_done
+        AR_1826["AR-1826 - Planned"]:::status_planned
+        AR_1827["AR-1827 - Planned"]:::status_planned
+        AR_1828["AR-1828 - Planned"]:::status_planned
+        AR_1829["AR-1829 - Planned"]:::status_planned
+        AR_1830["AR-1830 - Planned"]:::status_planned
+        AR_1831["AR-1831 - Planned"]:::status_planned
+        AR_1832["AR-1832 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4428,6 +4533,23 @@ flowchart LR
     AR_1790 --> AR_1791
     AR_1791 --> AR_1792
     AR_1799 --> AR_1800
+    AR_1826 --> AR_1827
+    AR_1826 --> AR_1828
+    AR_1826 --> AR_1829
+    AR_1827 --> AR_1828
+    AR_1827 --> AR_1829
+    AR_1827 --> AR_1831
+    AR_1827 --> AR_1832
+    AR_1828 --> AR_1829
+    AR_1828 --> AR_1830
+    AR_1828 --> AR_1831
+    AR_1828 --> AR_1832
+    AR_1829 --> AR_1830
+    AR_1829 --> AR_1831
+    AR_1829 --> AR_1832
+    AR_1830 --> AR_1831
+    AR_1830 --> AR_1832
+    AR_1831 --> AR_1832
     classDef status_in_progress fill:#1565c0,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_open fill:#2e7d32,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_blocked fill:#c62828,color:#ffffff,stroke:#263238,stroke-width:2px
@@ -4471,15 +4593,3 @@ flowchart LR
 | [AR-0313](../tasks/AR-0313-all-agents-provider.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md) | [AR-0314](../tasks/AR-0314-recording-source-choice.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0804](../tasks/AR-0804-tui-settings-wizard.md), [AR-0869](../tasks/AR-0869-cli-multi-agent-provider-selection.md), [AR-0876](../tasks/AR-0876-provider-aware-agent-launch.md), [AR-0879](../tasks/AR-0879-local-llm-testing-recommendations.md), [AR-0891](../tasks/AR-0891-local-inference-provider-profiles.md), [AR-1100](../tasks/AR-1100.md), [AR-1326](../tasks/AR-1326-openrouter-catalog-selection.md) |
 | [AR-0314](../tasks/AR-0314-recording-source-choice.md) | [AR-0104](../tasks/AR-0104-durable-results.md), [AR-0310](../tasks/AR-0310-provider-profile-contract.md), [AR-0313](../tasks/AR-0313-all-agents-provider.md), [AR-0318](../tasks/AR-0318-credential-reference-boundary.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0804](../tasks/AR-0804-tui-settings-wizard.md), [AR-0808](../tasks/AR-0808-core-workflow-guides.md), [AR-0871](../tasks/AR-0871-record-replay-user-workflows.md) |
 | [AR-0315](../tasks/AR-0315-provider-parity-conformance.md) | [AR-0301](../tasks/AR-0301-agent-opencode.md), [AR-0302](../tasks/AR-0302-agent-opendesk.md), [AR-0303](../tasks/AR-0303-agent-aider.md), [AR-0304](../tasks/AR-0304-agent-codex.md), [AR-0305](../tasks/AR-0305-agent-gemini.md), [AR-0306](../tasks/AR-0306-agent-qwen-code.md), [AR-0307](../tasks/AR-0307-agent-goose.md), [AR-0308](../tasks/AR-0308-agent-mini-swe.md), [AR-0309](../tasks/AR-0309-agent-openhands.md), [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0313](../tasks/AR-0313-all-agents-provider.md), [AR-0314](../tasks/AR-0314-recording-source-choice.md), [AR-0505](../tasks/AR-0505-agent-replay-conformance.md) | [AR-0857](../tasks/AR-0857-openjiuwen-provenance.md), [AR-0863](../tasks/AR-0863-workbuddy-provenance.md), [AR-0879](../tasks/AR-0879-local-llm-testing-recommendations.md), [AR-0891](../tasks/AR-0891-local-inference-provider-profiles.md), [AR-0903](../tasks/AR-0903-release-qualification.md), [AR-1110](../tasks/AR-1110.md), [AR-1327](../tasks/AR-1327-openrouter-adapter-parity.md) |
-| [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md) | [AR-0301](../tasks/AR-0301-agent-opencode.md), [AR-0302](../tasks/AR-0302-agent-opendesk.md), [AR-0303](../tasks/AR-0303-agent-aider.md), [AR-0304](../tasks/AR-0304-agent-codex.md), [AR-0305](../tasks/AR-0305-agent-gemini.md), [AR-0306](../tasks/AR-0306-agent-qwen-code.md), [AR-0307](../tasks/AR-0307-agent-goose.md), [AR-0308](../tasks/AR-0308-agent-mini-swe.md), [AR-0309](../tasks/AR-0309-agent-openhands.md) | [AR-0876](../tasks/AR-0876-provider-aware-agent-launch.md) |
-| [AR-0317](../tasks/AR-0317-runtime-bundle-manifest.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | [AR-0857](../tasks/AR-0857-openjiuwen-provenance.md), [AR-0863](../tasks/AR-0863-workbuddy-provenance.md), [AR-0876](../tasks/AR-0876-provider-aware-agent-launch.md) |
-| [AR-0318](../tasks/AR-0318-credential-reference-boundary.md) | [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0310](../tasks/AR-0310-provider-profile-contract.md) | [AR-0314](../tasks/AR-0314-recording-source-choice.md), [AR-0319](../tasks/AR-0319-credential-fd-helper-resolvers.md), [AR-0320](../tasks/AR-0320-provider-credential-integration.md), [AR-0869](../tasks/AR-0869-cli-multi-agent-provider-selection.md), [AR-0876](../tasks/AR-0876-provider-aware-agent-launch.md), [AR-1325](../tasks/AR-1325-provider-openrouter.md) |
-| [AR-0319](../tasks/AR-0319-credential-fd-helper-resolvers.md) | [AR-0318](../tasks/AR-0318-credential-reference-boundary.md) | [AR-0876](../tasks/AR-0876-provider-aware-agent-launch.md), [AR-1228](../tasks/AR-1228-provider-auth-backends-probes.md), [AR-1230](../tasks/AR-1230-authenticated-provider-request-seam.md) |
-| [AR-0320](../tasks/AR-0320-provider-credential-integration.md) | [AR-0318](../tasks/AR-0318-credential-reference-boundary.md) | [AR-0869](../tasks/AR-0869-cli-multi-agent-provider-selection.md), [AR-0876](../tasks/AR-0876-provider-aware-agent-launch.md), [AR-1120](../tasks/AR-1120.md), [AR-1228](../tasks/AR-1228-provider-auth-backends-probes.md), [AR-1230](../tasks/AR-1230-authenticated-provider-request-seam.md) |
-| [AR-0401](../tasks/AR-0401-engineering-workloads.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md) | [AR-0402](../tasks/AR-0402-external-code-workloads.md), [AR-0403](../tasks/AR-0403-terminal-workloads.md), [AR-0405](../tasks/AR-0405-performance-workloads.md), [AR-0505](../tasks/AR-0505-agent-replay-conformance.md), [AR-0506](../tasks/AR-0506-replay-opencode.md), [AR-0507](../tasks/AR-0507-replay-opendesk.md), [AR-0508](../tasks/AR-0508-replay-aider.md), [AR-0509](../tasks/AR-0509-replay-codex.md), [AR-0510](../tasks/AR-0510-replay-gemini.md), [AR-0511](../tasks/AR-0511-replay-qwen.md), [AR-0512](../tasks/AR-0512-replay-goose.md), [AR-0513](../tasks/AR-0513-replay-miniswe.md), [AR-0514](../tasks/AR-0514-replay-openhands.md), [AR-0702](../tasks/AR-0702-native-platforms.md), [AR-0703](../tasks/AR-0703-native-platform-lab.md), [AR-0705](../tasks/AR-0705-native-debian-capacity.md), [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md), [AR-0802](../tasks/AR-0802-executable-guides.md), [AR-0808](../tasks/AR-0808-core-workflow-guides.md), [AR-0848](../tasks/AR-0848-native-x86-capacity.md), [AR-1002](../tasks/AR-1002-verifier-integrity.md), [AR-1004](../tasks/AR-1004-reliability-fairness.md), [AR-1007](../tasks/AR-1007-benchmark-validity.md) |
-| [AR-0402](../tasks/AR-0402-external-code-workloads.md) | [AR-0401](../tasks/AR-0401-engineering-workloads.md) | [AR-0404](../tasks/AR-0404-extended-workloads.md), [AR-0406](../tasks/AR-0406-evolving-workloads.md) |
-| [AR-0403](../tasks/AR-0403-terminal-workloads.md) | [AR-0401](../tasks/AR-0401-engineering-workloads.md) | [AR-0404](../tasks/AR-0404-extended-workloads.md) |
-| [AR-0404](../tasks/AR-0404-extended-workloads.md) | [AR-0402](../tasks/AR-0402-external-code-workloads.md), [AR-0403](../tasks/AR-0403-terminal-workloads.md) | [AR-1394](../tasks/AR-1394-literature-workload-registry.md) |
-| [AR-0405](../tasks/AR-0405-performance-workloads.md) | [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0601](../tasks/AR-0601-csb-integration.md), [AR-1002](../tasks/AR-1002-verifier-integrity.md), [AR-1007](../tasks/AR-1007-benchmark-validity.md) | [AR-1394](../tasks/AR-1394-literature-workload-registry.md) |
-| [AR-0406](../tasks/AR-0406-evolving-workloads.md) | [AR-0402](../tasks/AR-0402-external-code-workloads.md), [AR-1007](../tasks/AR-1007-benchmark-validity.md) | [AR-1394](../tasks/AR-1394-literature-workload-registry.md) |
-| [AR-0501](../tasks/AR-0501-replay-evaluation.md) | [AR-0001](../tasks/AR-0001-repository-bootstrap.md) | [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0879](../tasks/AR-0879-local-llm-testing-recommendations.md) |

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1827.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "mandatory-output", "description": "Setup writes only to an explicit --output path and never creates hidden user configuration."},
+    {"id": "complete-wizard", "description": "Interactive setup can choose every supported agent, provider, model, workload, monitor, measure, and bounded run/sweep setting."},
+    {"id": "automation-parity", "description": "Noninteractive flags can author the same valid configuration as the wizard."},
+    {"id": "live-safe", "description": "Live configuration records acknowledgement and credential references only; missing development credentials are actionable at execution rather than leaked or silently substituted."}
+  ],
+  "definition_of_done": ["A user can author a complete portable live or offline benchmark configuration in one setup command."],
+  "inputs": [{"id": "explicit-config-contract", "description": "AR-1826 configuration schema and binding contract."}],
+  "outputs": [{"id": "setup-authoring", "description": "Complete setup wizard and flag route writing the explicit config file."}],
+  "allowed_tools": ["cargo", "git", "tools/handoffctl", "credential-free-fakes"],
+  "forbidden_tools": ["credential-output", "implicit-home-config", "provider-selection-file", "silent-provider-fallback", "gate-weakening", "history-rewrite", "force-push"],
+  "required_evidence_classes": ["contract-test", "property-or-fuzz"],
+  "gates": [{"id": "setup-matrix", "description": "PTY/noninteractive setup matrix proves complete selection, redaction, and explicit-file behavior."}]
+}
