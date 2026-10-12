@@ -40,7 +40,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38318493591 | `da0cbe0848a1` | push | Hosted portability and native qualification | completed:success |
 | 38318493561 | `da0cbe0848a1` | push | Development formal assurance | completed:success |
 | 38318493520 | `da0cbe0848a1` | push | Portable protected-main provenance | completed:success |
-| 38318493494 | `da0cbe0848a1` | push | Emulated aarch64 portability | in_progress:- |
+| 38318493494 | `da0cbe0848a1` | push | Emulated aarch64 portability | completed:success |
 | 38318493490 | `da0cbe0848a1` | push | Repository quality | in_progress:- |
 | 38318493488 | `da0cbe0848a1` | push | Rust verification | in_progress:- |
 | 38318493481 | `da0cbe0848a1` | push | Fault assurance | completed:success |
