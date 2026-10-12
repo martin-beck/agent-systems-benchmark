@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | AR-1783 — production development-fixture launch authority path now executes successfully; signed 0bc211b2. Prior serialized coverage: 89.21&#37; lines, 85.03&#37; functions, 90.61&#37; regions. |
-| Next action | Target substantive runtime paths named by latest report: LocalReplayProvisioner::acquire_with_backend validation/materialization, LiveLaunchFactory::issue/acquire, LiveProviderAttempt::start_relay/spawn/relay, and SandboxBackend::spawn_with_identity live/development branches. Add behavior-driven success and rejection tests, then rerun focused and serialized coverage. |
+| Summary | AR-1783 — signed e6fa73b0 adds live authority rejection coverage; serialized workspace coverage improved to 89.25&#37; lines, 85.03&#37; functions, 90.63&#37; regions. |
+| Next action | Inspect latest uncovered report and target a substantive production cluster, prioritizing live_service authority resolver/bootstrap paths and SandboxBackend spawn/cleanup branches; add positive and negative behavior tests, then rerun focused and serialized coverage toward &gt;=90&#37;. |
 
 ### AR-1784 — Command dependency registry and preflight
 
