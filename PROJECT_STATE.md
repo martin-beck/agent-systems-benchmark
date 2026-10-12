@@ -37,7 +37,7 @@ Generated from local Git and GitHub. Do not edit.
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
 | 38290548017 | `47c29b5a1f2a` | push | Fault assurance | in_progress:- |
-| 38290546945 | `47c29b5a1f2a` | push | Repository quality | in_progress:- |
+| 38290546945 | `47c29b5a1f2a` | push | Repository quality | completed:failure |
 | 38290546907 | `47c29b5a1f2a` | push | Rust verification | in_progress:- |
 | 38290546867 | `47c29b5a1f2a` | push | Credential-free benchmark path | in_progress:- |
 | 38290546840 | `47c29b5a1f2a` | push | Development formal assurance | in_progress:- |
