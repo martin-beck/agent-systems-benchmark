@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | AR-1783 — signed ccf0a92f adds production development sandbox lifecycle/cleanup coverage; serialized workspace coverage improved to 89.27&#37; lines, 85.11&#37; functions, 90.66&#37; regions. |
-| Next action | Continue substantive uncovered runtime behavior, prioritizing live_service authority resolver/bootstrap transitions and remaining SandboxBackend spawn/cleanup error branches; inspect current coverage report, add positive/negative tests, and rerun focused plus serialized coverage toward &gt;=90&#37;. |
+| Summary | AR-1783 — signed 94521496 adds authority resolver persistence failure/idempotent teardown coverage; serialized workspace coverage remains 89.27&#37; lines, 85.11&#37; functions, 90.66&#37; regions. |
+| Next action | Coverage remains below floor after resolver batch. Inspect current report for the next largest production miss; target additional live_service bootstrap/authority transitions or sandbox cleanup branches with behavior-driven positive/negative tests, then rerun focused and serialized coverage. |
 
 ### AR-1784 — Command dependency registry and preflight
 

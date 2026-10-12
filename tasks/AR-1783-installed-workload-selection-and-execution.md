@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Continue substantive uncovered runtime behavior, prioritizing live_service authority resolver/bootstrap transitions and remaining SandboxBackend spawn/cleanup error branches; inspect current coverage report, add positive/negative tests, and rerun focused plus serialized coverage toward >=90%.",
+  "next_action": "Coverage remains below floor after resolver batch. Inspect current report for the next largest production miss; target additional live_service bootstrap/authority transitions or sandbox cleanup branches with behavior-driven positive/negative tests, then rerun focused and serialized coverage.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 54,
   "observed_head": "945214967a16a4f4476689545d7ca5ac3b8e8462",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 signed ccf0a92f adds production development sandbox lifecycle/cleanup coverage; serialized workspace coverage improved to 89.27% lines, 85.11% functions, 90.66% regions.",
-  "task_revision": 410,
+  "summary": "AR-1783 \u2014 signed 94521496 adds authority resolver persistence failure/idempotent teardown coverage; serialized workspace coverage remains 89.27% lines, 85.11% functions, 90.66% regions.",
+  "task_revision": 411,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:32:52+00:00",
+  "updated_at": "2026-10-12T23:32:57+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1037,3 +1037,9 @@ the suite from this end-to-end path.
   b48802db5d60864fea266a175aab6561f162cad0de4217481cf349d287ea912d.
 
 - 2026-10-12T23:32:52+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T23:32:57+00:00: Focused
+  authority_resolver_persist_failure_is_typed_and_lifecycle_is_idempotent passed. Full serialized
+  workspace tests passed; fixed 90% line floor remains sole failure. Exact report total 158336
+  lines, 104671 covered, 9776 missed; generated profraw removed; worktree clean; no
+  push/review/merge.
