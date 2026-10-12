@@ -14,9 +14,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover the durable task record needed to integrate accepted AR-1817 PR #128 after its original task was removed from current generated state.",
-  "task_revision": 10,
+  "task_revision": 11,
   "title": "AR-1817 PR #128 integration recovery",
-  "updated_at": "2026-10-12T14:18:23+00:00",
+  "updated_at": "2026-10-12T14:18:27+00:00",
   "worktree_key": ""
 }
 ---
@@ -52,3 +52,6 @@ reclassifying the work under AR-1820.
 
 - 2026-10-12T14:18:23+00:00: Recorded command exit 0; command argv SHA-256
   b8685af3efe806a09c540b5db5a26ab3156ba370b069e89266fb7512ff2a8223.
+
+- 2026-10-12T14:18:27+00:00: Recorded command exit 0; command argv SHA-256
+  738ef131c7f3f849e5ed34e62d30808bb57d4a782e16b2513c220ef948fec1fa.
