@@ -10,9 +10,9 @@
   ],
   "id": "AR-1835",
   "next_action": "Promote and claim after dependency and ownership review; implement the bounded authenticated control/live-isolation coverage repair.",
-  "observed_branch": "",
+  "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
-  "observed_head": "",
+  "observed_head": "da0cbe0848a10e61a2cd0b9a3144217842a3369b",
   "owner": "ar1835-control-isolation-luna",
   "plan": "../plans/AR-1835-authenticated-control-live-isolation-repair.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 7,
+  "task_revision": 8,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-12T23:51:08+00:00",
+  "updated_at": "2026-10-12T23:51:13+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
