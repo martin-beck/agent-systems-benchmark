@@ -1763,4 +1763,96 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn installed_dispatch_rejects_unsafe_roots_and_tampered_ownership() {
+        let source = root("installed-errors-source");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("task.txt"), b"verified task").unwrap();
+
+        // Preparation is intentionally restricted to absolute, non-existing
+        // attempt roots and a real source directory.
+        assert!(
+            InstalledPreparedWorkload::prepare(
+                "fixture",
+                "relative-source",
+                root("installed-relative-source"),
+            )
+            .is_err()
+        );
+        assert!(
+            InstalledPreparedWorkload::prepare("fixture", &source, "relative-attempt",).is_err()
+        );
+        assert!(
+            InstalledPreparedWorkload::prepare(
+                "fixture",
+                root("installed-missing-source"),
+                root("installed-missing-attempt"),
+            )
+            .is_err()
+        );
+        let existing = root("installed-existing-attempt");
+        fs::create_dir_all(&existing).unwrap();
+        assert!(InstalledPreparedWorkload::prepare("fixture", &source, &existing).is_err());
+
+        let attempt = root("installed-owner-attempt");
+        let prepared = InstalledPreparedWorkload::prepare("fixture", &source, &attempt).unwrap();
+        fs::write(attempt.join(OWNER_FILE), b"different-fixture").unwrap();
+        assert!(prepared.evaluate().is_err());
+        fs::write(attempt.join(OWNER_FILE), b"fixture").unwrap();
+        fs::remove_file(attempt.join(OWNER_FILE)).unwrap();
+        assert!(prepared.evaluate().is_err());
+        assert!(prepared.cleanup().is_ok());
+        assert!(!attempt.exists());
+    }
+
+    #[test]
+    fn installed_dispatch_enforces_file_and_object_bounds() {
+        let oversized = root("installed-oversized-source");
+        fs::create_dir_all(&oversized).unwrap();
+        fs::write(
+            oversized.join("oversized.bin"),
+            vec![b'x'; MAX_FILE_BYTES as usize + 1],
+        )
+        .unwrap();
+        assert!(
+            InstalledPreparedWorkload::prepare(
+                "fixture",
+                &oversized,
+                root("installed-oversized-attempt"),
+            )
+            .is_err()
+        );
+
+        #[cfg(unix)]
+        {
+            let fifo_source = root("installed-fifo-source");
+            fs::create_dir_all(&fifo_source).unwrap();
+            let fifo = fifo_source.join("unsupported");
+            let _socket = std::os::unix::net::UnixListener::bind(&fifo).unwrap();
+            assert!(
+                InstalledPreparedWorkload::prepare(
+                    "fixture",
+                    &fifo_source,
+                    root("installed-fifo-attempt"),
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn installed_choice_dispatches_prompt_evaluation_and_cleanup() {
+        let source = root("installed-choice-source");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("task.txt"), b"verified task").unwrap();
+        let choice = PreparedWorkloadChoice::Installed(
+            InstalledPreparedWorkload::prepare("fixture", &source, root("installed-choice"))
+                .unwrap(),
+        );
+        assert!(choice.prompt().contains("fixture"));
+        assert_eq!(choice.workspace().file_name().unwrap(), WORKSPACE_DIR);
+        assert_eq!(choice.evaluate().unwrap().failed_check_count, 0);
+        choice.cleanup().unwrap();
+    }
 }
