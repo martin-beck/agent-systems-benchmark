@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | Installed workload execution |
-| Next action | Broader baseline coverage is still required: full workspace llvm-cov on signed head 32f42827 reached 89.04&#37; lines, below hard 90&#37; floor. Do not review or merge until &gt;=90&#37; with headroom. |
+| Summary | Coverage audit: installed-workload behavior is covered but workspace floor remains below gate |
+| Next action | Add behavior-driven baseline tests across lib/control/tui/runtime seams; rerun isolated serialized llvm-cov until hard 90&#37; floor passes; keep PR unapproved |
 
 ### AR-1784 — Command dependency registry and preflight
 

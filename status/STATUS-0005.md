@@ -269,7 +269,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | ar1783-workload-selection-luna | Installed workload execution | Broader baseline coverage is still required: full workspace llvm-cov on signed head 32f42827 reached 89.04&#37; lines, below hard 90&#37; floor. Do not review or merge until &gt;=90&#37; with headroom. |
+| P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | ar1783-workload-selection-luna | Coverage audit: installed-workload behavior is covered but workspace floor remains below gate | Add behavior-driven baseline tests across lib/control/tui/runtime seams; rerun isolated serialized llvm-cov until hard 90&#37; floor passes; keep PR unapproved |
 
 ### Open (2)
 

@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Broader baseline coverage is still required: full workspace llvm-cov on signed head 32f42827 reached 89.04% lines, below hard 90% floor. Do not review or merge until >=90% with headroom.",
+  "next_action": "Add behavior-driven baseline tests across lib/control/tui/runtime seams; rerun isolated serialized llvm-cov until hard 90% floor passes; keep PR unapproved",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "32f42827367dbfedcb21304e80234336445ab683",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "Installed workload execution",
-  "task_revision": 179,
+  "summary": "Coverage audit: installed-workload behavior is covered but workspace floor remains below gate",
+  "task_revision": 180,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:14:20+00:00",
+  "updated_at": "2026-10-12T22:14:27+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -493,3 +493,22 @@ the suite from this end-to-end path.
   Full workspace tests completed; llvm-cov result 89.04% lines, 84.70% functions, 90.41% regions.
   Generated profraw removed through handoffctl; clean signed head 32f42827 pushed to PR #624. This
   remains a genuine coverage blocker.
+
+- 2026-10-12T22:14:27+00:00: Independent read-only audit of exact signed head
+  280b39de1dcf85478a8f64ebdd217aa0df2672e6. Full serialized cargo llvm-cov --locked --workspace
+  --all-targets completed all tests; aggregate report is 88.89% regions (17,473 missed of 157,286),
+  90.28% lines, 84.63% functions, so the repository quality floor records a genuine 90% gate deficit
+  despite installed-workload tests. New installed-workload behavior is exercised: project_run.rs
+  86.46% lines; asb-workloads/src/lib.rs 96.42% lines. Remaining AR-specific uncovered behavior
+  seams include project_run.rs validate_workload_identity missing project-root/config load, escaping
+  path, non-directory/symlink prepared/archive, unreadable archive, digest mismatch, and missing
+  receipt branches; lib.rs installed_workload_source missing
+  root/config/record/non-external/escape/preparation branches plus InstalledPreparedWorkload copy
+  failure mapping. These add only a small amount. To cross the unchanged floor without exclusions,
+  target behavior-driven public seams with the largest baseline gaps: asb-cli/src/lib.rs (85.97%
+  lines; 3,128 missed regions) for public run/sweep/setup/replay/diagnostic routes and failure
+  outcomes; asb-cli/src/control.rs (88.21% lines; 1,860 missed regions) for durable
+  lifecycle/authority/capture failure transitions; asb-cli/src/tui.rs (83.50% lines; 2,160 missed
+  regions) for wizard/broker lifecycle negative journeys; then asb-runtime launch_factory/sandbox
+  and asb-agents provider/auth boundaries. Do not approve or merge while the hard coverage gate is
+  red.
