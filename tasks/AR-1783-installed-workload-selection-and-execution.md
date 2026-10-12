@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Integrate every development-supported installed workload bundle into selection and prove full run/sweep/report/compare consumes its exact recorded identity.",
+  "next_action": "Await independent exact-head review evidence for PR #624; then coordinator performs protected merge and exact-main post-merge verification.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "e0474221c5a95e7e091265738b4ba05938767a47",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 59,
+  "task_revision": 60,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T21:15:30+00:00",
+  "updated_at": "2026-10-12T21:19:53+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -179,3 +179,7 @@ the suite from this end-to-end path.
 - 2026-10-12T21:10:00+00:00: Checkpointed source commit e0474221c5a95e7e091265738b4ba05938767a47.
 
 - 2026-10-12T21:15:30+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T21:19:53+00:00: PR #624 exact head e0474221c5a95e7e091265738b4ba05938767a47 against
+  base 74b391348fc5c1361034a14742f6afef747d72db; all required hosted checks are green. Merge remains
+  gated on independent review evidence.

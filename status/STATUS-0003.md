@@ -1260,7 +1260,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Select every development external workload and prove ASB uses its exact project-local identity end to end. |
-| Next action | Integrate every development-supported installed workload bundle into selection and prove full run/sweep/report/compare consumes its exact recorded identity. |
+| Next action | Await independent exact-head review evidence for PR #624; then coordinator performs protected merge and exact-main post-merge verification. |
 
 ### AR-1784 — Command dependency registry and preflight
 
