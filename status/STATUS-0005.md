@@ -213,7 +213,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1775](../tasks/AR-1775-configurable-output-router-and-levels.md): Configurable output router and levels | ar1775-cli2key-runtime-luna | Implement the mandatory configurable output router and project-configured quiet, normal, verbose, and debug levels. | Implement the sole configurable output router, generated project output defaults, and four-level selection after the output contract is accepted. |
+| P0 | [AR-1775](../tasks/AR-1775-configurable-output-router-and-levels.md): Configurable output router and levels | ar1775-cli2key-runtime-luna | Independent PR #625 review complete; awaiting hosted required CI | Keep PR #625 pending; recheck exact-head hosted required checks and merge only after all are green |
 | P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | ar1783-workload-selection-luna | Select every development external workload and prove ASB uses its exact project-local identity end to end. | Repair plan workload binding so a project plan cannot substitute an unregistered/built-in workload when an external installed workload is selected; rerun independent exact-head review. |
 
 ### Open (2)

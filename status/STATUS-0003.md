@@ -1147,8 +1147,8 @@
 | Owner | ar1775-cli2key-runtime-luna |
 | Parent | None |
 | Children | None |
-| Summary | Implement the mandatory configurable output router and project-configured quiet, normal, verbose, and debug levels. |
-| Next action | Implement the sole configurable output router, generated project output defaults, and four-level selection after the output contract is accepted. |
+| Summary | Independent PR #625 review complete; awaiting hosted required CI |
+| Next action | Keep PR #625 pending; recheck exact-head hosted required checks and merge only after all are green |
 
 ### AR-1776 — Supported-tool acquisition catalog
 
