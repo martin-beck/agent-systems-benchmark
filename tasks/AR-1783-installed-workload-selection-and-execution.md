@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Inspect latest uncovered report and target a substantive production cluster, prioritizing live_service authority resolver/bootstrap paths and SandboxBackend spawn/cleanup branches; add positive and negative behavior tests, then rerun focused and serialized coverage toward >=90%.",
+  "next_action": "Coverage report shows remaining dominant runtime misses in live_service authority resolver/bootstrap and SandboxBackend spawn/cleanup; add a larger behavior-driven batch around runtime-owned local mock lifecycle and sandbox cleanup/error transitions, then rerun focused and serialized coverage.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 54,
   "observed_head": "10b8d27bc4f4eebff29cf5c4a01b9df67b41363b",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 signed e6fa73b0 adds live authority rejection coverage; serialized workspace coverage improved to 89.25% lines, 85.03% functions, 90.63% regions.",
-  "task_revision": 387,
+  "summary": "AR-1783 \u2014 signed 10b8d27 covers local mock authority defaults and cancellation; serialized workspace coverage remains 89.25% lines, 85.04% functions, 90.64% regions.",
+  "task_revision": 388,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:24:30+00:00",
+  "updated_at": "2026-10-12T23:24:35+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -987,3 +987,8 @@ the suite from this end-to-end path.
   b48802db5d60864fea266a175aab6561f162cad0de4217481cf349d287ea912d.
 
 - 2026-10-12T23:24:30+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T23:24:35+00:00: Focused local_mock_backend_defaults_and_public_identity_are_stable
+  passed. Full serialized workspace suite passed; fixed 90% line floor remains sole failure. Exact
+  report total 158220 lines, 104612 covered, 9790 missed; generated profraw removed; worktree clean;
+  no push/review/merge.
