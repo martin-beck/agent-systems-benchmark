@@ -10,7 +10,7 @@
   "id": "AR-1825",
   "next_action": "Await independent re-review of exact head 4e37d542 and remaining PR #622 CI (emulated-aarch64, Rust checks, policy/coverage/supply-chain); merge only after all required checks green.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
-  "observed_dirty": 0,
+  "observed_dirty": 54,
   "observed_head": "4e37d542b8244280bc1c3e832920812cdae7a3ff",
   "owner": "ar1825-implementation-luna",
   "plan": "../plans/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 130,
+  "task_revision": 131,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T19:35:34+00:00",
+  "updated_at": "2026-10-12T19:35:39+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
