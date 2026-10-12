@@ -1260,7 +1260,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Installed workload execution |
-| Next action | Run full workspace llvm-cov on signed head d46a9dee and require &gt;=90&#37; lines with headroom; then push any repair and restart exact-head CI. |
+| Next action | Coverage repair tests are on signed head 280b39de; local full llvm-cov reached 88.88&#37; lines, still below hard 90&#37; floor. Coordinate broader baseline coverage repair before review; do not merge. |
 
 ### AR-1784 — Command dependency registry and preflight
 

@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1783](tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Installed workload execution | Run full workspace llvm-cov on signed head d46a9dee and require >=90% lines with headroom; then push any repair and restart exact-head CI. | ar1783-workload-selection-luna |
+| P0 | [AR-1783](tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Installed workload execution | Coverage repair tests are on signed head 280b39de; local full llvm-cov reached 88.88% lines, still below hard 90% floor. Coordinate broader baseline coverage repair before review; do not merge. | ar1783-workload-selection-luna |
 
 ## Open
 
