@@ -17,8 +17,8 @@
   "id": "AR-1779",
   "next_action": "Portable protected-main provenance rejected merge-based f1dbe055 because PR range is not first-parent linear. Create a clean linear signed repair branch from protected main by cherry-picking the repair, rerun full gates, and request fresh review.",
   "observed_branch": "repair/ar-1779-source-fallback-linear",
-  "observed_dirty": 1,
-  "observed_head": "e058ea2b5881e047c2a02a5bc5bd4f23103c28c0",
+  "observed_dirty": 0,
+  "observed_head": "7dd9103677135ee4f57f273c6b0ba8e4ff30db89",
   "owner": "ar1779-default-install-luna",
   "plan": "../plans/AR-1779-default-usable-tool-install-command.md",
   "priority": "P0",
@@ -35,9 +35,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 157,
+  "task_revision": 158,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:58:44+00:00",
+  "updated_at": "2026-10-12T17:58:49+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
