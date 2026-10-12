@@ -44,7 +44,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38296804262 | `4e37d542b824` | pull_request | Cross-repository development broker qualification | completed:success |
 | 38296804256 | `4e37d542b824` | pull_request | Agent Workflow Quality shadow | completed:success |
 | 38296804244 | `4e37d542b824` | pull_request | Rust verification | completed:success |
-| 38296804232 | `4e37d542b824` | pull_request | Repository quality | queued:- |
+| 38296804232 | `4e37d542b824` | pull_request | Repository quality | in_progress:- |
 | 38296804231 | `4e37d542b824` | pull_request | Hosted portability and native qualification | completed:success |
 | 38296804203 | `4e37d542b824` | pull_request | Portable protected-main provenance | completed:success |
 | 38296804126 | `4e37d542b824` | pull_request | Credential-free benchmark path | completed:success |
