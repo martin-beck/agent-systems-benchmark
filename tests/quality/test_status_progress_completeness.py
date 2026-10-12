@@ -9,6 +9,8 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
+import unittest
 from pathlib import Path
 
 
@@ -32,27 +34,32 @@ def copy_tree(tmp_path: Path) -> Path:
     return destination
 
 
-def test_inventory_and_renderer_contract_passes() -> None:
-    result = run(ROOT)
-    assert result.returncode == 0, result.stderr
-    assert "public command families" in result.stdout
+class StatusProgressCompletenessTests(unittest.TestCase):
+    def with_copy(self):
+        temporary = tempfile.TemporaryDirectory()
+        root = copy_tree(Path(temporary.name))
+        self.addCleanup(temporary.cleanup)
+        return root
 
+    def test_inventory_and_renderer_contract_passes(self):
+        result = run(ROOT)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("public command families", result.stdout)
 
-def test_missing_route_is_a_controlled_defect(tmp_path: Path) -> None:
-    root = copy_tree(tmp_path)
-    path = root / "crates/asb-cli/fixtures/human/command-surface-v1.json"
-    document = json.loads(path.read_text())
-    document["routes"] = [entry for entry in document["routes"] if entry["path"] != "run"]
-    path.write_text(json.dumps(document))
-    result = run(root)
-    assert result.returncode == 1
-    assert "missing from generated route inventory" in result.stderr
+    def test_missing_route_is_a_controlled_defect(self):
+        root = self.with_copy()
+        path = root / "crates/asb-cli/fixtures/human/command-surface-v1.json"
+        document = json.loads(path.read_text())
+        document["routes"] = [entry for entry in document["routes"] if entry["path"] != "run"]
+        path.write_text(json.dumps(document))
+        result = run(root)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("missing from generated route inventory", result.stderr)
 
-
-def test_direct_ansi_renderer_bypass_is_a_controlled_defect(tmp_path: Path) -> None:
-    root = copy_tree(tmp_path)
-    source = root / "crates/asb-cli/src/lib.rs"
-    source.write_text(source.read_text() + '\nconst BAD_PROGRESS: &str = "\\x1b[2K";\n')
-    result = run(root)
-    assert result.returncode == 1
-    assert "bypasses the shared progress renderer" in result.stderr
+    def test_direct_ansi_renderer_bypass_is_a_controlled_defect(self):
+        root = self.with_copy()
+        source = root / "crates/asb-cli/src/lib.rs"
+        source.write_text(source.read_text() + '\nconst BAD_PROGRESS: &str = "\\x1b[2K";\n')
+        result = run(root)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("bypasses the shared progress renderer", result.stderr)

@@ -121,7 +121,7 @@ jobs:
       - name: Enforce status and progress completeness
         run: |
           python3 tools/quality/check_status_progress_completeness.py
-          python3 -m pytest -q tests/quality/test_status_progress_completeness.py
+          python3 -m unittest discover -s tests/quality -p 'test_status_progress_completeness.py'
           cargo test --locked -p asb-cli --lib step_progress::tests
           cargo test --locked -p asb-cli --test cli_e2e json_and_quiet_suppress_execution_notices_on_both_streams
       - name: Validate platform manifests and failure fixtures
