@@ -2,11 +2,11 @@
 {
   "branch": "repair/ar-1821-ar1817-integration",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-12T16:15:18+00:00",
+  "claim_expires": "",
   "depends_on": [],
   "id": "AR-1821",
   "next_action": "Claim this recovery task, verify accepted PR #128 exact head against current main, integrate through the signed local merge path, run exact-main post-merge checks, and close with durable evidence.",
-  "owner": "ar1817_schema_contract",
+  "owner": "",
   "plan": "../plans/AR-1821-ar1817-pr128-integration-recovery.md",
   "priority": "P0",
   "schema_version": 1,
@@ -20,11 +20,11 @@
   },
   "spec_ref": "specs/AR-1821.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Recover the durable task record needed to integrate accepted AR-1817 PR #128 after its original task was removed from current generated state.",
-  "task_revision": 12,
+  "task_revision": 13,
   "title": "AR-1817 PR #128 integration recovery",
-  "updated_at": "2026-10-12T14:18:35+00:00",
+  "updated_at": "2026-10-12T14:18:41+00:00",
   "worktree_key": ""
 }
 ---
@@ -66,3 +66,8 @@ reclassifying the work under AR-1820.
 
 - 2026-10-12T14:18:35+00:00: Accepted exact signed local integration and post-merge evidence for PR
   #128.
+
+- 2026-10-12T14:18:41+00:00: AR-1817 recovery complete: PR #128 integrated as signed merge
+  e76b54a02e; exact-main focused gates, Coordination verification 38261642258, Huawei headers
+  38261641340, and doctor --live passed. Receipt
+  quality/AR-1821-ar1817-pr128-integration-receipt.txt.
