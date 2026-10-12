@@ -11,7 +11,7 @@
   "id": "AR-1783",
   "next_action": "Continue broad behavior-driven tests in uncovered control/TUI/runtime seams; rerun deterministic serialized llvm-cov and reach >=90% lines with headroom before pushing.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 0,
+  "observed_dirty": 1,
   "observed_head": "410f08c143954a5c9ff911289628e59ce136c0e7",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 control state/endpoint behavior tests and diagnostic catalog repair are green; serialized full coverage remains 89.11% lines.",
-  "task_revision": 310,
+  "task_revision": 311,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:58:01+00:00",
+  "updated_at": "2026-10-12T22:58:07+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
