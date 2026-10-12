@@ -2,7 +2,13 @@
 {
   "branch": "feature/ar-1779-default-usable-tool-install-command",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-12T19:49:46+00:00",
+  "claim_process": {
+    "boot_digest": "sha256:e7865b965cd7fb9a03f25a68c08a4552c90fa89300f35b839e047ca4bb39ff28",
+    "pid": 3826910,
+    "pid_namespace": "5:4026531836",
+    "start_time": 668487230
+  },
   "depends_on": [
     "AR-1777",
     "AR-1778",
@@ -13,7 +19,7 @@
   "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
   "observed_dirty": 4,
   "observed_head": "db08ffb341d5bb8666c8aa9119d01503bc458b26",
-  "owner": "",
+  "owner": "ar1779-default-install-luna",
   "plan": "../plans/AR-1779-default-usable-tool-install-command.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +33,11 @@
   },
   "spec_ref": "specs/AR-1779.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 120,
+  "task_revision": 121,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:48:33+00:00",
+  "updated_at": "2026-10-12T17:49:46+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -358,3 +364,5 @@ the adapter smoke check failed.
 
 - 2026-10-12T17:47:38+00:00: Recovered interrupted worker with no live process/session; preserved PR
   #618 head db08ffb3 and recorded repair next action. Replacement may claim after reconciliation.
+
+- 2026-10-12T17:49:46+00:00: Claimed by ar1779-default-install-luna.
