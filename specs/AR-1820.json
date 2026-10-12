@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1820.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {
+      "id": "historical-preservation",
+      "description": "PR #602, merge 4b14797a, its parents/tree/signature/DCO observations, and failed workflow runs remain immutable evidence."
+    },
+    {
+      "id": "local-recovery",
+      "description": "A clean signed local-integration recovery path preserves the reviewed product tree and does not rewrite protected history or use the GitHub web merge path."
+    },
+    {
+      "id": "gate-integrity",
+      "description": "Protected-main provenance, DCO, SSH signature, exact topology/tree, privacy, and all applicable exact-head/post-merge gates pass without weakening policy."
+    },
+    {
+      "id": "dependency-hold",
+      "description": "AR-1773 and AR-1775 are not released until this repair has durable completion evidence."
+    }
+  ],
+  "definition_of_done": [
+    "A signed DCO recovery candidate is independently reviewed from a dedicated clean worktree.",
+    "Focused and full applicable gates pass on the exact reviewed candidate.",
+    "Approved local integration and every required exact-main post-merge workflow reach terminal success.",
+    "Durable state receipt records historical failure preservation, exact topology/tree/signature/DCO, CI, and post-merge verification."
+  ],
+  "inputs": [
+    {
+      "id": "ar1772-merge",
+      "description": "PR #602 and protected-main merge 4b14797a0892988a484a5171c45c4e8ec3c3d836."
+    },
+    {
+      "id": "failed-gates",
+      "description": "Portable provenance 38210171658, repository quality 38210171401, and Rust verification 38210171442."
+    },
+    {
+      "id": "policy",
+      "description": "ASB merge-integrity, repository-policy, DCO, and local integration documentation."
+    }
+  ],
+  "outputs": [
+    {
+      "id": "recovery-receipt",
+      "description": "Privacy-safe durable receipt covering preserved historical evidence and successful recovery qualification."
+    }
+  ],
+  "allowed_tools": [
+    "git",
+    "gh",
+    "python",
+    "make",
+    "cargo",
+    "tools/handoffctl",
+    "tools/quality/repository_policy.py",
+    "tools/integration/merge_pr.py"
+  ],
+  "forbidden_tools": [
+    "force-push",
+    "history-rewrite",
+    "web-merge",
+    "gate-weakening",
+    "secret-output",
+    "unbounded-evidence"
+  ],
+  "required_evidence_classes": [
+    "mechanical",
+    "contract-test",
+    "hosted",
+    "privacy",
+    "quality"
+  ],
+  "gates": [
+    {
+      "id": "integrity",
+      "description": "Exact parent/topology/tree, SSH signature, DCO, and local integration identity checks pass."
+    },
+    {
+      "id": "review",
+      "description": "Independent review accepts the exact candidate and scope."
+    },
+    {
+      "id": "publication",
+      "description": "All required PR exact-head and protected-main post-merge workflows terminate successfully."
+    }
+  ]
+}
