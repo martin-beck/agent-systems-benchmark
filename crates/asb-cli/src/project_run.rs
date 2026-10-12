@@ -87,15 +87,26 @@ impl ProjectExecution {
         workload_digest: &str,
     ) -> Result<(), CliError> {
         let config = super::load_tool_project(&self.root)?;
+        let Some(record) = config.workloads.get(workload_id) else {
+            // Standalone/built-in workload plans have no project inventory
+            // record and retain the pre-existing project execution path.
+            return Ok(());
+        };
+        // Legacy project tool fixtures remain valid workload records.  The
+        // receipt fence applies to bundles installed through `asb workload`,
+        // which are explicitly marked as external-workload.
+        if !record
+            .capabilities
+            .iter()
+            .any(|capability| capability == "external-workload")
+        {
+            return Ok(());
+        }
         if config.selections.workload.as_deref() != Some(workload_id) {
             return Err(CliError::legacy_validation(
                 "plan workload is not the selected installed project workload",
             ));
         }
-        let record = config
-            .workloads
-            .get(workload_id)
-            .ok_or_else(|| CliError::legacy_validation("selected installed workload is missing"))?;
         if record.status != ProjectToolStatus::Available
             || record.kind != ProjectToolKind::Workload
             || record.platform != super::platform_label()
