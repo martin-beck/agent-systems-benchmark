@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 165,
+  "task_revision": 166,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:10:47+00:00",
+  "updated_at": "2026-10-12T22:11:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -461,3 +461,6 @@ the suite from this end-to-end path.
   This is a genuine gate failure despite installed workload success/source negative coverage.
   Provenance digest was refreshed and signed head 280b39de pushed to PR #624. Generated profraw
   artifacts removed through handoffctl; branch clean.
+
+- 2026-10-12T22:11:24+00:00: Recorded command exit 0; command argv SHA-256
+  76bea8d1f2fc78aa9f7ab9c51ae71a986073970b4713a9319ad9cc83de308c9a.
