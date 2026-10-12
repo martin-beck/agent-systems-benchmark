@@ -31,7 +31,7 @@ Generated from local Git and GitHub. Do not edit.
 | #612 | `feature/ar-1774-status-progress-completeness-ci@ad7f1166afc5` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | ci: enforce status and progress completeness |
 | #618 | `repair/ar-1779-current-main-smoke@f1dbe055aaeb` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): verify supported tool reuse and entrypoints |
 | #619 | `repair/ar-1779-source-fallback-linear3@21372a22aba3` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
-| #623 | `qualification/ar-1686@93d75e28a758` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS: | test(qualification): prove current-head content identity boundaries |
+| #623 | `qualification/ar-1686@93d75e28a758` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | test(qualification): prove current-head content identity boundaries |
 
 ## Recent workflows
 
@@ -39,10 +39,10 @@ Generated from local Git and GitHub. Do not edit.
 | --- | --- | --- | --- | --- |
 | 38306623190 | `93d75e28a758` | pull_request | Cross-repository development broker qualification | in_progress:- |
 | 38306623175 | `93d75e28a758` | pull_request | Repository quality | in_progress:- |
-| 38306623174 | `93d75e28a758` | pull_request | Fault assurance | in_progress:- |
+| 38306623174 | `93d75e28a758` | pull_request | Fault assurance | completed:success |
 | 38306623169 | `93d75e28a758` | pull_request | Rust verification | in_progress:- |
 | 38306623156 | `93d75e28a758` | pull_request | Agent Workflow Quality shadow | completed:success |
-| 38306623152 | `93d75e28a758` | pull_request | Credential-free benchmark path | in_progress:- |
+| 38306623152 | `93d75e28a758` | pull_request | Credential-free benchmark path | completed:success |
 | 38306623145 | `93d75e28a758` | pull_request | Emulated aarch64 portability | in_progress:- |
 | 38306623140 | `93d75e28a758` | pull_request | Portable protected-main provenance | completed:success |
 | 38306623139 | `93d75e28a758` | pull_request | Hosted portability and native qualification | completed:success |
