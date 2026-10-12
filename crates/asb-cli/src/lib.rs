@@ -17373,6 +17373,65 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn installed_workload_source_rejects_missing_and_escaping_preparations() {
+        let scratch = Scratch::new("installed-source-boundaries");
+        let project = scratch.0.join("project");
+        project_init_with_progress(
+            &[project.display().to_string()],
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+        )
+        .unwrap();
+        let (_, mut plan) = plan_fixture(&scratch.0, "installed-source");
+        plan.workload = "fixture-workload".into();
+        plan.work_root = project.join(".asb/work");
+        assert!(
+            installed_workload_source(&plan, &plan.work_root)
+                .unwrap()
+                .is_none()
+        );
+
+        let mut config = load_tool_project(&project).unwrap();
+        config.workloads.insert(
+            "fixture-workload".into(),
+            ProjectToolRecordV1 {
+                kind: ProjectToolKind::Workload,
+                source_ref: "fixture://fixture-workload".into(),
+                version: "fixture-v1".into(),
+                platform: platform_label(),
+                path: None,
+                digest_sha256: Some("b".repeat(64)),
+                capabilities: vec!["external-workload".into(), "adapter-ready".into()],
+                status: ProjectToolStatus::Available,
+            },
+        );
+        save_tool_project(&project, &config).unwrap();
+        assert!(installed_workload_source(&plan, &plan.work_root).is_err());
+
+        let mut config = load_tool_project(&project).unwrap();
+        config.workloads.get_mut("fixture-workload").unwrap().path = Some("escape".into());
+        save_tool_project(&project, &config).unwrap();
+        assert!(installed_workload_source(&plan, &plan.work_root).is_err());
+
+        let mut config = load_tool_project(&project).unwrap();
+        config.workloads.get_mut("fixture-workload").unwrap().path =
+            Some(".asb/workloads/fixture-workload".into());
+        save_tool_project(&project, &config).unwrap();
+        fs::create_dir_all(project.join(".asb/workloads/fixture-workload")).unwrap();
+        assert!(installed_workload_source(&plan, &plan.work_root).is_err());
+
+        #[cfg(unix)]
+        {
+            let prepared = project.join(".asb/workloads/fixture-workload/prepared");
+            let target = project.join("outside-prepared");
+            fs::create_dir_all(&target).unwrap();
+            std::os::unix::fs::symlink(&target, &prepared).unwrap();
+            assert!(installed_workload_source(&plan, &plan.work_root).is_err());
+        }
+    }
+
+    #[test]
     fn executable_replacement_after_validation_never_launches_changed_bytes() {
         let scratch = Scratch::new("replacement");
         let (_, plan) = plan_fixture(&scratch.0, "replacement");
