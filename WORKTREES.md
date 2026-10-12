@@ -273,6 +273,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `review-pr610` | `DETACHED` | `95a342fde4c5` | 0 | behind 42, ahead 4 |
 | `agent-systems-benchmark-ar-1498` | `feature/ar-1498-authenticated-lifecycle-executor` | `55ff13fb6cb2` | 0 | behind 804, ahead 1275 |
 | `agent-systems-benchmark-ar-1499` | `feature/ar-1499-development-credential-enrollment` | `0a2f6e9c74f9` | 0 | behind 804, ahead 1280 |
-| `agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution` | `feature/ar-1783-installed-workload-selection-and-execution` | `60ec53268f51` | 0 | behind 2, ahead 4 |
+| `agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution` | `feature/ar-1783-installed-workload-selection-and-execution` | `60ec53268f51` | 1 | behind 2, ahead 4 |
+| changed files | - | - | - | `crates/asb-cli/src/project_run.rs` |
 | `agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract` | `feature/ar-1825-source-to-executable-adapter-runtime-contract` | `630d380866e4` | 0 | behind 3, ahead 0 |
 | `ar1824-repair.Tp51GE` | `DETACHED` | `c2745e04e231` | 0 | behind 24, ahead 0 |
