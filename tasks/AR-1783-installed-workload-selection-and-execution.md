@@ -11,8 +11,8 @@
   "id": "AR-1783",
   "next_action": "Inspect latest uncovered report and target a substantive production cluster, prioritizing live_service authority resolver/bootstrap paths and SandboxBackend spawn/cleanup branches; add positive and negative behavior tests, then rerun focused and serialized coverage toward >=90%.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 1,
-  "observed_head": "e6fa73b0b5e42d8555ed299a6c366e6ef5f588c8",
+  "observed_dirty": 0,
+  "observed_head": "10b8d27bc4f4eebff29cf5c4a01b9df67b41363b",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 signed e6fa73b0 adds live authority rejection coverage; serialized workspace coverage improved to 89.25% lines, 85.03% functions, 90.63% regions.",
-  "task_revision": 383,
+  "task_revision": 384,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:22:00+00:00",
+  "updated_at": "2026-10-12T23:22:06+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
