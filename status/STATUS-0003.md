@@ -1596,7 +1596,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement bounded source adapter contract |
-| Next action | PR #622 merged to main as merge commit b8fc46907afd281781a49dbd04ccb0aa6337a850; remote main is 99f8c531de24cfabc2ca8be39f352c2a838ed957. Post-merge workspace tests ran 442 passed, 1 failed: source_checkout::tests::exact_fixture_checkout_is_returned_and_cleanup_is_explicit returned Unavailable at source_checkout.rs:913. Diagnose/repair the fixture/environment failure before accepting AR-1825; coverage gate was green on exact head. |
+| Next action | Post-merge exact-main workspace rerun completed with all tests passing, including source_checkout::tests::exact_fixture_checkout_is_returned_and_cleanup_is_explicit (443 asb-cli unit tests passed; workspace integration/doc tests passed). Initial 442/1 Unavailable was not reproducible and appears a one-time environmental/concurrency failure. Before acceptance, reconcile exact-main evidence and confirm required AArch64/Rust/repository-quality workflows terminal green; preserve AR-1779 expiry warning. |
 
 
 ## Dependency graph
