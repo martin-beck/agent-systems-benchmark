@@ -1596,7 +1596,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement bounded source adapter contract |
-| Next action | Coverage blocker is systemic: adapter file now reaches 91.27&#37; lines after 9884e34, but exact CI workspace remains 88.59&#37; (required 90&#37;) due existing low-coverage modules (asb-cli control/lib/tui/source_builder and runtime sandbox). Do not lower floor. Parent must route a broader coverage-repair AR or add justified behavior tests before another merge attempt. |
+| Next action | Coverage repair head 630d3808 adds behavior tests for valid relative symlink/digest boundaries, strategy matrix rejection, platform compatibility, and bounded successful smoke. Push is complete; await exact-head CI. Workspace coverage previously 88.59&#37; vs 90&#37; floor, so do not merge until green; broader low-coverage modules require coordinator-planned successor AR-1826. |
 
 
 ## Dependency graph
