@@ -9,7 +9,7 @@
     "AR-1784"
   ],
   "id": "AR-1779",
-  "next_action": "Safety portion complete: PR #621 merged by protected local integration as ab0a791b05d6082fd0c99ab287f8a7883180bcec; all exact-main post-merge workflows passed and handoffctl doctor --live is clean. Keep AR-1779 in progress pending AR-1825 acceptance of the bounded source-to-executable adapter/runtime contract; do not claim source fallback until that acceptance.",
+  "next_action": "AR-1825 is accepted on merged PR #622 / main b8fc46907afd281781a49dbd04ccb0aa6337a850: all 10 exact-main post-merge workflows are terminal success and source-executable matrix plus bounded adapter/rollback/smoke negative gates are present. AR-1779 release is blocked until current origin/main 356a669e0c6ebbb6cd3675a119cba16fea486283 is green; current unrelated AR-1775 follow-on has Portable protected-main provenance, Repository quality, and Rust verification failures. Do not touch AR-1826\u20131832.",
   "observed_branch": "repair/ar-1779-source-fallback-linear4",
   "observed_dirty": 0,
   "observed_head": "80060a79e716b42e021ddd9b116afdc560bc6cc1",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 224,
+  "task_revision": 225,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T22:23:44+00:00",
+  "updated_at": "2026-10-12T22:23:56+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -616,3 +616,14 @@ the adapter smoke check failed.
 - 2026-10-12T22:23:17+00:00: Claimed by ar1779-default-install-luna.
 
 - 2026-10-12T22:23:44+00:00: Heartbeat by ar1779-default-install-luna.
+
+- 2026-10-12T22:23:56+00:00: Acceptance reconciliation: PR #621 merged as
+  ab0a791b05d6082fd0c99ab287f8a7883180bcec with verified SSH+DCO and 10/10 exact-main workflows
+  green. Successor AR-1825 is done with mechanical spec acceptance
+  sha256:00a3aa982989ac4d8face264857686f1cff9729e8707138b56b51d158e18e5ef, merged PR #622
+  b8fc46907afd281781a49dbd04ccb0aa6337a850, and 10/10 exact-main post-merge workflows green. Matrix
+  explicitly supports only qualified pinned-prebuilt rows and marks source-only/archive/no-recipe
+  rows unsupported; adapter contract rejects unknown strategy, identity/runtime/entrypoint
+  violations, bounded smoke failures, and transactional false usable state. Current origin/main
+  advanced to 356a669e after AR-1775 and has 3 required workflow failures, so release cannot
+  truthfully claim green current main. Preserve AR-1826–1832.
