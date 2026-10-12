@@ -11,7 +11,7 @@
   "id": "AR-1783",
   "next_action": "Coverage remains below floor after resolver batch. Inspect current report for the next largest production miss; target additional live_service bootstrap/authority transitions or sandbox cleanup branches with behavior-driven positive/negative tests, then rerun focused and serialized coverage.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 0,
+  "observed_dirty": 54,
   "observed_head": "945214967a16a4f4476689545d7ca5ac3b8e8462",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 signed 94521496 adds authority resolver persistence failure/idempotent teardown coverage; serialized workspace coverage remains 89.27% lines, 85.11% functions, 90.66% regions.",
-  "task_revision": 418,
+  "task_revision": 419,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:36:33+00:00",
+  "updated_at": "2026-10-12T23:36:38+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
