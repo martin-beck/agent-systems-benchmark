@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "ar": "AR-1652",
+  "status": "qualified",
+  "product_commit": "ab0a791b05d6082fd0c99ab287f8a7883180bcec",
+  "qualification": {
+    "selected_agents_all_workloads": {
+      "agents": 1,
+      "workloads": 34,
+      "tuples": 34,
+      "offline_ready": true,
+      "mode": "development_local_mock"
+    },
+    "all_agents_selected_workload": {
+      "agents": 9,
+      "workloads": 1,
+      "tuples": 9,
+      "offline_ready": true,
+      "mode": "development_local_mock"
+    },
+    "bounded_all_matrix": {
+      "requested_tuples": 306,
+      "maximum_tuples": 256,
+      "result": "rejected_before_capture",
+      "reason": "recording_campaign_bounds_are_invalid"
+    },
+    "strict_replay_network_denial": {
+      "focused_cli_test": "record_and_replay_commands_are_explicit_private_and_network_denied",
+      "result": "pass"
+    },
+    "asb_replay_locked_suite": {
+      "unit": 28,
+      "cassette_roundtrip": 20,
+      "fault": 1,
+      "gemini": 9,
+      "migration": 5,
+      "pacing": 7,
+      "redaction": 12,
+      "schema": 5,
+      "strict_replay": 21,
+      "total": 108
+    }
+  },
+  "privacy": {
+    "credentials_recorded": false,
+    "provider_traffic": false,
+    "prompts_or_responses_recorded": false,
+    "private_paths_recorded": false
+  },
+  "evidence": {
+    "implementation_prs": [
+      448,
+      484,
+      495,
+      496,
+      486
+    ],
+    "no_github_reviews_api_requirement": true,
+    "bounded_matrix_is_fail_closed": true
+  }
+}
