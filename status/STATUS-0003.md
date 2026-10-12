@@ -1700,11 +1700,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | ar1689-tui-qualification-luna |
 | Parent | None |
 | Children | None |
 | Summary | Repair malformed AR-1689 paired qualification evidence before relying on its done state. |
@@ -2586,7 +2586,7 @@ flowchart LR
         AR_1830["AR-1830 - Planned"]:::status_planned
         AR_1831["AR-1831 - Planned"]:::status_planned
         AR_1832["AR-1832 - Planned"]:::status_planned
-        AR_1833["AR-1833 - Open"]:::status_open
+        AR_1833["AR-1833 - In progress"]:::status_in_progress
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
