@@ -11,7 +11,7 @@
   "next_action": "PR #613 (63ba8e7973545f65bd8dda56f3aa24d9d339bb16) is open; focused rustup tests, fmt, clippy, and independent review pass. Await remaining exact-head hosted checks, then merge and run post-merge installed-entrypoint qualification.",
   "observed_branch": "repair/ar-1799-tui-install-rustup-invalid",
   "observed_dirty": 0,
-  "observed_head": "63ba8e7973545f65bd8dda56f3aa24d9d339bb16",
+  "observed_head": "e058ea2b5881e047c2a02a5bc5bd4f23103c28c0",
   "owner": "",
   "plan": "../plans/AR-1799-tui-install-rustup-invalid-repair.md",
   "priority": "P0",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "open",
   "summary": "Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "Repair asb tui install rustup/rustc trusted-tool rejection",
-  "updated_at": "2026-10-12T16:51:28+00:00",
+  "updated_at": "2026-10-12T17:10:58+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1799-tui-install-rustup-invalid"
 }
 ---
