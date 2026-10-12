@@ -11,7 +11,7 @@
   "id": "AR-1783",
   "next_action": "Await exact-head CI, then obtain independent review of 4b72fafb against main 356a669; merge only after green review and CI.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 0,
+  "observed_dirty": 54,
   "observed_head": "4b72fafb37a0eaff47dfda757ee6a9114b75ffb8",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 115,
+  "task_revision": 116,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T21:57:40+00:00",
+  "updated_at": "2026-10-12T21:57:45+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
