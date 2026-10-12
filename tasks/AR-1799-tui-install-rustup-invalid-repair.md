@@ -2,7 +2,7 @@
 {
   "branch": "repair/ar-1799-tui-install-rustup-invalid",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-12T19:29:19+00:00",
+  "claim_expires": "2026-10-12T19:32:11+00:00",
   "depends_on": [
     "AR-1738",
     "AR-1636"
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint.",
-  "task_revision": 10,
+  "task_revision": 11,
   "title": "Repair asb tui install rustup/rustc trusted-tool rejection",
-  "updated_at": "2026-10-12T17:31:50+00:00",
+  "updated_at": "2026-10-12T17:32:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1799-tui-install-rustup-invalid"
 }
 ---
@@ -69,3 +69,5 @@ may block development qualification or enter durable state.
 
 - 2026-10-12T17:31:50+00:00: Recorded command exit 101; command argv SHA-256
   882e1b66b36d6a284e4aab312dcbb48e6e97ff7055bfd2b8931406634fc6cc87.
+
+- 2026-10-12T17:32:11+00:00: Heartbeat by codex-ar1799-tui-install-rustup-invalid-20261012.
