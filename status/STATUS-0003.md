@@ -1490,7 +1490,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | planned |
+| Status | open |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
@@ -2459,7 +2459,7 @@ flowchart LR
     end
     subgraph series_18["18 - Additional work"]
         direction TB
-        AR_1800["AR-1800 - Planned"]:::status_planned
+        AR_1800["AR-1800 - Open"]:::status_open
         AR_1819["AR-1819 - Done"]:::status_done
         AR_1820["AR-1820 - Done"]:::status_done
         AR_1821["AR-1821 - Done"]:::status_done

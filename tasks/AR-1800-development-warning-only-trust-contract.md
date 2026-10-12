@@ -22,11 +22,11 @@
   },
   "spec_ref": "specs/AR-1800.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Make development-channel trust, digest, and exact-version mismatches warning-only without weakening stable/production policy.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Development channel warning-only trust contracts",
-  "updated_at": "2026-10-12T00:00:00+00:00",
+  "updated_at": "2026-10-12T21:16:57+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1800-development-warning-only-trust-contract"
 }
 ---
@@ -48,3 +48,7 @@ secret exposure, impossible filesystem/process operations, and other structural
 safety failures remain non-bypassable; this AR must not turn those into trusted
 execution. No credential, API key, raw token, or sensitive host path may appear
 in warnings, JSON, logs, or evidence.
+
+- 2026-10-12T21:16:57+00:00: Dependency AR-1799 is durably done at revision 24 with merged PR #613,
+  protected-main provenance, installed-entrypoint qualification, and 10/10 exact-head workflows
+  green; reconciled implementer role assignment.
