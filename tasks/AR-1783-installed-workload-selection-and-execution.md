@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Installed workload execution",
-  "task_revision": 112,
+  "task_revision": 113,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T21:50:32+00:00",
+  "updated_at": "2026-10-12T21:55:22+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -333,3 +333,6 @@ the suite from this end-to-end path.
   full workspace cargo test (458 CLI tests plus workspace), fmt, and clippy passed. Coverage rerun
   remains required for final qualification; do not merge until exact-head CI and independent review
   are green.
+
+- 2026-10-12T21:55:22+00:00: Recorded command exit 1; command argv SHA-256
+  332efed1c462fae62d8ccada7a29bf10ef00b07b096b7a9231517da174404cab.
