@@ -11,8 +11,8 @@
   "id": "AR-1779",
   "next_action": "Independent review and exact-head CI for the current-main repair commit 0c5826a4; then publish a clean PR, merge via protected local integration, and requalify the installed tool path.",
   "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
-  "observed_dirty": 1,
-  "observed_head": "0c5826a43169deadd82cedd666d90aceb35bae2e",
+  "observed_dirty": 0,
+  "observed_head": "a37da01d4d3557122dbe8b3bd595cc9de9b2826e",
   "owner": "ar1779-default-install-luna",
   "plan": "../plans/AR-1779-default-usable-tool-install-command.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 55,
+  "task_revision": 56,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:16:45+00:00",
+  "updated_at": "2026-10-12T17:16:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
