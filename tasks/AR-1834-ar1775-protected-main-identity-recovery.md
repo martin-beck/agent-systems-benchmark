@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T01:27:39+00:00",
   "depends_on": [],
   "id": "AR-1834",
-  "next_action": "Continue polling PR #626 exact-head checks for 4107fcd177efa675f74e1ae08d0ee0bfa15c5216; obtain independent review only after every required check is terminal-success, then publish with merge_pr.py",
+  "next_action": "Wait for Repository quality run 38317132551, Rust verification 38317132596, and emulated AArch64 run 38317132577 to terminal success; obtain independent exact-head review, then invoke merge_pr.py",
   "observed_dirty": 0,
   "observed_head": "",
   "owner": "ar1805_postmerge_repair",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e",
-  "task_revision": 25,
+  "task_revision": 26,
   "title": "AR-1775 protected-main local identity recovery",
-  "updated_at": "2026-10-12T22:36:17+00:00",
+  "updated_at": "2026-10-12T22:36:27+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1834-ar1775-protected-main-identity"
 }
 ---
@@ -115,3 +115,8 @@ This successor is metadata-only and forward-only. It must not alter `LOCAL_COMMI
 
 - 2026-10-12T22:36:17+00:00: Recorded command exit 0; command argv SHA-256
   5eeeebb98e8e1f06568b90203e8b05b4ec6f1360a5995b8a18b7b298ff7779f2.
+
+- 2026-10-12T22:36:27+00:00: PR #626 exact head 4107fcd177efa675f74e1ae08d0ee0bfa15c5216 currently
+  has 11 terminal-success hosted checks. Remaining runs are Repository quality 38317132551, Rust
+  verification 38317132596, and emulated AArch64 portability 38317132577, all in progress; no hosted
+  failures observed.
