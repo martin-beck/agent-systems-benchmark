@@ -11,8 +11,8 @@
   "id": "AR-1783",
   "next_action": "Continue behavior-driven coverage in largest uncovered control/TUI/runtime seams; add substantial positive/negative tests, rerun full llvm-cov to at least 90% with headroom, then push signed exact-head repair.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 1,
-  "observed_head": "6490d4df7f85b15b02fe15aa6a5c442c34905125",
+  "observed_dirty": 0,
+  "observed_head": "c92ea3cdfbac32edb84062d238b54e3cdad3b108",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 TUI boundary coverage tests pass; latest full workspace llvm-cov is 89.08% lines, still below the fixed 90% floor.",
-  "task_revision": 244,
+  "task_revision": 245,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:32:12+00:00",
+  "updated_at": "2026-10-12T22:32:17+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
