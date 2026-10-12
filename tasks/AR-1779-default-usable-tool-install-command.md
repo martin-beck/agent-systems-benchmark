@@ -9,7 +9,7 @@
     "AR-1784"
   ],
   "id": "AR-1779",
-  "next_action": "Independent review of signed current-main repair a37da01d4d3557122dbe8b3bd595cc9de9b2826e, then publish a new clean repair branch (never force-update stale PR #583), wait exact-head CI, merge via protected integration, and requalify installed tool path.",
+  "next_action": "Independent review is the only current review blocker: no reviewer is recorded yet for PR #618 at exact head a37da01d4d3557122dbe8b3bd595cc9de9b2826e. Hosted checks remain in progress; once an independent review is recorded and all required checks are green, merge via protected integration and requalify.",
   "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
   "observed_dirty": 0,
   "observed_head": "a37da01d4d3557122dbe8b3bd595cc9de9b2826e",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 66,
+  "task_revision": 67,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:20:59+00:00",
+  "updated_at": "2026-10-12T17:21:19+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -217,3 +217,8 @@ the adapter smoke check failed.
 
 - 2026-10-12T17:20:59+00:00: Recorded command exit 0; command argv SHA-256
   a63d7df09166ff1c467a7bf4582f5ad38227203a2ff00aa9802ac4b575c6e577.
+
+- 2026-10-12T17:21:19+00:00: PR #618 is published cleanly from repair/ar-1779-current-main-smoke;
+  stale PR #583 and its branch were preserved, never force-updated. Current-head checks: Kani, Loom,
+  retained faults, platform evidence, provenance, headers, and AWQ shadow green; Rust,
+  credential-free, aarch64, policy/coverage, fuzz/mutation, and TUI checks still running.

@@ -208,7 +208,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Independent review of signed current-main repair a37da01d4d3557122dbe8b3bd595cc9de9b2826e, then publish a new clean repair branch (never force-update stale PR #583), wait exact-head CI, merge via protected integration, and requalify installed tool path. |
+| P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Independent review is the only current review blocker: no reviewer is recorded yet for PR #618 at exact head a37da01d4d3557122dbe8b3bd595cc9de9b2826e. Hosted checks remain in progress; once an independent review is recorded and all required checks are green, merge via protected integration and requalify. |
 
 ### Open (3)
 
