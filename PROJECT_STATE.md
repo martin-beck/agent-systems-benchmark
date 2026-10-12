@@ -42,7 +42,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38318493520 | `da0cbe0848a1` | push | Portable protected-main provenance | completed:success |
 | 38318493494 | `da0cbe0848a1` | push | Emulated aarch64 portability | completed:success |
 | 38318493490 | `da0cbe0848a1` | push | Repository quality | in_progress:- |
-| 38318493488 | `da0cbe0848a1` | push | Rust verification | in_progress:- |
+| 38318493488 | `da0cbe0848a1` | push | Rust verification | completed:success |
 | 38318493481 | `da0cbe0848a1` | push | Fault assurance | completed:success |
 | 38318493476 | `da0cbe0848a1` | push | Huawei MIT source headers | completed:success |
 | 38318493472 | `da0cbe0848a1` | push | Credential-free benchmark path | completed:success |
