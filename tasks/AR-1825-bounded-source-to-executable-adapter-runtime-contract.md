@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1825",
-  "next_action": "Repair PR #622 review findings: transactional rename/fsync rollback, race-safe launcher validation/smoke, bounded output capture, and source-build staging cleanup; rerun focused/full gates and republish.",
+  "next_action": "Run exact-head full gates on PR #622 at 4e37d542; obtain independent re-review and green CI before protected merge.",
   "observed_branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
   "observed_dirty": 0,
   "observed_head": "19ce887552b0c2921c437df420bf7a8f0563f60a",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 109,
+  "task_revision": 110,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T19:19:07+00:00",
+  "updated_at": "2026-10-12T19:19:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -347,3 +347,8 @@ AR-1825's acceptance evidence is independently reviewed and durable.
 
 - 2026-10-12T19:19:07+00:00: Recorded command exit 0; command argv SHA-256
   6e04ec0e67f67fa78d2538bc86bdb92ae9d9b57b60aab05c3c660a555592e189.
+
+- 2026-10-12T19:19:33+00:00: Review repairs published in signed+DCO head 4e37d542: private staged
+  smoke before activation, process-group termination on every terminal path, bounded concurrent
+  output drain, rollback/fsync cleanup, source-build cleanup, and focused descendant/race/size
+  negatives. Focused adapter (8), diagnostic (9), and workflow (3) tests pass.

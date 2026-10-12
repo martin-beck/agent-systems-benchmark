@@ -8,7 +8,7 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1779](tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Safety portion complete: PR #621 merged by protected local integration as ab0a791b05d6082fd0c99ab287f8a7883180bcec; all exact-main post-merge workflows passed and handoffctl doctor --live is clean. Keep AR-1779 in progress pending AR-1825 acceptance of the bounded source-to-executable adapter/runtime contract; do not claim source fallback until that acceptance. | ar1779-default-install-luna |
-| P0 | [AR-1825](tasks/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md): Bounded source-to-executable adapter/runtime contract | Implement bounded source adapter contract | Repair PR #622 review findings: transactional rename/fsync rollback, race-safe launcher validation/smoke, bounded output capture, and source-build staging cleanup; rerun focused/full gates and republish. | ar1825-implementation-luna |
+| P0 | [AR-1825](tasks/AR-1825-bounded-source-to-executable-adapter-runtime-contract.md): Bounded source-to-executable adapter/runtime contract | Implement bounded source adapter contract | Run exact-head full gates on PR #622 at 4e37d542; obtain independent re-review and green CI before protected merge. | ar1825-implementation-luna |
 
 ## Open
 
