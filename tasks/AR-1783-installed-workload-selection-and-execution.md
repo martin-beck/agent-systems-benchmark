@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 safe filesystem and project-layout coverage batches are green; full workspace coverage remains 89.10% lines.",
-  "task_revision": 273,
+  "task_revision": 274,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:43:04+00:00",
+  "updated_at": "2026-10-12T22:45:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -735,3 +735,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T22:42:59+00:00: Recorded command exit 0; command argv SHA-256
   60cdc8e68b31f9b2c24ccbcbeb68f1fdc9d7639a476d5f883ee01ba82d1e01ca.
+
+- 2026-10-12T22:45:50+00:00: Recorded command exit 0; command argv SHA-256
+  b48802db5d60864fea266a175aab6561f162cad0de4217481cf349d287ea912d.
