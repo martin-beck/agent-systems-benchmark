@@ -1,6 +1,6 @@
 ---
 {
-  "branch": "repair/ar-1823-ar1820-receipt",
+  "branch": "",
   "checkpoint_commit": "",
   "claim_expires": "2026-10-12T17:01:26+00:00",
   "depends_on": [],
