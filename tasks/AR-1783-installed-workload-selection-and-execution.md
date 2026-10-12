@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 control boundary tests pass; full workspace coverage is 89.07% lines, below the fixed 90% floor.",
-  "task_revision": 226,
+  "task_revision": 227,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:27:43+00:00",
+  "updated_at": "2026-10-12T22:28:09+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -627,3 +627,6 @@ the suite from this end-to-end path.
   reports 89.07% lines (104306/121? total report: 157541 lines, 17218 missed), 84.72% functions,
   90.45% regions; no push/review/merge attempted. Generated profraw cleaned after run. Failure from
   prior run was stale diagnostic catalog identities; repaired and focused test now green.
+
+- 2026-10-12T22:28:09+00:00: Recorded command exit 0; command argv SHA-256
+  f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
