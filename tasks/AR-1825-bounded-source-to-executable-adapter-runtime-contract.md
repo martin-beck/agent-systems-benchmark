@@ -23,11 +23,11 @@
   },
   "spec_ref": "specs/AR-1825.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Define and implement a bounded source-to-executable adapter and runtime contract for supported ASB tools.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T18:14:00+00:00",
+  "updated_at": "2026-10-12T18:13:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -58,3 +58,6 @@ status explicit, including unsupported rows where no safe adapter exists.
 
 AR-1779 remains pending and must link this successor in its next action until
 AR-1825's acceptance evidence is independently reviewed and durable.
+
+- 2026-10-12T18:13:50+00:00: Dependencies AR-1776 and AR-1778 are done; open successor for bounded
+  source-to-executable adapter/runtime contract.
