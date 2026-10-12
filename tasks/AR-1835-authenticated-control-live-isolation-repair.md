@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Implement the fixture by reusing RunnerBackend authenticated catalog setup and the existing control.rs Unix socket harness; add positive bootstrap/cancel and stale/replay negatives, then run focused tests and coverage.",
+  "next_action": "Implement the test-only authenticated backend seeding seam first; then add real Unix-socket runtime bootstrap/cancel positive and stale/replay tests and rerun focused/full gates.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "da0cbe0848a10e61a2cd0b9a3144217842a3369b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 15,
+  "task_revision": 16,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-12T23:54:41+00:00",
+  "updated_at": "2026-10-12T23:55:54+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -82,3 +82,14 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   authenticated setup path, then issue RuntimeBootstrap and RuntimeBootstrapCancel over the real
   Unix socket; copying direct response construction or fabricating authority would violate AR-1835.
   No speculative product change was made. Focused baseline remains green.
+
+- 2026-10-12T23:55:54+00:00: No product implementation commit is safe yet. Exact API seam:
+  LiveProviderRuntimeBridge::request_control_bootstrap requires
+  ControlClient::session_identity_sha256 to equal the request control_session_sha256 before issuing
+  RuntimeBootstrap, while the real RunnerBackend response requires pre-seeded catalog auth and
+  runtime_authorities; direct runtime fixtures bypass both. Existing control.rs Unix-socket fixture
+  proves transport but only exercises plan/launch/reconnect. Next code action: expose a test-only
+  authenticated RunnerBackend seeding constructor or fixture module in asb-cli/asb-control, then add
+  an asb-runtime transport test using the real socket for bootstrap, cancel, stale generation and
+  replay. Do not fabricate certificate authority or weaken validation. Baseline focused suites
+  remain green; no product head was created.
