@@ -1,7 +1,7 @@
 ---
 {
   "branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "checkpoint_commit": "e0474221c5a95e7e091265738b4ba05938767a47",
+  "checkpoint_commit": "d87352ddb511c48b4be1bdbecdd26fb2cf6597a8",
   "claim_expires": "2026-10-13T01:41:21+00:00",
   "depends_on": [
     "AR-1763",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 delegated runtime fixture is covered; serialized full coverage remains below the 90% line floor (89.28% lines, 85.11% functions, 90.66% regions).",
-  "task_revision": 447,
+  "task_revision": 448,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:47:58+00:00",
+  "updated_at": "2026-10-12T23:48:03+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1137,3 +1137,5 @@ the suite from this end-to-end path.
   suites; latest durable aggregate remains 89.28% lines, 85.11% functions, 90.66% regions, below the
   fixed 90% line floor. Profraw artifacts were removed through handoffctl and product worktree is
   clean at d87352dd. No review/PR/merge should proceed while the coverage gate remains unmet.
+
+- 2026-10-12T23:48:03+00:00: Checkpointed source commit d87352ddb511c48b4be1bdbecdd26fb2cf6597a8.
