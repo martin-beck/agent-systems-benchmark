@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1775.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Implement the mandatory configurable output router and project-configured quiet, normal, verbose, and debug levels.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Configurable output router and levels",
-  "updated_at": "2026-10-12T13:22:43+00:00",
+  "updated_at": "2026-10-12T20:45:06+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1775-configurable-output-router-and-levels"
 }
 ---
@@ -53,3 +53,6 @@ the original command outcome where safe to do so.
 Route all pre-existing ASB output through this router before adding new progress
 behavior. JSON is not a configurable human writer: `--json` retains its exact
 stdout envelope and silences all human/operational output on both streams.
+
+- 2026-10-12T20:45:06+00:00: AR-1771 dependency is done with accepted contract evidence; promote
+  configurable output router implementation.
