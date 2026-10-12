@@ -17,7 +17,7 @@
   "id": "AR-1779",
   "next_action": "Replacement PR #619 is open at exact head 21372a22; obtain independent review and exact-head CI, then protected integration merge and post-merge verification.",
   "observed_branch": "repair/ar-1779-source-fallback-linear4",
-  "observed_dirty": 0,
+  "observed_dirty": 1,
   "observed_head": "6e1034a513c02469b02739f7e6b90da77672a8d9",
   "owner": "ar1779-default-install-luna",
   "plan": "../plans/AR-1779-default-usable-tool-install-command.md",
@@ -35,9 +35,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 193,
+  "task_revision": 194,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T18:08:05+00:00",
+  "updated_at": "2026-10-12T18:08:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
