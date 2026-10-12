@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1782-verified-asb-workload-installation",
   "checkpoint_commit": "c5154b12fc85bf356ce61d746c56b83d856ff502",
-  "claim_expires": "",
+  "claim_expires": "2026-10-12T19:11:01+00:00",
   "depends_on": [
     "AR-1781"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
   "observed_head": "3be3029d7a1d927b86b4ae938abfc939d8339009",
-  "owner": "",
+  "owner": "ar1782_luna_requal_20261012",
   "plan": "../plans/AR-1782-verified-asb-workload-installation.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1782.json",
   "spec_revision": 2,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 134,
+  "task_revision": 135,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-12T13:22:43+00:00",
+  "updated_at": "2026-10-12T17:11:01+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -403,3 +403,5 @@ remain mandatory.
 - 2026-10-12T13:21:50+00:00: Recovered expired claim formerly owned by
   ar1782_workload_install_luna56. Expired owner has no live worker process; recover for coordinator
   consistency.
+
+- 2026-10-12T17:11:01+00:00: Claimed by ar1782_luna_requal_20261012.
