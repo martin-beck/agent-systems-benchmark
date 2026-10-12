@@ -15,7 +15,7 @@
     "AR-1784"
   ],
   "id": "AR-1779",
-  "next_action": "Signed repair f1dbe055 is pushed to PR #618; request independent review and exact-head CI, then protected merge and post-merge verification.",
+  "next_action": "Portable protected-main provenance rejected merge-based f1dbe055 because PR range is not first-parent linear. Create a clean linear signed repair branch from protected main by cherry-picking the repair, rerun full gates, and request fresh review.",
   "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
   "observed_dirty": 0,
   "observed_head": "f1dbe055aaeb0d62a7e6520f5c82f957c4077199",
@@ -35,9 +35,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 151,
+  "task_revision": 152,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:56:49+00:00",
+  "updated_at": "2026-10-12T17:57:29+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -438,3 +438,6 @@ the adapter smoke check failed.
 
 - 2026-10-12T17:56:49+00:00: Recorded command exit 0; command argv SHA-256
   c5ba738a0efa3f642ee08c1608f448324ef86656753bdf405cd85698fb495dc6.
+
+- 2026-10-12T17:57:29+00:00: Exact CI failure recorded: merge commit 309dc039 introduced daf2d3ee as
+  a non-first-parent range; do not merge or force-push this branch.

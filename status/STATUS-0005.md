@@ -208,7 +208,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Signed repair f1dbe055 is pushed to PR #618; request independent review and exact-head CI, then protected merge and post-merge verification. |
+| P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Portable protected-main provenance rejected merge-based f1dbe055 because PR range is not first-parent linear. Create a clean linear signed repair branch from protected main by cherry-picking the repair, rerun full gates, and request fresh review. |
 
 ### Open (2)
 
@@ -595,4 +595,3 @@
 | P0 | [AR-1486](../tasks/AR-1486-runtime-owner-cli-entry-wiring.md): Runtime-owner CLI entry wiring | Unclaimed | Wire the runtime-owned local/mock process owner into ordinary CLI run and sweep. | Release complete; retain exact merge and eight workflow evidence. |
 | P0 | [AR-1487](../tasks/AR-1487-owner-backed-first-customer-qualification.md): Owner-backed first-customer qualification | Unclaimed | Qualify the owner-backed credential-free local/mock/replay first-customer journey. | Reconcile and doctor state projection; retain known generated WORKTREES/PROJECT_STATE caveat if reported. |
 | P0 | [AR-1488](../tasks/AR-1488-owner-backed-user-journey.md): Owner-backed first-customer user journey | Unclaimed | Qualify the owner-backed first-customer install, operation, replay, evidence, and cleanup journey. | Reconcile and doctor state projection; retain known generated WORKTREES/PROJECT_STATE caveat if reported. |
-| P0 | [AR-1489](../tasks/AR-1489-first-customer-package-consumption.md): First-customer package consumption | Unclaimed | Verify first-customer release package installation and owner-backed local/mock/replay consumption. | Reconcile and doctor state projection; retain known generated WORKTREES/PROJECT_STATE caveat if reported. |

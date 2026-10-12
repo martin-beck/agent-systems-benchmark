@@ -1204,7 +1204,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. |
-| Next action | Signed repair f1dbe055 is pushed to PR #618; request independent review and exact-head CI, then protected merge and post-merge verification. |
+| Next action | Portable protected-main provenance rejected merge-based f1dbe055 because PR range is not first-parent linear. Create a clean linear signed repair branch from protected main by cherry-picking the repair, rerun full gates, and request fresh review. |
 
 ### AR-1780 — Installed tool and workload execution qualification
 
