@@ -11,7 +11,7 @@
   "id": "AR-1783",
   "next_action": "Coverage report identifies remaining actionable-looking blocks only behind unavailable integration boundaries: live_service request_control_receipt lines 1854-1880, request_control_bootstrap 1888-1927, cancel_control_bootstrap 1931-1970 require an authenticated ControlClient/server fixture; launch_factory live attempt lines 701-721/798-837 and sandbox live spawn lines 766-837 require native delegated isolation. Do not fabricate or weaken these boundaries; create/use a proper bounded control endpoint or containerized native runner before adding tests.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 54,
+  "observed_dirty": 1,
   "observed_head": "945214967a16a4f4476689545d7ca5ac3b8e8462",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 latest serialized report is 89.28% lines, 85.11% functions, 90.66% regions; all tests pass but fixed 90% line floor remains unmet.",
-  "task_revision": 423,
+  "task_revision": 424,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:38:11+00:00",
+  "updated_at": "2026-10-12T23:38:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
