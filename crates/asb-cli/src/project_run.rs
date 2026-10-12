@@ -357,4 +357,129 @@ mod tests {
                 .is_err()
         );
     }
+
+    #[test]
+    fn installed_workload_identity_rejects_unsafe_or_stale_installations() {
+        fn fixture() -> (tempfile::TempDir, ProjectExecution, String, PathBuf) {
+            let directory = project();
+            let digest = "b".repeat(64);
+            let root = directory.path().join(".asb/workloads/fixture");
+            fs::create_dir_all(root.join("prepared")).unwrap();
+            fs::write(
+                root.join("receipt.json"),
+                serde_json::to_vec(&serde_json::json!({
+                    "workload_id": "fixture",
+                    "catalog_revision": "fixture-v1",
+                    "archive_digest_sha256": digest,
+                    "status": "verified",
+                    "license": "Apache-2.0",
+                    "preparation": "bounded",
+                    "evaluator_entrypoint": "fixture/run"
+                }))
+                .unwrap(),
+            )
+            .unwrap();
+            let mut config = super::load_tool_project(directory.path()).unwrap();
+            config.selections.workload = Some("fixture".into());
+            config.workloads.insert(
+                "fixture".into(),
+                ProjectToolRecordV1 {
+                    kind: ProjectToolKind::Workload,
+                    source_ref: "fixture://fixture".into(),
+                    version: "fixture-v1".into(),
+                    platform: super::platform_label(),
+                    path: Some(".asb/workloads/fixture".into()),
+                    digest_sha256: Some(digest.clone()),
+                    capabilities: vec!["external-workload".into()],
+                    status: ProjectToolStatus::Available,
+                },
+            );
+            super::save_tool_project(directory.path(), &config).unwrap();
+            let execution = ProjectExecution {
+                root: directory.path().to_path_buf(),
+                result_root: directory.path().join("results"),
+                work_root: directory.path().join(".asb/work"),
+            };
+            (directory, execution, digest, root)
+        }
+
+        // A built-in or unregistered workload keeps the standalone path.
+        let (directory, execution, digest, _) = fixture();
+        assert!(
+            execution
+                .validate_workload_identity("not-installed", "v1", &digest)
+                .is_ok()
+        );
+        drop(directory);
+
+        // Every installation precondition must fail closed before execution.
+        let (directory, execution, digest, _root) = fixture();
+        let mut config = super::load_tool_project(directory.path()).unwrap();
+        config.selections.workload = None;
+        super::save_tool_project(directory.path(), &config).unwrap();
+        assert!(
+            execution
+                .validate_workload_identity("fixture", "fixture-v1", &digest)
+                .is_err()
+        );
+        drop(directory);
+
+        let (directory, execution, digest, _root) = fixture();
+        let mut config = super::load_tool_project(directory.path()).unwrap();
+        config.workloads.get_mut("fixture").unwrap().status = ProjectToolStatus::Missing;
+        super::save_tool_project(directory.path(), &config).unwrap();
+        assert!(
+            execution
+                .validate_workload_identity("fixture", "fixture-v1", &digest)
+                .is_err()
+        );
+        drop(directory);
+
+        let (directory, execution, digest, _root) = fixture();
+        let mut config = super::load_tool_project(directory.path()).unwrap();
+        config.workloads.get_mut("fixture").unwrap().path = None;
+        super::save_tool_project(directory.path(), &config).unwrap();
+        assert!(
+            execution
+                .validate_workload_identity("fixture", "fixture-v1", &digest)
+                .is_err()
+        );
+        drop(directory);
+
+        let (directory, execution, digest, root) = fixture();
+        fs::remove_dir_all(&root).unwrap();
+        assert!(
+            execution
+                .validate_workload_identity("fixture", "fixture-v1", &digest)
+                .is_err()
+        );
+        drop(directory);
+
+        let (directory, execution, digest, root) = fixture();
+        fs::remove_dir_all(root.join("prepared")).unwrap();
+        assert!(
+            execution
+                .validate_workload_identity("fixture", "fixture-v1", &digest)
+                .is_err()
+        );
+        drop(directory);
+
+        let (directory, execution, digest, root) = fixture();
+        fs::write(root.join("receipt.json"), b"not-json").unwrap();
+        assert!(
+            execution
+                .validate_workload_identity("fixture", "fixture-v1", &digest)
+                .is_err()
+        );
+        drop(directory);
+
+        let (directory, execution, digest, root) = fixture();
+        fs::write(root.join("receipt.json"), vec![b'x'; 64 * 1024 + 1]).unwrap();
+        assert!(
+            execution
+                .validate_workload_identity("fixture", "fixture-v1", &digest)
+                .is_err()
+        );
+        drop(directory);
+    }
 }
