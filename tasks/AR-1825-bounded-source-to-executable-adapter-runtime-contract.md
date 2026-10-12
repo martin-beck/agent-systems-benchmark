@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 111,
+  "task_revision": 112,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T19:19:37+00:00",
+  "updated_at": "2026-10-12T19:19:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -354,3 +354,6 @@ AR-1825's acceptance evidence is independently reviewed and durable.
   negatives. Focused adapter (8), diagnostic (9), and workflow (3) tests pass.
 
 - 2026-10-12T19:19:37+00:00: Checkpointed source commit acf439195f13df0c06fe53f2a1924d794d600e56.
+
+- 2026-10-12T19:19:47+00:00: Recorded command exit 0; command argv SHA-256
+  1024fc1e6cefa31b078f0b5d2ed85c7ea4586897b388bf1e308f62db58574461.
