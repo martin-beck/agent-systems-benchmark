@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 project layout validation coverage batch is signed and green; latest full workspace coverage is 89.10% lines, below the 90% floor.",
-  "task_revision": 252,
+  "task_revision": 253,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:34:38+00:00",
+  "updated_at": "2026-10-12T22:34:41+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -682,3 +682,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T22:34:33+00:00: Recorded command exit 0; command argv SHA-256
   f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
+
+- 2026-10-12T22:34:41+00:00: Recorded command exit 0; command argv SHA-256
+  30a33dbd4b9c5228da76d62f7ebfe20b73b63196f031a5edc3c02f9b215554d8.
