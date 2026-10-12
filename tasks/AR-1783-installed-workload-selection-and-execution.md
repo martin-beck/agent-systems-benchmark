@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Target next largest uncovered control/TUI/runtime behavior cluster from llvm-cov (not another unchanged rerun), add positive/negative tests, then rerun serialized coverage to >=90% with headroom.",
+  "next_action": "Inspect the largest uncovered production cluster (sandbox/launch_factory), add behavior-driven positive and negative tests, run focused tests, then serialized llvm-cov to >=90% with headroom; keep artifacts clean.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 54,
   "observed_head": "bb291c717f55032b7bce559e4c0895f3e1531c82",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 loopback supervisor boundary tests are green; serialized workspace coverage improved to 89.19% lines, still below 90%.",
-  "task_revision": 342,
+  "summary": "AR-1783 \u2014 sidecar validation tests are green; bb291c71 raised serialized workspace coverage to 89.21% lines, 85.01% functions, 90.60% regions, still below 90%.",
+  "task_revision": 343,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:11:10+00:00",
+  "updated_at": "2026-10-12T23:11:18+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -885,3 +885,8 @@ the suite from this end-to-end path.
   21070f2de444d4c99f04c5185ce0e2ec530bfc3a1677ed3672239b6bccec64a5.
 
 - 2026-10-12T23:11:10+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T23:11:18+00:00: bb291c71 is SSH-signed with DCO. Focused asb-runtime loopback_sidecar
+  tests: 8 passed. Full serialized workspace suite passed; coverage gate failed only at fixed floor:
+  104547/117? report total 158063 lines, 89.21%; 9828 missed, 85.01% functions, 90.60% regions.
+  Generated profraw removed; worktree clean; no push/review/merge.
