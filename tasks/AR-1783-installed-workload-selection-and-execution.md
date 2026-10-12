@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Continue meaningful behavior-driven tests in uncovered control/TUI/runtime paths; rerun serialized llvm-cov and reach >=90% lines with headroom before push/review.",
+  "next_action": "Continue broad behavior-driven tests in uncovered control/TUI/runtime seams; rerun deterministic serialized llvm-cov and reach >=90% lines with headroom before pushing.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "410f08c143954a5c9ff911289628e59ce136c0e7",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 sandbox environment-boundary tests are green; serialized full coverage remains 89.11% lines.",
-  "task_revision": 307,
+  "summary": "AR-1783 \u2014 control state/endpoint behavior tests and diagnostic catalog repair are green; serialized full coverage remains 89.11% lines.",
+  "task_revision": 308,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:57:20+00:00",
+  "updated_at": "2026-10-12T22:57:27+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -807,3 +807,9 @@ the suite from this end-to-end path.
   b48802db5d60864fea266a175aab6561f162cad0de4217481cf349d287ea912d.
 
 - 2026-10-12T22:57:20+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T22:57:27+00:00: Latest signed/DCO product commits: 0d50540e (control state and endpoint
+  tests), 410f08c1 (diagnostic identity refresh). Focused control and diagnostic-contract tests
+  pass. Serialized full workspace llvm-cov completed suites; 89.11% lines (coverage gate remains
+  nonzero because fixed 90% floor is unmet), 84.78% functions, 90.49% regions. Profraw removed,
+  worktree clean, no push/review/merge.

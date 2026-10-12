@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | AR-1783 — sandbox environment-boundary tests are green; serialized full coverage remains 89.11&#37; lines. |
-| Next action | Continue meaningful behavior-driven tests in uncovered control/TUI/runtime paths; rerun serialized llvm-cov and reach &gt;=90&#37; lines with headroom before push/review. |
+| Summary | AR-1783 — control state/endpoint behavior tests and diagnostic catalog repair are green; serialized full coverage remains 89.11&#37; lines. |
+| Next action | Continue broad behavior-driven tests in uncovered control/TUI/runtime seams; rerun deterministic serialized llvm-cov and reach &gt;=90&#37; lines with headroom before pushing. |
 
 ### AR-1784 — Command dependency registry and preflight
 
