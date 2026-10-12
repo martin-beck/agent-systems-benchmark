@@ -3,7 +3,10 @@
   "branch": "repair/ar-1799-tui-install-rustup-invalid",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1738", "AR-1636"],
+  "depends_on": [
+    "AR-1738",
+    "AR-1636"
+  ],
   "id": "AR-1799",
   "next_action": "Reproduce the installed-entrypoint failure on the exact current ASB main head, then repair the failing rustup/rustc path and add regression coverage.",
   "observed_branch": "",
@@ -13,14 +16,21 @@
   "plan": "../plans/AR-1799-tui-install-rustup-invalid-repair.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "environmental", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1799.json", "spec_revision": 1, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "environmental",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1799.json",
+    "spec_revision": 1,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1799.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Repair asb tui install rustup/rustc trusted-tool rejection",
-  "updated_at": "2026-10-12T00:00:00+00:00",
+  "updated_at": "2026-10-12T13:23:02+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1799-tui-install-rustup-invalid"
 }
 ---
@@ -39,3 +49,6 @@ The acceptance target is the installed-entrypoint journey (`asb tui install`,
 then status/launch or the documented no-provider qualification), not only an
 isolated preflight helper. No API key, signature, or key-management artifact
 may block development qualification or enter durable state.
+
+- 2026-10-12T13:23:02+00:00: Open P0 repair for the reproduced user-visible asb tui install
+  trusted_tool_invalid failure.
