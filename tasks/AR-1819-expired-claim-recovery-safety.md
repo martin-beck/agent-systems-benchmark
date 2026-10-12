@@ -1,6 +1,6 @@
 ---
 {
-  "branch": "",
+  "branch": "repair/ar-1819-current-main-v3",
   "checkpoint_commit": "",
   "claim_expires": "2026-10-12T16:47:55+00:00",
   "depends_on": [],
@@ -14,10 +14,10 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make expired-claim recovery fail closed when the exact current session snapshot is unavailable.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Fail-closed expired-claim recovery",
-  "updated_at": "2026-10-12T14:47:55+00:00",
-  "worktree_key": ""
+  "updated_at": "2026-10-12T14:48:54+00:00",
+  "worktree_key": "agent-systems-benchmark-ar-1819-current-main-v3"
 }
 ---
 
@@ -42,3 +42,6 @@ provider run is required for this development repair.
   exact reviewed repair.
 
 - 2026-10-12T14:47:55+00:00: Claimed by ar1819_restore_merge.
+
+- 2026-10-12T14:48:54+00:00: Bound worktree agent-systems-benchmark-ar-1819-current-main-v3 on
+  branch repair/ar-1819-current-main-v3.
