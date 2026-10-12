@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 61,
+  "task_revision": 62,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T21:22:31+00:00",
+  "updated_at": "2026-10-12T21:24:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -196,3 +196,6 @@ the suite from this end-to-end path.
   use an unregistered/built-in workload while an external workload is selected, contrary to the AR
   requirement to reject manually substituted/ambient identities before execution. Need fail-closed
   selection binding and negative test.
+
+- 2026-10-12T21:24:25+00:00: Recorded command exit 0; command argv SHA-256
+  c8aae51f164559c1c2734b310b508fd66c2e7b4e955a4544d735ff59c4a48832.
