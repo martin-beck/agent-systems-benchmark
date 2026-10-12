@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "ar": "AR-1820",
+  "kind": "protected-main-provenance-requalification",
+  "pull_request": 614,
+  "reviewed_head": "7ebfd47a5ab6279779aa899ef83b27c6c4d86edd",
+  "merge_commit": "65b40d4e4ad2b7f9da84d4037cf683b88ce517b5",
+  "merge_parents": [
+    "aaf76f2e1b3431303fde87599a1f5649d2b0bde3",
+    "7ebfd47a5ab6279779aa899ef83b27c6c4d86edd"
+  ],
+  "reviewed_tree": "a2619c340522fc75361052ecc9387c34cab55dcf",
+  "merge_tree": "a2619c340522fc75361052ecc9387c34cab55dcf",
+  "merge_author": "Martin Beck <martin.beck2@gmx.de>",
+  "merge_committer": "Martin Beck <martin.beck2@gmx.de>",
+  "merge_dco": true,
+  "merge_ssh_signature": "valid_allowed_ssh",
+  "historical_failure": {
+    "merge": "4b14797a0892988a484a5171c45c4e8ec3c3d836",
+    "runs": [
+      38210171658,
+      38210171401,
+      38210171442
+    ],
+    "classification": "protected-main merge committer was GitHub <noreply@github.com>, not local integration identity; history preserved"
+  },
+  "post_merge_runs": [
+    {
+      "run": 38261400536,
+      "name": "Development formal assurance",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "run": 38261400292,
+      "name": "Hosted portability and native qualification",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "run": 38261400478,
+      "name": "Fault assurance",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "run": 38261400538,
+      "name": "Cross-repository development broker qualification",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "run": 38261400463,
+      "name": "Portable protected-main provenance",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "run": 38261400436,
+      "name": "Huawei MIT source headers",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "run": 38261400374,
+      "name": "Credential-free benchmark path",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "run": 38261400526,
+      "name": "Rust verification",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "run": 38261400258,
+      "name": "Repository quality",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "run": 38261400465,
+      "name": "Emulated aarch64 portability",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "privacy": "No credentials, host paths, raw command output, or provider content recorded.",
+  "status": "pass"
+}
