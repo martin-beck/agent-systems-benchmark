@@ -16,19 +16,19 @@
   "schema_version": 1,
   "spec_acceptance": {
     "evidence_class": "journey",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_digest": "sha256:7eab9f858b87e08bcc4849e6711298c144f77e5e60838fde5b1bd54c740d2928",
+    "evidence_ref": "quality/AR-1689-paired-tui-fresh-user-20261012.json",
     "spec_ref": "specs/AR-1833.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1833.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair malformed AR-1689 paired qualification evidence before relying on its done state.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "Repair AR-1689 receipt bytes",
-  "updated_at": "2026-10-12T21:55:25+00:00",
+  "updated_at": "2026-10-12T21:55:50+00:00",
   "worktree_key": ""
 }
 ---
@@ -48,3 +48,7 @@ Repair AR-1689’s malformed receipt bytes without changing the reviewed paired 
 
 - 2026-10-12T21:55:25+00:00: Recorded command exit 0; command argv SHA-256
   5d35708dfd2d74ec27c9267eea0a99c0cb6e17bc6a84f84e59196622809b5251.
+
+- 2026-10-12T21:55:50+00:00: Receipt rewritten through the AR-1833 wrapper from canonical JSON,
+  validates with python json.tool, and ends in a real LF newline. Repair commit 90d65d8ba1 is
+  SSH-signed and DCO-signed.
