@@ -266,6 +266,5 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `review-pr610` | `DETACHED` | `95a342fde4c5` | 0 | behind 28, ahead 4 |
 | `agent-systems-benchmark-ar-1498` | `feature/ar-1498-authenticated-lifecycle-executor` | `55ff13fb6cb2` | 0 | behind 790, ahead 1275 |
 | `agent-systems-benchmark-ar-1499` | `feature/ar-1499-development-credential-enrollment` | `0a2f6e9c74f9` | 0 | behind 790, ahead 1280 |
-| `agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract` | `feature/ar-1825-source-to-executable-adapter-runtime-contract` | `e058ea2b5881` | 6 | behind 7, ahead 0 |
-| changed files | - | - | - | `README.md`, `crates/asb-cli/src/lib.rs`, `crates/asb-cli/src/source_builder.rs`, `crates/asb-cli/fixtures/v1/source-executable-support-matrix.json`, `crates/asb-cli/src/tool_materialization.rs`, `docs/TOOL_ADAPTERS.md` |
+| `agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract` | `feature/ar-1825-source-to-executable-adapter-runtime-contract` | `96669e6b4b8b` | 0 | behind 7, ahead 1 |
 | `ar1824-repair.Tp51GE` | `DETACHED` | `c2745e04e231` | 0 | behind 10, ahead 0 |
