@@ -1,7 +1,7 @@
 ---
 {
   "branch": "feature/ar-1825-source-to-executable-adapter-runtime-contract",
-  "checkpoint_commit": "acf439195f13df0c06fe53f2a1924d794d600e56",
+  "checkpoint_commit": "693a105cae096dccc719820a27cbcf5df6a612f9",
   "claim_expires": "2026-10-12T20:52:28+00:00",
   "depends_on": [
     "AR-1776",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Implement bounded source adapter contract",
-  "task_revision": 119,
+  "task_revision": 120,
   "title": "Bounded source-to-executable adapter/runtime contract",
-  "updated_at": "2026-10-12T19:25:23+00:00",
+  "updated_at": "2026-10-12T19:25:29+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract"
 }
 ---
@@ -382,3 +382,5 @@ AR-1825's acceptance evidence is independently reviewed and durable.
   diagnostics 9, workflow 3; full workspace 451 passed; clippy, docs, release build passed. Prior
   full workspace one-time discovery test failure passed on isolated rerun. Runtime gpt-5.6-luna
   medium.
+
+- 2026-10-12T19:25:29+00:00: Checkpointed source commit 693a105cae096dccc719820a27cbcf5df6a612f9.
