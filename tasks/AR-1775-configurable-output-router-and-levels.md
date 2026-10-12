@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1775-configurable-output-router-and-levels",
   "checkpoint_commit": "5f68e8396c4c74b30ce9142f82c5fa57aedf1e3a",
-  "claim_expires": "2026-10-12T23:26:46+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1771"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1775-configurable-output-router-and-levels",
   "observed_dirty": 0,
   "observed_head": "67ddb52211144bc79a3d8dca36ba9030b3798085",
-  "owner": "ar1775-cli2key-runtime-luna",
+  "owner": "",
   "plan": "../plans/AR-1775-configurable-output-router-and-levels.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1775.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Independent PR #625 review complete; awaiting hosted required CI",
-  "task_revision": 106,
+  "task_revision": 107,
   "title": "Configurable output router and levels",
-  "updated_at": "2026-10-12T21:43:56+00:00",
+  "updated_at": "2026-10-12T21:44:01+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1775-configurable-output-router-and-levels"
 }
 ---
@@ -302,3 +302,7 @@ stdout envelope and silences all human/operational output on both streams.
 - 2026-10-12T21:43:56+00:00: PR #625 merged as 356a669e0c6ebbb6cd3675a119cba16fea486283 after
   exact-head hosted checks passed; post-merge origin/main checkout and 456-test focused suite
   passed.
+
+- 2026-10-12T21:44:01+00:00: Released after PR #625 protected merge, exact-head green CI,
+  independent review, and post-merge 456-test verification. Receipt
+  quality/AR-1775-postmerge-receipt.txt.
