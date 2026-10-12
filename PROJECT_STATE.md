@@ -41,11 +41,11 @@ Generated from local Git and GitHub. Do not edit.
 | 38312087289 | `356a669e0c6e` | push | Emulated aarch64 portability | in_progress:- |
 | 38312087235 | `356a669e0c6e` | push | Repository quality | completed:failure |
 | 38312087167 | `356a669e0c6e` | push | Huawei MIT source headers | completed:success |
-| 38312087147 | `356a669e0c6e` | push | Development formal assurance | in_progress:- |
-| 38312087123 | `356a669e0c6e` | push | Cross-repository development broker qualification | in_progress:- |
-| 38312087107 | `356a669e0c6e` | push | Credential-free benchmark path | in_progress:- |
-| 38312087093 | `356a669e0c6e` | push | Hosted portability and native qualification | in_progress:- |
-| 38312087071 | `356a669e0c6e` | push | Fault assurance | in_progress:- |
+| 38312087147 | `356a669e0c6e` | push | Development formal assurance | completed:success |
+| 38312087123 | `356a669e0c6e` | push | Cross-repository development broker qualification | completed:success |
+| 38312087107 | `356a669e0c6e` | push | Credential-free benchmark path | completed:success |
+| 38312087093 | `356a669e0c6e` | push | Hosted portability and native qualification | completed:success |
+| 38312087071 | `356a669e0c6e` | push | Fault assurance | completed:success |
 | 38312087037 | `356a669e0c6e` | push | Rust verification | in_progress:- |
 | 38310632714 | `dad6dd8c06a3` | pull_request | Cross-repository development broker qualification | completed:success |
 | 38310632696 | `dad6dd8c06a3` | pull_request | Hosted portability and native qualification | completed:success |
