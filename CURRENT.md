@@ -8,6 +8,7 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1799](tasks/AR-1799-tui-install-rustup-invalid-repair.md): Repair asb tui install rustup/rustc trusted-tool rejection | Repair the remaining current-main asb tui install trusted_tool_invalid failure for development rustup/rustc layouts and qualify the real installed entrypoint. | PR #613 (63ba8e7973545f65bd8dda56f3aa24d9d339bb16) is open; focused rustup tests, fmt, clippy, and independent review pass. Await remaining exact-head hosted checks, then merge and run post-merge installed-entrypoint qualification. | codex-ar1799-tui-install-rustup-invalid-20261012 |
+| P0 | [AR-1819](tasks/AR-1819-expired-claim-recovery-safety.md): Fail-closed expired-claim recovery | Make expired-claim recovery fail closed when the exact current session snapshot is unavailable. | Implement fail-closed expired-claim recovery, add focused positive and negative coverage, then independently review and integrate the exact signed head. | ar1819_restore_merge |
 
 ## Open
 
