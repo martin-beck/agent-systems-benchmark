@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 31,
+  "task_revision": 32,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:11:15+00:00",
+  "updated_at": "2026-10-12T17:11:22+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -132,3 +132,6 @@ the adapter smoke check failed.
   has no live worker process; recover for coordinator consistency.
 
 - 2026-10-12T17:11:15+00:00: Claimed by ar1779-default-install-luna.
+
+- 2026-10-12T17:11:22+00:00: Recorded command exit 0; command argv SHA-256
+  6129ccfce874b9c6a080b6553d85151682cf6a1e68da4436564c985d70b81d27.
