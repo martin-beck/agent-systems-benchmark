@@ -1260,7 +1260,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Select every development external workload and prove ASB uses its exact project-local identity end to end. |
-| Next action | Await independent exact-head review evidence for PR #624; then coordinator performs protected merge and exact-main post-merge verification. |
+| Next action | Repair plan workload binding so a project plan cannot substitute an unregistered/built-in workload when an external installed workload is selected; rerun independent exact-head review. |
 
 ### AR-1784 — Command dependency registry and preflight
 

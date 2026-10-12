@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Await independent exact-head review evidence for PR #624; then coordinator performs protected merge and exact-main post-merge verification.",
+  "next_action": "Repair plan workload binding so a project plan cannot substitute an unregistered/built-in workload when an external installed workload is selected; rerun independent exact-head review.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "e0474221c5a95e7e091265738b4ba05938767a47",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Select every development external workload and prove ASB uses its exact project-local identity end to end.",
-  "task_revision": 60,
+  "task_revision": 61,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T21:19:53+00:00",
+  "updated_at": "2026-10-12T21:22:31+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -183,3 +183,16 @@ the suite from this end-to-end path.
 - 2026-10-12T21:19:53+00:00: PR #624 exact head e0474221c5a95e7e091265738b4ba05938767a47 against
   base 74b391348fc5c1361034a14742f6afef747d72db; all required hosted checks are green. Merge remains
   gated on independent review evidence.
+
+- 2026-10-12T21:22:31+00:00: Independent read-only review by ar1783-review-luna of PR #624 exact
+  head e0474221c5a95e7e091265738b4ba05938767a47 against base
+  74b391348fc5c1361034a14742f6afef747d72db. Diff is 4 files/320 insertions and git diff --check is
+  clean. All five topic commits have valid Martin Beck SSH signatures under config/allowed_signers
+  and matching Martin Beck DCO trailers; changed text contains no private
+  paths/secrets/prompts/transcripts. gh reports all 13 status checks SUCCESS. BLOCKER:
+  project_run.rs validate_workload_identity returns Ok when plan workload_id is absent from
+  config.workloads, and the added test explicitly accepts not-installed. ProjectExecution::resolve
+  validates only the configured selected workload; bind_plan then allows a manually edited plan to
+  use an unregistered/built-in workload while an external workload is selected, contrary to the AR
+  requirement to reject manually substituted/ambient identities before execution. Need fail-closed
+  selection binding and negative test.
