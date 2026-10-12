@@ -4,7 +4,7 @@ Generated from local Git and GitHub. Do not edit.
 
 - Product remote main: `e058ea2b5881e047c2a02a5bc5bd4f23103c28c0`
 - Local origin/main: `e058ea2b5881e047c2a02a5bc5bd4f23103c28c0`
-- Primary worktree head: `3bac0c0e53c5c89be8ecc7a3142ffe7017789c12`
+- Primary worktree head: `47c29b5a1f2a72cc0482b4cb004644ebba799327`
 
 ## Open pull requests
 
@@ -31,7 +31,7 @@ Generated from local Git and GitHub. Do not edit.
 | #612 | `feature/ar-1774-status-progress-completeness-ci@ad7f1166afc5` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | ci: enforce status and progress completeness |
 | #618 | `repair/ar-1779-current-main-smoke@f1dbe055aaeb` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): verify supported tool reuse and entrypoints |
 | #619 | `repair/ar-1779-source-fallback-linear3@21372a22aba3` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
-| #620 | `repair/ar-1779-source-fallback-linear4@80060a79e716` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
+| #620 | `repair/ar-1779-source-fallback-linear4@80060a79e716` | `main` | CLEAN | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
 
 ## Recent workflows
 
@@ -41,11 +41,11 @@ Generated from local Git and GitHub. Do not edit.
 | 38289055914 | `80060a79e716` | pull_request | Credential-free benchmark path | completed:success |
 | 38289055713 | `80060a79e716` | pull_request | Fault assurance | completed:success |
 | 38289055701 | `80060a79e716` | pull_request | Agent Workflow Quality shadow | completed:success |
-| 38289055683 | `80060a79e716` | pull_request | Emulated aarch64 portability | in_progress:- |
-| 38289055666 | `80060a79e716` | pull_request | Rust verification | in_progress:- |
+| 38289055683 | `80060a79e716` | pull_request | Emulated aarch64 portability | completed:success |
+| 38289055666 | `80060a79e716` | pull_request | Rust verification | completed:success |
 | 38289055661 | `80060a79e716` | pull_request | Development formal assurance | completed:success |
 | 38289055651 | `80060a79e716` | pull_request | Portable protected-main provenance | completed:success |
-| 38289055646 | `80060a79e716` | pull_request | Repository quality | in_progress:- |
+| 38289055646 | `80060a79e716` | pull_request | Repository quality | completed:success |
 | 38289055633 | `80060a79e716` | pull_request | Cross-repository development broker qualification | completed:success |
 | 38289055631 | `80060a79e716` | pull_request | Hosted portability and native qualification | completed:success |
 | 38288571169 | `21372a22aba3` | pull_request | Emulated aarch64 portability | completed:success |
