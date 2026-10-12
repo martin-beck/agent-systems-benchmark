@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 control boundary tests pass; full workspace coverage is 89.07% lines, below the fixed 90% floor.",
-  "task_revision": 228,
+  "task_revision": 229,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:28:12+00:00",
+  "updated_at": "2026-10-12T22:28:20+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -630,3 +630,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T22:28:09+00:00: Recorded command exit 0; command argv SHA-256
   f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
+
+- 2026-10-12T22:28:20+00:00: Recorded command exit 0; command argv SHA-256
+  d0d6a496a815d2406b57c29750f16d0dac2280b031da5d5a6e0dc27af4f66096.
