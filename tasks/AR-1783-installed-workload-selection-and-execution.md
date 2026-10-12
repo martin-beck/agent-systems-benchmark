@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 control boundary tests pass; full workspace coverage is 89.07% lines, below the fixed 90% floor.",
-  "task_revision": 230,
+  "task_revision": 231,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:28:31+00:00",
+  "updated_at": "2026-10-12T22:28:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -635,3 +635,6 @@ the suite from this end-to-end path.
   d0d6a496a815d2406b57c29750f16d0dac2280b031da5d5a6e0dc27af4f66096.
 
 - 2026-10-12T22:28:31+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T22:28:33+00:00: Recorded command exit 0; command argv SHA-256
+  d4b0b843a013d941a33c6bb891f5036f5c4fd1725ae5ca2ab487ff247011c8fd.
