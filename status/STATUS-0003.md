@@ -1204,7 +1204,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. |
-| Next action | Repair rejected PR #618 findings before further publication: refresh reviewed diagnostic identity allowlist for shifted CliError callsites, add receipt verifier validation with positive/negative reuse tests, and make source fallback produce and validate a real adapter entrypoint rather than package archives. Then sign/DCO, rerun focused/full gates, push exact head, and request independent review again. |
+| Next action | PR #618 now points to repaired signed head db08ffb3; request fresh independent review of all three findings and await exact-head hosted CI. Full locked workspace tests, diagnostic contract, catalog reuse tests, clippy, and fmt are green. Merge only after independent approval and all required checks, then post-merge requalify source/prebuilt install paths. |
 
 ### AR-1780 — Installed tool and workload execution qualification
 

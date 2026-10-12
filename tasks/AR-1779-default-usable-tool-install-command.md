@@ -9,7 +9,7 @@
     "AR-1784"
   ],
   "id": "AR-1779",
-  "next_action": "Repair rejected PR #618 findings before further publication: refresh reviewed diagnostic identity allowlist for shifted CliError callsites, add receipt verifier validation with positive/negative reuse tests, and make source fallback produce and validate a real adapter entrypoint rather than package archives. Then sign/DCO, rerun focused/full gates, push exact head, and request independent review again.",
+  "next_action": "PR #618 now points to repaired signed head db08ffb3; request fresh independent review of all three findings and await exact-head hosted CI. Full locked workspace tests, diagnostic contract, catalog reuse tests, clippy, and fmt are green. Merge only after independent approval and all required checks, then post-merge requalify source/prebuilt install paths.",
   "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
   "observed_dirty": 0,
   "observed_head": "db08ffb341d5bb8666c8aa9119d01503bc458b26",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 102,
+  "task_revision": 103,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T17:38:31+00:00",
+  "updated_at": "2026-10-12T17:39:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -304,3 +304,9 @@ the adapter smoke check failed.
 
 - 2026-10-12T17:38:31+00:00: Recorded command exit 0; command argv SHA-256
   b3fc1eb1fa92c713fda4d9d88902a0e795fe9397c95a80d326a4840681733ba1.
+
+- 2026-10-12T17:39:24+00:00: Repaired review findings: typed diagnostic identities plus explicit
+  reviewed insertion-offset allowlist, receipt verifier included and positive/negative reuse test,
+  source builder rejects package archives/non-executable output before activation and validates
+  executable staging. Product commits b76659a8, ddb0d931, db08ffb3 are SSH-signed with DCO. PR #618
+  updated without force-pushing stale PR #583.
