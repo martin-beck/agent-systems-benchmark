@@ -53,6 +53,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-aider-deterministic-replay` | `fix/aider-deterministic-replay` | `87a22654913a` | 0 | behind 802, ahead 99 |
 | `agent-systems-benchmark-all-agents-provider` | `feature/all-agents-provider` | `03962f28571e` | 0 | behind 802, ahead 136 |
 | `agent-systems-benchmark-ar-1652-record-replay` | `repair/ar-1652-record-replay` | `ab0a791b05d6` | 0 | behind 10, ahead 0 |
+| `agent-systems-benchmark-ar-1686` | `qualification/ar-1686` | `f37d3a3ef839` | 0 | behind 95, ahead 0 |
 | `agent-systems-benchmark-ar-1779-default-usable-tool-install-command` | `repair/ar-1779-source-fallback-linear4` | `80060a79e716` | 0 | behind 13, ahead 0 |
 | `agent-systems-benchmark-ar-1799-tui-install-rustup-invalid` | `repair/ar-1799-tui-install-rustup-invalid` | `e058ea2b5881` | 0 | behind 19, ahead 0 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 802, ahead 326 |
