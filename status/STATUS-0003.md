@@ -1722,7 +1722,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e |
-| Next action | Wait for Repository quality run 38317132551, Rust verification 38317132596, and emulated AArch64 run 38317132577 to terminal success; obtain independent exact-head review, then invoke merge_pr.py |
+| Next action | Independent exact-head review approved 4107fcd177efa675f74e1ae08d0ee0bfa15c5216; all 14 PR checks are terminal-success. Merge only through tools/integration/merge_pr.py; do not web-merge. |
 
 
 ## Dependency graph

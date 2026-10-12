@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T01:42:49+00:00",
   "depends_on": [],
   "id": "AR-1834",
-  "next_action": "Wait for Repository quality run 38317132551, Rust verification 38317132596, and emulated AArch64 run 38317132577 to terminal success; obtain independent exact-head review, then invoke merge_pr.py",
+  "next_action": "Independent exact-head review approved 4107fcd177efa675f74e1ae08d0ee0bfa15c5216; all 14 PR checks are terminal-success. Merge only through tools/integration/merge_pr.py; do not web-merge.",
   "observed_dirty": 0,
   "observed_head": "",
   "owner": "ar1805_postmerge_repair",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e",
-  "task_revision": 34,
+  "task_revision": 35,
   "title": "AR-1775 protected-main local identity recovery",
-  "updated_at": "2026-10-12T22:43:50+00:00",
+  "updated_at": "2026-10-12T22:44:15+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1834-ar1775-protected-main-identity"
 }
 ---
@@ -142,3 +142,14 @@ This successor is metadata-only and forward-only. It must not alter `LOCAL_COMMI
 
 - 2026-10-12T22:43:50+00:00: Recorded command exit 0; command argv SHA-256
   f481b1f12e540160877c01fb3534a947cf2c523f558d8bdb273eadf7cc435f35.
+
+- 2026-10-12T22:44:15+00:00: Independent Luna review receipt: exact PR #626 head
+  4107fcd177efa675f74e1ae08d0ee0bfa15c5216 is one signed-DCO metadata-only child of historical
+  356a669e0c6ebbb6cd3675a119cba16fea486283; candidate tree equals historical tree and diff is empty.
+  Candidate SSH signature verifies as Martin Beck <martin.beck2@gmx.de>; repository policy and
+  portable provenance pass; privacy, signer identity, arbitrary-signer rejection, historical
+  preservation, and unrelated-scope checks pass. Focused/full local gates pass: fmt, clippy,
+  workspace tests, rustdoc, release build. PR #626 exact-head hosted checks all 14 terminal-success
+  (including Policy/coverage/supply chain, Rust, emulated AArch64, provenance, AWQ, TUI, Kani, Loom,
+  fuzz, retained faults, platform, credential-free, and headers). Approved for signed local merge
+  only; no merge performed.
