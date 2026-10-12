@@ -11,7 +11,7 @@
   "id": "AR-1783",
   "next_action": "Inspect the largest uncovered production cluster (sandbox/launch_factory), add behavior-driven positive and negative tests, run focused tests, then serialized llvm-cov to >=90% with headroom; keep artifacts clean.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 0,
+  "observed_dirty": 54,
   "observed_head": "5910b65c6855e9b8a7c3c817a9a81699fdb91254",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 sidecar validation tests are green; bb291c71 raised serialized workspace coverage to 89.21% lines, 85.01% functions, 90.60% regions, still below 90%.",
-  "task_revision": 352,
+  "task_revision": 353,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:15:28+00:00",
+  "updated_at": "2026-10-12T23:15:34+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
