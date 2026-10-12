@@ -11,7 +11,7 @@
   "id": "AR-1783",
   "next_action": "Add behavior-driven baseline tests across lib/control/tui/runtime seams; rerun isolated serialized llvm-cov until hard 90% floor passes; keep PR unapproved",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 0,
+  "observed_dirty": 1,
   "observed_head": "32f42827367dbfedcb21304e80234336445ab683",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Coverage audit: installed-workload behavior is covered but workspace floor remains below gate",
-  "task_revision": 182,
+  "task_revision": 183,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:15:17+00:00",
+  "updated_at": "2026-10-12T22:15:19+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
