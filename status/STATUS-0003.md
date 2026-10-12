@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | AR-1783 — TUI boundary coverage tests pass; latest full workspace llvm-cov is 89.08&#37; lines, still below the fixed 90&#37; floor. |
-| Next action | Continue behavior-driven coverage in largest uncovered control/TUI/runtime seams; add substantial positive/negative tests, rerun full llvm-cov to at least 90&#37; with headroom, then push signed exact-head repair. |
+| Summary | AR-1783 — project layout validation coverage batch is signed and green; latest full workspace coverage is 89.10&#37; lines, below the 90&#37; floor. |
+| Next action | Continue behavior-driven tests in the largest uncovered control/TUI/runtime seams; run full llvm-cov after each bounded batch and reach at least 90&#37; lines with headroom before push/review. |
 
 ### AR-1784 — Command dependency registry and preflight
 

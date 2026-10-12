@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Continue behavior-driven coverage in largest uncovered control/TUI/runtime seams; add substantial positive/negative tests, rerun full llvm-cov to at least 90% with headroom, then push signed exact-head repair.",
+  "next_action": "Continue behavior-driven tests in the largest uncovered control/TUI/runtime seams; run full llvm-cov after each bounded batch and reach at least 90% lines with headroom before push/review.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 54,
   "observed_head": "c92ea3cdfbac32edb84062d238b54e3cdad3b108",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 \u2014 TUI boundary coverage tests pass; latest full workspace llvm-cov is 89.08% lines, still below the fixed 90% floor.",
-  "task_revision": 249,
+  "summary": "AR-1783 \u2014 project layout validation coverage batch is signed and green; latest full workspace coverage is 89.10% lines, below the 90% floor.",
+  "task_revision": 250,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:34:01+00:00",
+  "updated_at": "2026-10-12T22:34:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -673,3 +673,9 @@ the suite from this end-to-end path.
   e61f9d3beb1ca5641341fcbf3eb64bbd6f2035831028208eafe31c5cd951748e.
 
 - 2026-10-12T22:34:01+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T22:34:08+00:00: Exact local head c92ea3cdfbac32edb84062d238b54e3cdad3b108 is SSH-signed
+  (G) with DCO. Added project setup/layout validation tests covering missing/file/outside/symlink
+  roots; focused test passes. Full workspace llvm-cov completed all suites: 89.10% lines (104363
+  covered, 9935 missed of 157645), 84.76% functions, 90.48% regions. Generated profraw removed.
+  Worktree clean; no push/review/merge.
