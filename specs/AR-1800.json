@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1800.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {
+      "id": "dev-warning-only",
+      "description": "In the dev channel, scoped trusted-tool ownership/mode/path findings, SHA-256 mismatches, exact version or toolchain mismatches, and development trust-contract findings emit typed warnings and never fail a command solely for that mismatch."
+    },
+    {
+      "id": "warning-visibility",
+      "description": "Every downgraded finding is visible at warning log level and above under the existing log-level contract, in human output, and as a redacted diagnostic in --json."
+    },
+    {
+      "id": "continuation",
+      "description": "Supported development commands continue through their normal best-effort result or partial-result path after each scoped mismatch, including asb tui install."
+    },
+    {
+      "id": "tui-install",
+      "description": "A development trust-contract warning does not stop the installed asb tui install flow and the result truthfully records degraded trust."
+    },
+    {
+      "id": "strict-boundaries",
+      "description": "Stable and production channels retain strict trust failures; malformed invocation, unsafe path construction or traversal, secret exposure, and impossible filesystem or process states remain hard failures."
+    },
+    {
+      "id": "complete-audit",
+      "description": "A call-site audit and regression coverage demonstrate that no scoped development trust validator remains an unintentional hard failure."
+    }
+  ],
+  "definition_of_done": [
+    "A signed DCO implementation is independently reviewed and merged on protected ASB main.",
+    "Focused and full applicable locked gates pass on the exact reviewed head.",
+    "Post-merge development-channel TUI install and command-continuation receipts pass while stable and production negative fixtures remain strict and diagnostics contain no secrets."
+  ],
+  "inputs": [
+    {
+      "id": "validators",
+      "description": "Current ASB trusted-tool, digest, version, bundle, catalog, workload, acquisition, and TUI install validators."
+    },
+    {
+      "id": "diagnostics",
+      "description": "Current ASB human output, warning log-level, JSON, redaction, and exit-code contracts."
+    },
+    {
+      "id": "channels",
+      "description": "Development versus stable and production channel policy and selection behavior."
+    }
+  ],
+  "outputs": [
+    {
+      "id": "channel-policy",
+      "description": "One channel-aware policy for scoped trust mismatches and non-bypassable structural safety failures."
+    },
+    {
+      "id": "continuation",
+      "description": "Development command and TUI install best-effort continuation with truthful degraded-trust diagnostics."
+    },
+    {
+      "id": "regression-matrix",
+      "description": "Contract, privacy, log-level, JSON, continuation, and strict-channel regression tests."
+    }
+  ],
+  "allowed_tools": [
+    "cargo",
+    "rustup",
+    "rustc",
+    "git",
+    "gh",
+    "make",
+    "python",
+    "tools/handoffctl"
+  ],
+  "forbidden_tools": [
+    "sudo",
+    "credential-output",
+    "secret-output",
+    "ambient-path-widening",
+    "arbitrary-shell-execution",
+    "stable-policy-weakening",
+    "force-push",
+    "unsafe-clean"
+  ],
+  "required_evidence_classes": [
+    "contract-test",
+    "mechanical",
+    "environmental",
+    "hosted",
+    "privacy"
+  ],
+  "gates": [
+    {
+      "id": "audit",
+      "description": "All scoped validators and call sites are inventoried and covered by the channel-aware policy."
+    },
+    {
+      "id": "development",
+      "description": "Development mismatches warn at warning level and above and command or TUI execution continues."
+    },
+    {
+      "id": "strict",
+      "description": "Stable/production and non-negotiable parser, filesystem, process, and secret boundaries remain hard failures."
+    },
+    {
+      "id": "integration",
+      "description": "Independent review, exact-head CI, signed exact-tree integration, post-merge assurance, and exact-main checks pass."
+    }
+  ]
+}
