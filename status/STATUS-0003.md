@@ -1504,11 +1504,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1819_restore_merge |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Make expired-claim recovery fail closed when the exact current session snapshot is unavailable. |
@@ -2390,7 +2390,7 @@ flowchart LR
     subgraph series_18["18 - Additional work"]
         direction TB
         AR_1800["AR-1800 - Planned"]:::status_planned
-        AR_1819["AR-1819 - In progress"]:::status_in_progress
+        AR_1819["AR-1819 - Done"]:::status_done
         AR_1821["AR-1821 - Done"]:::status_done
     end
     AR_0001 --> AR_0002

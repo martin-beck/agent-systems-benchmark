@@ -2,11 +2,11 @@
 {
   "branch": "repair/ar-1819-current-main-v3",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-12T16:56:47+00:00",
+  "claim_expires": "",
   "depends_on": [],
   "id": "AR-1819",
   "next_action": "Implement fail-closed expired-claim recovery, add focused positive and negative coverage, then independently review and integrate the exact signed head.",
-  "owner": "ar1819_restore_merge",
+  "owner": "",
   "plan": "../plans/AR-1819-expired-claim-recovery-safety.md",
   "priority": "P0",
   "schema_version": 1,
@@ -20,11 +20,11 @@
   },
   "spec_ref": "specs/AR-1819.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Make expired-claim recovery fail closed when the exact current session snapshot is unavailable.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "Fail-closed expired-claim recovery",
-  "updated_at": "2026-10-12T14:58:07+00:00",
+  "updated_at": "2026-10-12T14:58:13+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1819-current-main-v3"
 }
 ---
@@ -58,3 +58,6 @@ provider run is required for this development repair.
 
 - 2026-10-12T14:58:07+00:00: Exact reviewed merge, focused recovery/vendor coverage, required
   post-merge checks, and live doctor verified.
+
+- 2026-10-12T14:58:13+00:00: AR-1819 complete: PR #131 exact reviewed head merged as
+  f153826958c87eee37a063afb3f2d3fdc821925d; receipt and all required post-merge evidence recorded.
