@@ -183,7 +183,14 @@ impl ProjectExecution {
         let config = super::load_tool_project(&self.root)?;
         let Some(record) = config.workloads.get(workload_id) else {
             // Standalone/built-in workload plans have no project inventory
-            // record and retain the pre-existing project execution path.
+            // record and retain the pre-existing project execution path only
+            // when this project has no selected workload. Once a project
+            // workload is selected, an unknown plan identity must fail closed.
+            if config.selections.workload.is_some() {
+                return Err(CliError::legacy_validation(
+                    "plan workload is not registered in the selected project inventory",
+                ));
+            }
             return Ok(());
         };
         // Legacy project tool fixtures remain valid workload records. The
@@ -408,6 +415,21 @@ mod tests {
         assert!(
             execution
                 .validate_workload_identity("not-installed", "v1", &digest)
+                .is_err()
+        );
+        drop(directory);
+
+        // Without a project workload selection, standalone/built-in plans
+        // retain their established execution path.
+        let directory = project();
+        let execution = ProjectExecution {
+            root: directory.path().to_path_buf(),
+            result_root: directory.path().join("results"),
+            work_root: directory.path().join(".asb/work"),
+        };
+        assert!(
+            execution
+                .validate_workload_identity("built-in", "v1", &"c".repeat(64))
                 .is_ok()
         );
         drop(directory);
