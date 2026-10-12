@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Promote and claim after dependency and ownership review; implement the bounded authenticated control/live-isolation coverage repair.",
+  "next_action": "Add the smallest credential-free ControlServer/ControlClient runtime bootstrap fixture in the isolated worktree, then run focused transport/runtime tests and serialized coverage through handoffctl.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "da0cbe0848a10e61a2cd0b9a3144217842a3369b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 12,
+  "task_revision": 13,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-12T23:53:07+00:00",
+  "updated_at": "2026-10-12T23:53:21+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -65,3 +65,9 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   cb40a50f41779b22fc1031995dcfffcac0b0ec6324166ca5adaecb800c91b826.
 
 - 2026-10-12T23:53:07+00:00: Heartbeat by ar1835-control-isolation-luna.
+
+- 2026-10-12T23:53:21+00:00: Implementation started in the isolated product worktree. Baseline
+  asb-control suite passed 95 unit, 32 control, 7 endpoint, 5 schema and 2 doc tests;
+  runtime-control bootstrap focused suite passed 2/2. Existing runtime tests are direct fixtures;
+  next seam is a real ControlServer/ControlClient runtime bootstrap exchange adapted from the
+  established wire fixture. No product commit yet.

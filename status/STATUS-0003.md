@@ -1736,7 +1736,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. |
-| Next action | Promote and claim after dependency and ownership review; implement the bounded authenticated control/live-isolation coverage repair. |
+| Next action | Add the smallest credential-free ControlServer/ControlClient runtime bootstrap fixture in the isolated worktree, then run focused transport/runtime tests and serialized coverage through handoffctl. |
 
 
 ## Dependency graph
