@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Coverage audit: installed-workload behavior is covered but workspace floor remains below gate",
-  "task_revision": 183,
+  "task_revision": 184,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T22:15:19+00:00",
+  "updated_at": "2026-10-12T22:15:27+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -517,3 +517,6 @@ the suite from this end-to-end path.
   76bea8d1f2fc78aa9f7ab9c51ae71a986073970b4713a9319ad9cc83de308c9a.
 
 - 2026-10-12T22:15:17+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-12T22:15:27+00:00: Recorded command exit 0; command argv SHA-256
+  76bea8d1f2fc78aa9f7ab9c51ae71a986073970b4713a9319ad9cc83de308c9a.
