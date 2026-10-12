@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 production development-fixture launch authority path now executes successfully; signed 0bc211b2. Prior serialized coverage: 89.21% lines, 85.03% functions, 90.61% regions.",
-  "task_revision": 366,
+  "task_revision": 367,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:17:19+00:00",
+  "updated_at": "2026-10-12T23:17:32+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -942,3 +942,6 @@ the suite from this end-to-end path.
 
 - 2026-10-12T23:17:19+00:00: Recorded command exit 101; command argv SHA-256
   7dd9a655994a8c73db81396f006820ad848c503119fc08b6745018d6f817786e.
+
+- 2026-10-12T23:17:32+00:00: Recorded command exit 0; command argv SHA-256
+  f28e8da641834bffd14347e708a06c6b6a9645bc46edf5bdcc8b2be400eaefae.
