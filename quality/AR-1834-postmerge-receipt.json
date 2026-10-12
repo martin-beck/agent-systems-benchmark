@@ -1,0 +1,34 @@
+{
+  "ar": "AR-1834",
+  "pr": 626,
+  "reviewed_head": "4107fcd177efa675f74e1ae08d0ee0bfa15c5216",
+  "merge_commit": "da0cbe0848a10e61a2cd0b9a3144217842a3369b",
+  "merge_parents": [
+    "356a669e0c6ebbb6cd3675a119cba16fea486283",
+    "4107fcd177efa675f74e1ae08d0ee0bfa15c5216"
+  ],
+  "merge_tree": "10a14f91c60aed4e98b9f3f62fc342fdfd9db930",
+  "merge_committer": "Martin Beck <martin.beck2@gmx.de>",
+  "merge_signature": "valid_allowed_ssh",
+  "merge_dco": true,
+  "local_protected_main_policy": "pass",
+  "exact_main_workflows": {
+    "expected": 10,
+    "successful": 10,
+    "runs": [
+      38318493476,
+      38318493494,
+      38318493490,
+      38318493488,
+      38318493520,
+      38318493561,
+      38318493591,
+      38318493481,
+      38318493471,
+      38318493472
+    ]
+  },
+  "historical_merge_preserved": true,
+  "policy_unchanged": true,
+  "unrelated_ar_preserved": true
+}
