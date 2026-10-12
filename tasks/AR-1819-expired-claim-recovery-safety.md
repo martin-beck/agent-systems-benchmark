@@ -2,21 +2,21 @@
 {
   "branch": "repair/ar-1819-expired-claim-safety",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-12T16:47:55+00:00",
   "depends_on": [],
   "id": "AR-1819",
   "next_action": "Implement fail-closed expired-claim recovery, add focused positive and negative coverage, then independently review and integrate the exact signed head.",
-  "owner": "",
+  "owner": "ar1819_restore_merge",
   "plan": "../plans/AR-1819-expired-claim-recovery-safety.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1819.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Make expired-claim recovery fail closed when the exact current session snapshot is unavailable.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Fail-closed expired-claim recovery",
-  "updated_at": "2026-10-12T14:47:48+00:00",
+  "updated_at": "2026-10-12T14:47:55+00:00",
   "worktree_key": ""
 }
 ---
@@ -40,3 +40,5 @@ provider run is required for this development repair.
 
 - 2026-10-12T14:47:48+00:00: Restore the durable AR-1819 task on current main before integrating its
   exact reviewed repair.
+
+- 2026-10-12T14:47:55+00:00: Claimed by ar1819_restore_merge.
