@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 13,
+  "task_revision": 14,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-12T23:53:21+00:00",
+  "updated_at": "2026-10-12T23:53:30+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -71,3 +71,6 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   runtime-control bootstrap focused suite passed 2/2. Existing runtime tests are direct fixtures;
   next seam is a real ControlServer/ControlClient runtime bootstrap exchange adapted from the
   established wire fixture. No product commit yet.
+
+- 2026-10-12T23:53:30+00:00: Recorded command exit 0; command argv SHA-256
+  35c718f3137dde4f731cdf7e6673ef7c95f80d2f5c55002d935095e8916fd596.
