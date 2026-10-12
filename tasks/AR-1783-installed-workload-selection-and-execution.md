@@ -11,8 +11,8 @@
   "id": "AR-1783",
   "next_action": "Coverage report shows remaining dominant runtime misses in live_service authority resolver/bootstrap and SandboxBackend spawn/cleanup; add a larger behavior-driven batch around runtime-owned local mock lifecycle and sandbox cleanup/error transitions, then rerun focused and serialized coverage.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
-  "observed_dirty": 1,
-  "observed_head": "10b8d27bc4f4eebff29cf5c4a01b9df67b41363b",
+  "observed_dirty": 0,
+  "observed_head": "ccf0a92fb4df10d2080fb43366a1942f80cecc70",
   "owner": "ar1783-workload-selection-luna",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 \u2014 signed 10b8d27 covers local mock authority defaults and cancellation; serialized workspace coverage remains 89.25% lines, 85.04% functions, 90.64% regions.",
-  "task_revision": 395,
+  "task_revision": 396,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:25:42+00:00",
+  "updated_at": "2026-10-12T23:25:48+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
