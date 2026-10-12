@@ -29,20 +29,20 @@ Generated from local Git and GitHub. Do not edit.
 | #577 | `repair/ar-1794-protected-main-merge-path@198bf86975f6` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | chore: certify AR-1781 merge provenance |
 | #581 | `dependabot/github_actions/taiki-e/install-action-2.87.24@83c2c6635789` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | chore(deps): Bump taiki-e/install-action from 2.87.14 to 2.87.25 |
 | #612 | `feature/ar-1774-status-progress-completeness-ci@ad7f1166afc5` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | ci: enforce status and progress completeness |
-| #615 | `feature/ar-1800-development-warning-only-trust-contract@0b822113ea97` | `main` | BEHIND | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS, IN_PROGRESS: | fix(cli): make development trust mismatches warning-only |
+| #615 | `feature/ar-1800-development-warning-only-trust-contract@0b822113ea97` | `main` | BEHIND | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS: | fix(cli): make development trust mismatches warning-only |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38261400538 | `65b40d4e4ad2` | push | Cross-repository development broker qualification | in_progress:- |
+| 38261400538 | `65b40d4e4ad2` | push | Cross-repository development broker qualification | completed:success |
 | 38261400536 | `65b40d4e4ad2` | push | Development formal assurance | completed:success |
 | 38261400526 | `65b40d4e4ad2` | push | Rust verification | in_progress:- |
-| 38261400478 | `65b40d4e4ad2` | push | Fault assurance | in_progress:- |
+| 38261400478 | `65b40d4e4ad2` | push | Fault assurance | completed:success |
 | 38261400465 | `65b40d4e4ad2` | push | Emulated aarch64 portability | in_progress:- |
 | 38261400463 | `65b40d4e4ad2` | push | Portable protected-main provenance | completed:success |
 | 38261400436 | `65b40d4e4ad2` | push | Huawei MIT source headers | completed:success |
-| 38261400374 | `65b40d4e4ad2` | push | Credential-free benchmark path | in_progress:- |
+| 38261400374 | `65b40d4e4ad2` | push | Credential-free benchmark path | completed:success |
 | 38261400292 | `65b40d4e4ad2` | push | Hosted portability and native qualification | completed:success |
 | 38261400258 | `65b40d4e4ad2` | push | Repository quality | in_progress:- |
 | 38261311957 | `0b822113ea97` | pull_request | Credential-free benchmark path | completed:success |
