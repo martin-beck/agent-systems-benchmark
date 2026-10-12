@@ -31,20 +31,21 @@ Generated from local Git and GitHub. Do not edit.
 | #612 | `feature/ar-1774-status-progress-completeness-ci@ad7f1166afc5` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | ci: enforce status and progress completeness |
 | #618 | `repair/ar-1779-current-main-smoke@f1dbe055aaeb` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): verify supported tool reuse and entrypoints |
 | #619 | `repair/ar-1779-source-fallback-linear3@21372a22aba3` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
+| #621 | `repair/ar-1779-main-provenance@b00cdba5bc52` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | chore(integration): attest protected AR-1779 merge provenance |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
+| 38290718586 | `b00cdba5bc52` | pull_request | Portable protected-main provenance | queued:- |
+| 38290718555 | `b00cdba5bc52` | pull_request | Emulated aarch64 portability | queued:- |
+| 38290718510 | `b00cdba5bc52` | pull_request | Cross-repository development broker qualification | queued:- |
+| 38290718472 | `b00cdba5bc52` | pull_request | Credential-free benchmark path | queued:- |
+| 38290718468 | `b00cdba5bc52` | pull_request | Rust verification | queued:- |
+| 38290718454 | `b00cdba5bc52` | pull_request | Repository quality | queued:- |
+| 38290718451 | `b00cdba5bc52` | pull_request | Agent Workflow Quality shadow | queued:- |
+| 38290718431 | `b00cdba5bc52` | pull_request | Huawei MIT source headers | queued:- |
+| 38290718415 | `b00cdba5bc52` | pull_request | Fault assurance | queued:- |
+| 38290718354 | `b00cdba5bc52` | pull_request | Hosted portability and native qualification | queued:- |
+| 38290718329 | `b00cdba5bc52` | pull_request | Development formal assurance | queued:- |
 | 38290548017 | `47c29b5a1f2a` | push | Fault assurance | in_progress:- |
-| 38290546945 | `47c29b5a1f2a` | push | Repository quality | completed:failure |
-| 38290546907 | `47c29b5a1f2a` | push | Rust verification | in_progress:- |
-| 38290546867 | `47c29b5a1f2a` | push | Credential-free benchmark path | in_progress:- |
-| 38290546840 | `47c29b5a1f2a` | push | Development formal assurance | in_progress:- |
-| 38290546818 | `47c29b5a1f2a` | push | Huawei MIT source headers | completed:success |
-| 38290546811 | `47c29b5a1f2a` | push | Portable protected-main provenance | completed:failure |
-| 38290546800 | `47c29b5a1f2a` | push | Hosted portability and native qualification | in_progress:- |
-| 38290546787 | `47c29b5a1f2a` | push | Emulated aarch64 portability | in_progress:- |
-| 38290546772 | `47c29b5a1f2a` | push | Cross-repository development broker qualification | in_progress:- |
-| 38289055952 | `80060a79e716` | pull_request | Huawei MIT source headers | completed:success |
-| 38289055914 | `80060a79e716` | pull_request | Credential-free benchmark path | completed:success |
