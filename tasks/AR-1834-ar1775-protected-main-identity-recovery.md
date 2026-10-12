@@ -14,19 +14,19 @@
   "schema_version": 1,
   "spec_acceptance": {
     "evidence_class": "hosted",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_digest": "sha256:f803944d5467abd04954e352f05bd577c25f9fbd57a227a58e60157c3cf4db8f",
+    "evidence_ref": "quality/AR-1834-postmerge-receipt.json",
     "spec_ref": "specs/AR-1834.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1834.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover AR-1775 protected-main provenance with the established local signed integration identity without rewriting historical merge 356a669e",
-  "task_revision": 61,
+  "task_revision": 62,
   "title": "AR-1775 protected-main local identity recovery",
-  "updated_at": "2026-10-12T22:59:06+00:00",
+  "updated_at": "2026-10-12T22:59:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1834-ar1775-protected-main-identity"
 }
 ---
@@ -232,3 +232,9 @@ This successor is metadata-only and forward-only. It must not alter `LOCAL_COMMI
 
 - 2026-10-12T22:59:06+00:00: Recorded command exit 0; command argv SHA-256
   e560a3c62749e1f4c4cc758319f5ef887216283b2f2a51ac582471ace88a5f94.
+
+- 2026-10-12T22:59:26+00:00: Accepted hosted post-merge receipt: merge
+  da0cbe0848a10e61a2cd0b9a3144217842a3369b, exact parents 356a669e/4107fcd, tree 10a14f91, Martin
+  Beck SSH/DCO identity, local protected-main policy pass, and all 10 exact-main workflows
+  terminal-success (38318493471, 38318493472, 38318493476, 38318493481, 38318493488, 38318493490,
+  38318493494, 38318493520, 38318493561, 38318493591).
