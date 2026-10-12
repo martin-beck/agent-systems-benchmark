@@ -68,105 +68,11 @@ impl ProjectExecution {
     }
 
     /// Replace caller-selected output roots with the initialized project roots.
-    pub(super) fn bind_plan(&self, mut plan: PlanFile) -> PlanFile {
+    pub(super) fn bind_plan(&self, mut plan: PlanFile) -> Result<PlanFile, CliError> {
+        self.validate_plan_identity(&plan)?;
         plan.result_root.clone_from(&self.result_root);
         plan.work_root.clone_from(&self.work_root);
-        plan
-    }
-
-    /// Validate that a plan consumes the selected installed workload receipt.
-    ///
-    /// Project inventory records are mutable discovery state; execution must
-    /// additionally bind the immutable workload receipt and prepared adapter
-    /// tree.  This rejects stale, revoked, manually substituted, or ambient
-    /// workload identities before any run roots are prepared.
-    pub(super) fn validate_workload_identity(
-        &self,
-        workload_id: &str,
-        workload_revision: &str,
-        workload_digest: &str,
-    ) -> Result<(), CliError> {
-        let config = super::load_tool_project(&self.root)?;
-        let Some(record) = config.workloads.get(workload_id) else {
-            // Standalone/built-in workload plans have no project inventory
-            // record and retain the pre-existing project execution path.
-            return Ok(());
-        };
-        // Legacy project tool fixtures remain valid workload records.  The
-        // receipt fence applies to bundles installed through `asb workload`,
-        // which are explicitly marked as external-workload.
-        if !record
-            .capabilities
-            .iter()
-            .any(|capability| capability == "external-workload")
-        {
-            return Ok(());
-        }
-        if config.selections.workload.as_deref() != Some(workload_id) {
-            return Err(CliError::legacy_validation(
-                "plan workload is not the selected installed project workload",
-            ));
-        }
-        if record.status != ProjectToolStatus::Available
-            || record.kind != ProjectToolKind::Workload
-            || record.platform != super::platform_label()
-            || record.digest_sha256.as_deref() != Some(workload_digest)
-        {
-            return Err(CliError::legacy_validation(
-                "selected installed workload identity is stale or unavailable",
-            ));
-        }
-        let relative = record.path.as_deref().ok_or_else(|| {
-            CliError::legacy_validation("selected installed workload has no project-local path")
-        })?;
-        let root = self.root.join(relative);
-        if !root.starts_with(&self.root) {
-            return Err(CliError::legacy_validation(
-                "selected workload path escapes the project",
-            ));
-        }
-        let root_meta = fs::symlink_metadata(&root).map_err(|_| {
-            CliError::legacy_validation("selected workload installation is missing")
-        })?;
-        if root_meta.file_type().is_symlink() || !root_meta.is_dir() {
-            return Err(CliError::legacy_validation(
-                "selected workload installation is not a real directory",
-            ));
-        }
-        let prepared = root.join("prepared");
-        let prepared_meta = fs::symlink_metadata(&prepared)
-            .map_err(|_| CliError::legacy_validation("selected workload preparation is missing"))?;
-        if prepared_meta.file_type().is_symlink() || !prepared_meta.is_dir() {
-            return Err(CliError::legacy_validation(
-                "selected workload preparation is not usable",
-            ));
-        }
-        let receipt_path = root.join("receipt.json");
-        let receipt = fs::read(&receipt_path)
-            .map_err(|_| CliError::legacy_validation("selected workload receipt is missing"))?;
-        if receipt.len() > 64 * 1024 {
-            return Err(CliError::legacy_validation(
-                "selected workload receipt is too large",
-            ));
-        }
-        let receipt: serde_json::Value = serde_json::from_slice(&receipt)
-            .map_err(|_| CliError::legacy_validation("selected workload receipt is invalid"))?;
-        let text = |key: &str| receipt.get(key).and_then(serde_json::Value::as_str);
-        if text("workload_id") != Some(workload_id)
-            || text("catalog_revision") != Some(workload_revision)
-            || text("archive_digest_sha256") != Some(workload_digest)
-            || text("status") != Some("verified")
-            || text("license").is_none_or(|license| {
-                license.is_empty() || license.eq_ignore_ascii_case("NOASSERTION")
-            })
-            || text("preparation").is_none()
-            || text("evaluator_entrypoint").is_none()
-        {
-            return Err(CliError::legacy_validation(
-                "selected workload receipt is stale, revoked, or incomplete",
-            ));
-        }
-        Ok(())
+        Ok(plan)
     }
 
     /// Reject a report/compare run reference that is outside project results.
@@ -251,6 +157,111 @@ fn validate_required_selections(root: &Path, config: &ProjectConfigV1) -> Result
         super::project_catalog::validate_selected_catalog_entry(root, config, kind, name, record)?;
     }
     Ok(())
+}
+
+impl ProjectExecution {
+    fn validate_plan_identity(&self, plan: &PlanFile) -> Result<(), CliError> {
+        self.validate_workload_identity(
+            &plan.workload,
+            &plan.experiment.workload.workload_revision,
+            &plan.experiment.workload.workload_sha256,
+        )
+    }
+
+    /// Validate that a plan consumes the selected installed workload receipt.
+    ///
+    /// Project inventory records are mutable discovery state; execution must
+    /// additionally bind the immutable workload receipt and prepared adapter
+    /// tree. This rejects stale, revoked, manually substituted, or ambient
+    /// workload identities before any run roots are prepared.
+    pub(super) fn validate_workload_identity(
+        &self,
+        workload_id: &str,
+        workload_revision: &str,
+        workload_digest: &str,
+    ) -> Result<(), CliError> {
+        let config = super::load_tool_project(&self.root)?;
+        let Some(record) = config.workloads.get(workload_id) else {
+            // Standalone/built-in workload plans have no project inventory
+            // record and retain the pre-existing project execution path.
+            return Ok(());
+        };
+        // Legacy project tool fixtures remain valid workload records. The
+        // receipt fence applies to bundles installed through `asb workload`,
+        // which are explicitly marked as external-workload.
+        if !record
+            .capabilities
+            .iter()
+            .any(|capability| capability == "external-workload")
+        {
+            return Ok(());
+        }
+        if config.selections.workload.as_deref() != Some(workload_id) {
+            return Err(CliError::legacy_validation(
+                "plan workload is not the selected installed project workload",
+            ));
+        }
+        if record.status != ProjectToolStatus::Available
+            || record.kind != ProjectToolKind::Workload
+            || record.platform != super::platform_label()
+            || record.digest_sha256.as_deref() != Some(workload_digest)
+        {
+            return Err(CliError::legacy_validation(
+                "selected installed workload identity is stale or unavailable",
+            ));
+        }
+        let relative = record.path.as_deref().ok_or_else(|| {
+            CliError::legacy_validation("selected installed workload has no project-local path")
+        })?;
+        let root = self.root.join(relative);
+        if !root.starts_with(&self.root) {
+            return Err(CliError::legacy_validation(
+                "selected workload path escapes the project",
+            ));
+        }
+        let root_meta = fs::symlink_metadata(&root).map_err(|_| {
+            CliError::legacy_validation("selected workload installation is missing")
+        })?;
+        if root_meta.file_type().is_symlink() || !root_meta.is_dir() {
+            return Err(CliError::legacy_validation(
+                "selected workload installation is not a real directory",
+            ));
+        }
+        let prepared = root.join("prepared");
+        let prepared_meta = fs::symlink_metadata(&prepared)
+            .map_err(|_| CliError::legacy_validation("selected workload preparation is missing"))?;
+        if prepared_meta.file_type().is_symlink() || !prepared_meta.is_dir() {
+            return Err(CliError::legacy_validation(
+                "selected workload preparation is not usable",
+            ));
+        }
+        let receipt_path = root.join("receipt.json");
+        let receipt = fs::read(&receipt_path)
+            .map_err(|_| CliError::legacy_validation("selected workload receipt is missing"))?;
+        if receipt.len() > 64 * 1024 {
+            return Err(CliError::legacy_validation(
+                "selected workload receipt is too large",
+            ));
+        }
+        let receipt: serde_json::Value = serde_json::from_slice(&receipt)
+            .map_err(|_| CliError::legacy_validation("selected workload receipt is invalid"))?;
+        let text = |key: &str| receipt.get(key).and_then(serde_json::Value::as_str);
+        if text("workload_id") != Some(workload_id)
+            || text("catalog_revision") != Some(workload_revision)
+            || text("archive_digest_sha256") != Some(workload_digest)
+            || text("status") != Some("verified")
+            || text("license").is_none_or(|license| {
+                license.is_empty() || license.eq_ignore_ascii_case("NOASSERTION")
+            })
+            || text("preparation").is_none()
+            || text("evaluator_entrypoint").is_none()
+        {
+            return Err(CliError::legacy_validation(
+                "selected workload receipt is stale, revoked, or incomplete",
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
