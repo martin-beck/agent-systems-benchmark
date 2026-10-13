@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1797-cli2key-live-runtime-wiring",
   "checkpoint_commit": "c21b4f5a639e9f4de4bef7c3923cc0cc3f8aa1ea",
-  "claim_expires": "2026-10-13T02:32:04+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1729",
     "AR-1731",
@@ -15,7 +15,7 @@
   "observed_branch": "DETACHED",
   "observed_dirty": 0,
   "observed_head": "da0cbe0848a10e61a2cd0b9a3144217842a3369b",
-  "owner": "ar1797-cli2key-luna",
+  "owner": "",
   "plan": "../plans/AR-1797-cli2key-live-runtime-wiring.md",
   "priority": "P0",
   "schema_version": 1,
@@ -29,11 +29,11 @@
   },
   "spec_ref": "specs/AR-1797.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Repair cli2key so an installed pinned bridge receives a runtime-issued sidecar launch and can execute a development ASB benchmark.",
-  "task_revision": 7,
+  "task_revision": 8,
   "title": "Wire cli2key sidecar into live benchmark execution",
-  "updated_at": "2026-10-13T00:35:10+00:00",
+  "updated_at": "2026-10-13T00:35:15+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1797-cli2key-live-runtime-wiring"
 }
 ---
@@ -68,3 +68,8 @@ path and records only redacted provenance and typed outcome evidence.
   runtime (14) and CLI (4), full workspace tests, fmt, clippy, and all recorded PR #603 hosted
   checks passed. No opt-in live benchmark was run because user authorization and Codex login were
   unavailable; no credentials were read or exposed.
+
+- 2026-10-13T00:35:15+00:00: Accepted exact-main evidence: PR #603 merge
+  9c5e557195df34675e2f5427e6ec3dff3d433254, protected-main descendant
+  da0cbe0848a10e61a2cd0b9a3144217842a3369b. Focused and full offline gates passed; hosted PR checks
+  passed; live opt-in intentionally not run without authorization.

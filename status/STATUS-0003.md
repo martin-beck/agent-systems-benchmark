@@ -1448,11 +1448,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1797-cli2key-luna |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Repair cli2key so an installed pinned bridge receives a runtime-issued sidecar launch and can execute a development ASB benchmark. |
@@ -2607,7 +2607,7 @@ flowchart LR
         AR_1794["AR-1794 - Done"]:::status_done
         AR_1795["AR-1795 - Done"]:::status_done
         AR_1796["AR-1796 - Open"]:::status_open
-        AR_1797["AR-1797 - In progress"]:::status_in_progress
+        AR_1797["AR-1797 - Done"]:::status_done
         AR_1798["AR-1798 - Done"]:::status_done
         AR_1799["AR-1799 - Done"]:::status_done
     end
