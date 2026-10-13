@@ -13,14 +13,21 @@
   "plan": "../plans/AR-1838-source-checkout-fixture-repair.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "contract-test", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1838.json", "spec_revision": 1, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "contract-test",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1838.json",
+    "spec_revision": 1,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1838.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T06:00:00+00:00",
+  "updated_at": "2026-10-13T06:01:32+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -37,3 +44,6 @@ add positive and negative coverage, preserve bounded cleanup and fail-closed
 behavior, then complete independent review, exact-head CI, signed-DCO merge,
 and exact-main verification. Do not alter unrelated ARs or provider/network
 boundaries.
+
+- 2026-10-13T06:01:32+00:00: Reproducible source checkout fixture failure requires dedicated repair
+  worker.
