@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates.",
-  "task_revision": 30,
+  "task_revision": 31,
   "title": "PR #627 protected-main identity recovery",
-  "updated_at": "2026-10-13T06:05:33+00:00",
+  "updated_at": "2026-10-13T06:06:19+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1837-pr627-protected-main-identity"
 }
 ---
@@ -126,3 +126,6 @@ receipt. This AR owns only a forward recovery from the current main tip.
   eaf2472e4b0ec29bac3303a6d46474c99be3c0ab077feca87b1c3650d4745e53.
 
 - 2026-10-13T06:05:33+00:00: Heartbeat by ar1837-protected-main-repair-luna.
+
+- 2026-10-13T06:06:19+00:00: Recorded command exit 0; command argv SHA-256
+  1c7075d6b5acabcc6dd55cfbe9618c040f8f5ec4a533b5c61dfa06db3aaeb04c.
