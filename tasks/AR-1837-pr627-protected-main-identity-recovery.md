@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates.",
-  "task_revision": 26,
+  "task_revision": 27,
   "title": "PR #627 protected-main identity recovery",
-  "updated_at": "2026-10-13T05:57:31+00:00",
+  "updated_at": "2026-10-13T06:00:57+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1837-pr627-protected-main-identity"
 }
 ---
@@ -115,3 +115,6 @@ receipt. This AR owns only a forward recovery from the current main tip.
   Exact-main provenance passed. Credential-free attempt 1 failed on transient source_checkout
   fixture Unavailable at source_checkout.rs:913; rerun attempt 2 requested. Other workflows
   terminal-success or still running.
+
+- 2026-10-13T06:00:57+00:00: Recorded command exit 0; command argv SHA-256
+  1301824539827075d1cd3dc80f453ea2ca75469a53a5ddaad14dbedb28011799.
