@@ -2,14 +2,14 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-13T10:32:05+00:00",
   "depends_on": [],
   "id": "AR-1839",
   "next_action": "Reproduce source_checkout fixture collisions across concurrent cargo processes, add process-safe isolation, then run focused/full gates and publish a reviewed repair.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "ar1839-cross-process-fixture-luna",
   "plan": "../plans/AR-1839-source-fixture-cross-process-isolation.md",
   "priority": "P0",
   "schema_version": 1,
@@ -23,11 +23,11 @@
   },
   "spec_ref": "specs/AR-1839.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Make source checkout test fixtures safe when independent cargo processes run concurrently.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Repair cross-process source fixture isolation",
-  "updated_at": "2026-10-13T08:31:04+00:00",
+  "updated_at": "2026-10-13T08:32:05+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1839-source-fixture-cross-process-isolation"
 }
 ---
@@ -43,3 +43,5 @@ post-merge verification.
 
 - 2026-10-13T08:31:04+00:00: Independent review reproduced cross-process source fixture collisions;
   dedicated isolation repair required.
+
+- 2026-10-13T08:32:05+00:00: Claimed by ar1839-cross-process-fixture-luna.
