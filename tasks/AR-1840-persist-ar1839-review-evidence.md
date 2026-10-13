@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Persist AR-1839 review evidence without bypassing handoffctl ownership rules.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "Persist AR-1839 review evidence",
-  "updated_at": "2026-10-13T08:50:31+00:00",
+  "updated_at": "2026-10-13T08:50:44+00:00",
   "worktree_key": "agent-systems-benchmark-state-ar-1840-evidence"
 }
 ---
@@ -51,3 +51,6 @@ do not edit generated state directly or bypass ownership admission.
   sha256=df024a38a64c4547c2b97213582edd1848642bbf595977643838e243b204a8b0. Owner-scoped handoffctl
   run verified clean tree and git show --check. Hosted post-command reconciliation is externally
   limited by gh PR lookup authentication.
+
+- 2026-10-13T08:50:44+00:00: Recorded command exit 0; command argv SHA-256
+  128b262dd02ade575c68dbb7c24059a7655d26ad63dc655b04b76ab0d10de629.
