@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T09:01:59+00:00",
   "depends_on": [],
   "id": "AR-1826",
-  "next_action": "Define and approve the one-file explicit setup configuration and plan-binding contract before implementing any command migration.",
+  "next_action": "Independent review and exact-head CI for PR #629 at 256fe639; then merge and post-merge verify.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts.",
-  "task_revision": 16,
+  "task_revision": 17,
   "title": "Define explicit setup configuration and plan-binding contract",
-  "updated_at": "2026-10-13T06:06:16+00:00",
+  "updated_at": "2026-10-13T06:06:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
@@ -81,3 +81,7 @@ and compatibility contract on which the remaining ARs depend.
   fcfe00a36f1f324f4565ae4b364f1439e26ccccbe4a7087b286f19d2eb9cb172.
 
 - 2026-10-13T06:06:16+00:00: Checkpointed source commit 45427b6ec7fc73f896574701df5e35b6d72b7cf4.
+
+- 2026-10-13T06:06:43+00:00: Published signed product commits 7c9a3fb7 and 256fe639 on PR #629. Full
+  cargo test --workspace --locked passed; header gate repaired at exact head 256fe639. Await
+  independent review and remaining exact-head checks.
