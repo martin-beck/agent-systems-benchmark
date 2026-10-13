@@ -32,18 +32,18 @@ Generated from local Git and GitHub. Do not edit.
 | #618 | `repair/ar-1779-current-main-smoke@f1dbe055aaeb` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): verify supported tool reuse and entrypoints |
 | #619 | `repair/ar-1779-source-fallback-linear3@21372a22aba3` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
 | #624 | `feature/ar-1783-installed-workload-selection-and-execution@32f42827367d` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): bind installed workloads before execution |
-| #627 | `feature/ar-1835-authenticated-control-live-isolation-repair@06565d3de95a` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | test(control): cover authenticated runtime bootstrap socket flow |
+| #627 | `feature/ar-1835-authenticated-control-live-isolation-repair@06565d3de95a` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | test(control): cover authenticated runtime bootstrap socket flow |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38325731442 | `06565d3de95a` | pull_request | Cross-repository development broker qualification | in_progress:- |
+| 38325731442 | `06565d3de95a` | pull_request | Cross-repository development broker qualification | completed:failure |
 | 38325730463 | `06565d3de95a` | pull_request | Credential-free benchmark path | completed:success |
-| 38325730448 | `06565d3de95a` | pull_request | Emulated aarch64 portability | in_progress:- |
-| 38325730446 | `06565d3de95a` | pull_request | Repository quality | in_progress:- |
+| 38325730448 | `06565d3de95a` | pull_request | Emulated aarch64 portability | completed:success |
+| 38325730446 | `06565d3de95a` | pull_request | Repository quality | completed:success |
 | 38325730445 | `06565d3de95a` | pull_request | Portable protected-main provenance | completed:success |
-| 38325730435 | `06565d3de95a` | pull_request | Rust verification | in_progress:- |
+| 38325730435 | `06565d3de95a` | pull_request | Rust verification | completed:success |
 | 38325730427 | `06565d3de95a` | pull_request | Agent Workflow Quality shadow | completed:success |
 | 38325730426 | `06565d3de95a` | pull_request | Fault assurance | completed:success |
 | 38325730425 | `06565d3de95a` | pull_request | Development formal assurance | completed:success |
