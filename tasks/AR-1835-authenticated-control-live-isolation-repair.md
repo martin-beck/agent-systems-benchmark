@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1835.json",
   "spec_revision": 1,
-  "status": "blocked",
+  "status": "open",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 66,
+  "task_revision": 67,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T00:45:27+00:00",
+  "updated_at": "2026-10-13T05:16:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -276,3 +276,7 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   authorized. Keep PR unmerged. AR-1836 owns the external cross-repository qualification determinism
   repair; reopen AR-1835 only after two fresh exact-head TUI runs pass and all required checks are
   green.
+
+- 2026-10-13T05:16:24+00:00: Merged asb-tui PR #304 at c4f554e79c16bcc910b4a9af6a665a230b3339fb;
+  exact inherited-fd/PTY qualification now passes locally against merged main. Reopen for hosted
+  rerun and post-merge ASB verification.
