@@ -2,11 +2,11 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-13T11:57:02+00:00",
   "depends_on": [],
   "id": "AR-1843",
   "next_action": "Promote and claim; repair the hosted formal workflow workspace initialization so the gha-asb-state runner can create its per-run TLC workspace and attestation directory without weakening the formal gate, then rerun the exact-head formal workflow.",
-  "owner": "",
+  "owner": "ar1843-formal-workspace-repair-luna",
   "plan": "../plans/AR-1843-hosted-formal-workspace-permission-repair.md",
   "priority": "P0",
   "schema_version": 1,
@@ -20,11 +20,11 @@
   },
   "spec_ref": "specs/AR-1843.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair hosted formal TLC workspace permissions for the ASB state runner.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Hosted formal workspace permission repair",
-  "updated_at": "2026-10-13T09:56:20+00:00",
+  "updated_at": "2026-10-13T09:57:02+00:00",
   "worktree_key": ""
 }
 ---
@@ -42,3 +42,5 @@ after the repair, including the same model and implementation contract; no
 formal assertion, timeout, or resource-bound gate may be removed or weakened.
 
 - 2026-10-13T09:56:20+00:00: Runner infrastructure repair required by PR #142 formal failure
+
+- 2026-10-13T09:57:02+00:00: Claimed by ar1843-formal-workspace-repair-luna.
