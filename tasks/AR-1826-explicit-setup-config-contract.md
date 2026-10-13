@@ -23,11 +23,11 @@
   },
   "spec_ref": "specs/AR-1826.json",
   "spec_revision": 1,
-  "status": "blocked",
+  "status": "open",
   "summary": "Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts.",
-  "task_revision": 27,
+  "task_revision": 28,
   "title": "Define explicit setup configuration and plan-binding contract",
-  "updated_at": "2026-10-13T08:47:23+00:00",
+  "updated_at": "2026-10-13T08:55:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
@@ -125,3 +125,6 @@ and compatibility contract on which the remaining ARs depend.
   e9d95999c0cacff327dd350670d611aab64e69b2 is locally verified with SSH signature and DCO. GitHub
   auth is invalid/hanging, and independent review is not durably recorded. No merge or publication
   mutation attempted.
+
+- 2026-10-13T08:55:47+00:00: GitHub authentication is restored; resume exact-head review/publication
+  recovery at e9d95999c0cacff327dd350670d611aab64e69b2.
