@@ -8,7 +8,6 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1826](tasks/AR-1826-explicit-setup-config-contract.md): Define explicit setup configuration and plan-binding contract | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. | State metadata repair is required before product requalification: legacy worktree_key is populated while branch is empty. Coordinator repair must restore the declared branch/worktree binding without changing owner/evidence, then rebuild reviewed e9d95999 onto current main d0e6a28 and rerun exact-head review/CI. | ar1826_setup_contract_luna |
-| P0 | [AR-1838](tasks/AR-1838-source-checkout-fixture-repair.md): Repair reproducible source checkout fixture failure | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. | Post-merge exact-main verification complete: merge d0e6a28a81b40a990e6b83b48a885e9ada96f0fd is remote main, signed+DCO verified, and all required post-merge check-runs terminal success; release AR-1838 done. | ar1838-source-checkout-repair-luna |
 
 ## Open
 

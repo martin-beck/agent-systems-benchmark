@@ -2,14 +2,14 @@
 {
   "branch": "",
   "checkpoint_commit": "25e1ebd8555000d0f896c0df82229d937de38813",
-  "claim_expires": "2026-10-13T11:00:20+00:00",
+  "claim_expires": "",
   "depends_on": [],
   "id": "AR-1838",
   "next_action": "Post-merge exact-main verification complete: merge d0e6a28a81b40a990e6b83b48a885e9ada96f0fd is remote main, signed+DCO verified, and all required post-merge check-runs terminal success; release AR-1838 done.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "ar1838-source-checkout-repair-luna",
+  "owner": "",
   "plan": "../plans/AR-1838-source-checkout-fixture-repair.md",
   "priority": "P0",
   "schema_version": 1,
@@ -23,11 +23,11 @@
   },
   "spec_ref": "specs/AR-1838.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 61,
+  "task_revision": 62,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T09:22:30+00:00",
+  "updated_at": "2026-10-13T09:22:38+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -239,3 +239,7 @@ boundaries.
 - 2026-10-13T09:22:30+00:00: Acceptance passed from exact protected-main merge
   d0e6a28a81b40a990e6b83b48a885e9ada96f0fd: all required post-merge check-runs terminal success,
   signed merge and matching DCO verified, remote main exact, clean exact-main checkout.
+
+- 2026-10-13T09:22:38+00:00: Released done after accepted post-merge evidence: PR #630 merge
+  d0e6a28a81b40a990e6b83b48a885e9ada96f0fd exact remote main; signed+DCO verified; all required
+  exact-main workflows terminal success; clean exact-main checkout verified.
