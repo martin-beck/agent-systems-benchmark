@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Continue polling exact-head PR #627 until every required check is terminal; repair only concrete failures, then independently review and guarded-merge.",
+  "next_action": "Continue polling exact-head PR #627; wait for all required checks terminal green before review/merge.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "06565d3de95aa72fa67bf2fde73078753acfd49b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 45,
+  "task_revision": 46,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T00:10:00+00:00",
+  "updated_at": "2026-10-13T00:10:34+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -183,3 +183,8 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   protected-main provenance, and retained faults remain green. Bounded fuzz, credential-free
   benchmark, emulated AArch64, TUI journey, mutation sentinels, policy/coverage/supply chain, and
   Rust checks remain pending. Merge remains blocked.
+
+- 2026-10-13T00:10:34+00:00: PR #627 exact-head progress: Bounded fuzz regressions also terminal
+  green. Remaining pending required checks are credential-free benchmark, emulated AArch64, exact
+  TUI journey, mutation sentinels, policy/coverage/supply chain, and Rust checks. All other listed
+  checks remain green; merge stays blocked.
