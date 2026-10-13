@@ -1,5 +1,6 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1509](../tasks/AR-1509-authenticated-authority-provider-receipt.md) | [AR-1473](../tasks/AR-1473-runtime-owned-enrollment-source.md), [AR-1474](../tasks/AR-1474-runtime-authority-input-resolver.md), [AR-1480](../tasks/AR-1480-runtime-control-cli-composition.md), [AR-1484](../tasks/AR-1484-runtime-control-owner-contract.md), [AR-1485](../tasks/AR-1485-process-owner-local-mock-lifecycle.md), [AR-1502](../tasks/AR-1502-runtime-bootstrap-authority.md), [AR-1505](../tasks/AR-1505-control-plane-platform-authority.md) | None |
 | [AR-1510](../tasks/AR-1510-authenticated-control-source-wiring.md) | [AR-1505](../tasks/AR-1505-control-plane-platform-authority.md) | None |
 | [AR-1511](../tasks/AR-1511-runtime-control-authority-issuer.md) | [AR-1484](../tasks/AR-1484-runtime-control-owner-contract.md), [AR-1502](../tasks/AR-1502-runtime-bootstrap-authority.md) | None |
 | [AR-1512](../tasks/AR-1512-process-owner-material-contract.md) | [AR-1484](../tasks/AR-1484-runtime-control-owner-contract.md), [AR-1502](../tasks/AR-1502-runtime-bootstrap-authority.md) | None |
@@ -262,7 +263,7 @@
 | [AR-1792](../tasks/AR-1792-pty-fixture-determinism.md) | [AR-1770](../tasks/AR-1770-descriptor-safe-directory-race-hardening.md), [AR-1791](../tasks/AR-1791-tui-fixture-isolation.md) | None |
 | [AR-1793](../tasks/AR-1793-human-diagnostic-output-parent.md) | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md) | None |
 | [AR-1794](../tasks/AR-1794-protected-main-merge-path-repair.md) | [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md) | None |
-| [AR-1795](../tasks/AR-1795-coordinator-v051-adoption.md) | [AR-1756](../tasks/AR-1756-coordinator-v040-development.md) | None |
+| [AR-1795](../tasks/AR-1795-coordinator-v051-adoption.md) | [AR-1756](../tasks/AR-1756-coordinator-v040-development.md) | [AR-1841](../tasks/AR-1841-coordinator-v053-adoption.md) |
 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md) | None | None |
 | [AR-1797](../tasks/AR-1797-cli2key-live-runtime-wiring.md) | [AR-1729](../tasks/AR-1729-cli2key-sidecar-lifecycle.md), [AR-1731](../tasks/AR-1731-cli2key-codex-adapter.md), [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md), [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md) | None |
 | [AR-1798](../tasks/AR-1798-pinned-source-checkout-acquisition.md) | [AR-1776](../tasks/AR-1776-supported-tool-acquisition-catalog.md), [AR-1778](../tasks/AR-1778-pinned-source-build-and-project-dependencies.md) | None |
@@ -290,6 +291,7 @@
 | [AR-1838](../tasks/AR-1838-source-checkout-fixture-repair.md) | None | None |
 | [AR-1839](../tasks/AR-1839-source-fixture-cross-process-isolation.md) | None | None |
 | [AR-1840](../tasks/AR-1840-persist-ar1839-review-evidence.md) | None | None |
+| [AR-1841](../tasks/AR-1841-coordinator-v053-adoption.md) | [AR-1795](../tasks/AR-1795-coordinator-v051-adoption.md) | None |
 
 ## Complete AR inventory
 
@@ -395,7 +397,7 @@
 | P2 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md): Provide native openEuler capacity | Unclaimed | Qualify booted openEuler on native x86_64 and applicable QEMU AArch64; keep native ARM64 optional. | Qualify native x86_64 openEuler and required applicable pinned QEMU AArch64 behavior; document genuine native ARM64 as optional future evidence. |
 | P2 | [AR-1444](../tasks/AR-1444-first-class-journey-qualification.md): First-class journey qualification | Unclaimed | Optional cross-repository journey evidence; never an ASB release blocker. | Optional cross-repository qualification only: wait for external asb-tui AR-1327 to provide an exact pinned acceptance revision and credential-free journey transcript; this AR is not an ASB release or first-customer blocker. Do not modify asb-tui from this repository. |
 
-### Planned (90)
+### Planned (91)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -448,6 +450,7 @@
 | P0 | [AR-1830](../tasks/AR-1830-config-bound-plan-run-sweep.md): Execute config-bound live runs and sweeps | Unclaimed | Make plan validation, run, and sweep require the setup config and safely execute complete live benchmark selections from config-bound plans. | Require explicit config validation for plan validation, live run, and live sweep, then wire bounded multi-agent execution. |
 | P0 | [AR-1832](../tasks/AR-1832-explicit-config-e2e-qualification.md): Qualify explicit setup-config benchmark workflow end-to-end | Unclaimed | Qualify fresh-user setup-output through explicit config-bound plan creation, validation, live run, sweep, reporting, and legacy-surface absence. | Qualify the full fresh-user explicit-config route across supported selection matrices and live development execution. |
 | P0 | [AR-1836](../tasks/AR-1836-cross-repo-tui-qualification-determinism.md): Cross-repository Exact TUI qualification determinism | Unclaimed | Repair the deterministic cross-repository Exact TUI inherited-fd/PTY qualification seam exposed by AR-1835 without weakening its assertions. | Promote after AR-1835 dependency resolution; reproduce the two hosted failures with complete workflow metadata, identify the owning workflow/asb-tui seam, and implement only a deterministic qualification repair without weakening the gate. |
+| P0 | [AR-1841](../tasks/AR-1841-coordinator-v053-adoption.md): Coordinator v0.5.3 adoption | Unclaimed | Adopt Coordinator v0.5.3 with partial legacy worktree binding. | Promote and claim; synchronize the immutable Coordinator v0.5.3 snapshot containing upstream AR-0088, then run complete state gates and publish the reviewed adoption. |
 | P1 | [AR-0808](../tasks/AR-0808-core-workflow-guides.md): Publish core program workflow guides | Unclaimed | Document tested workflows for installing, configuring, running, replaying, comparing, and operating ASB. | Document and execute the qualified CLI setup, reconfiguration, recording, strict-offline and analysis workflows. |
 | P1 | [AR-0809](../tasks/AR-0809-frontend-workflow-guides.md): Publish terminal frontend workflow guides | Unclaimed | Document guided configuration, launch, monitoring, history, repeat, and analysis in the TUI. | Document the exact standalone first-run, provider/auth/model, defaults, recording, offline run and analysis journeys after cross-repository parity passes. |
 | P1 | [AR-0810](../tasks/AR-0810-github-pages-documentation.md): Publish workflow documentation to GitHub Pages | Unclaimed | Publish core and frontend workflows as a searchable, accessible, versioned GitHub Pages site. | Build and publish the versioned workflow documentation on the project&#x27;s GitHub Pages site. |
@@ -644,5 +647,3 @@
 | P0 | [AR-1393](../tasks/AR-1393-local-provider-authority-provisioning.md): Local provider authority provisioning | Unclaimed | Provision a runtime-owned loopback mock authority so development never requires external provider access. | Publish signed+DCO PR from exact head 0a3817082d13f15187ea5efe4f5792664a50be99; monitor exact-head CI and independently review before merge. |
 | P0 | [AR-1397](../tasks/AR-1397-protected-main-postmerge-concurrency-repair.md): Protected-main post-merge concurrency and tree repair | Unclaimed | Repair protected-main merge-tree admission and serialize exact post-merge evidence across concurrent main pushes. | Preserve merge 123ba915d2732ee8a6c99fae301bfd64cf0aac4f and its seven successful post-merge runs as immutable evidence; it has exact tree/parents but GitHub-generated signature E and no matching Signed-off-by trailer. Create a signed descendant repair AR through the local merge path, then rerun exact-main gates before closing AR-1314/AR-1395/AR-1397. |
 | P0 | [AR-1398](../tasks/AR-1398-signed-protected-main-recovery.md): Signed protected-main recovery | Unclaimed | Restore signed+DCO protected-main evidence after an unsigned GitHub-generated repair merge. | Watch all seven exact-main workflows for merge b63394b; after terminal success, record conclusions and release AR-1398 done. |
-| P0 | [AR-1421](../tasks/AR-1421-protected-main-literature-merge-race.md): Protected-main literature merge race repair | Unclaimed | Repair protected-main merge-tree requalification after a literature PR merges onto an advanced main. | Release AR-1421 done: merged tree equals reviewed topic tree e5d99b7; parents are 5ddac12 and 28e3560; topic passes SSH signature and DCO. Seven exact-main workflows all terminal SUCCESS. |
-| P0 | [AR-1427](../tasks/AR-1427-protected-main-merge-tree-requalification.md): Protected-main merge-tree requalification repair | Unclaimed | Repair exact protected-main merge-tree requalification after sequential tutorial merges. | Promote and reproduce PR #310 merge f511645 versus reviewed topic 9d97e168; repair exact protected-main merge-tree requalification, then rerun AR-1215 post-merge evidence. |

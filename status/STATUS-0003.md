@@ -1808,6 +1808,20 @@
 | Summary | Persist AR-1839 review evidence without bypassing handoffctl ownership rules. |
 | Next action | Reconcile generated views and release AR-1840 with exact artifact digest and bounded doctor/auth evidence. |
 
+### AR-1841 — Coordinator v0.5.3 adoption
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Adopt Coordinator v0.5.3 with partial legacy worktree binding. |
+| Next action | Promote and claim; synchronize the immutable Coordinator v0.5.3 snapshot containing upstream AR-0088, then run complete state gates and publish the reviewed adoption. |
+
 
 ## Dependency graph
 
@@ -2692,6 +2706,7 @@ flowchart LR
         AR_1838["AR-1838 - Done"]:::status_done
         AR_1839["AR-1839 - Done"]:::status_done
         AR_1840["AR-1840 - Done"]:::status_done
+        AR_1841["AR-1841 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4656,6 +4671,7 @@ flowchart LR
     AR_1790 --> AR_1789
     AR_1790 --> AR_1791
     AR_1791 --> AR_1792
+    AR_1795 --> AR_1841
     AR_1799 --> AR_1800
     AR_1826 --> AR_1827
     AR_1826 --> AR_1828
@@ -4709,4 +4725,3 @@ flowchart LR
 | [AR-0304](../tasks/AR-0304-agent-codex.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0505](../tasks/AR-0505-agent-replay-conformance.md), [AR-0509](../tasks/AR-0509-replay-codex.md), [AR-1003](../tasks/AR-1003-execution-budgets.md) |
 | [AR-0305](../tasks/AR-0305-agent-gemini.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0510](../tasks/AR-0510-replay-gemini.md) |
 | [AR-0306](../tasks/AR-0306-agent-qwen-code.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0511](../tasks/AR-0511-replay-qwen.md) |
-| [AR-0307](../tasks/AR-0307-agent-goose.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0512](../tasks/AR-0512-replay-goose.md) |
