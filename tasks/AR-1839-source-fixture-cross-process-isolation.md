@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make source checkout test fixtures safe when independent cargo processes run concurrently.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "Repair cross-process source fixture isolation",
-  "updated_at": "2026-10-13T08:41:57+00:00",
+  "updated_at": "2026-10-13T08:42:35+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1839-source-fixture-cross-process-isolation"
 }
 ---
@@ -52,3 +52,6 @@ post-merge verification.
 
 - 2026-10-13T08:41:57+00:00: Independent review and 12 concurrent focused runs pass at signed commit
   46ac642c; full asb-cli, fmt, clippy, and DCO checks pass.
+
+- 2026-10-13T08:42:35+00:00: Recorded command exit 0; command argv SHA-256
+  6036a4e7f3368c8d6842464147142239f3657ad9c3a0febed87c43de42ec3a28.
