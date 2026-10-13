@@ -15,19 +15,19 @@
   "schema_version": 1,
   "spec_acceptance": {
     "evidence_class": "contract-test",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_digest": "sha256:df024a38a64c4547c2b97213582edd1848642bbf595977643838e243b204a8b0",
+    "evidence_ref": "quality/AR-1839-independent-review-luna.txt",
     "spec_ref": "specs/AR-1839.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1839.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make source checkout test fixtures safe when independent cargo processes run concurrently.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "Repair cross-process source fixture isolation",
-  "updated_at": "2026-10-13T08:36:55+00:00",
+  "updated_at": "2026-10-13T08:41:57+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1839-source-fixture-cross-process-isolation"
 }
 ---
@@ -49,3 +49,6 @@ post-merge verification.
 - 2026-10-13T08:36:07+00:00: Heartbeat by ar1839-cross-process-fixture-luna.
 
 - 2026-10-13T08:36:55+00:00: Checkpointed source commit f64756968bbe6e4e4ca4abd9d75f0fc346dd2744.
+
+- 2026-10-13T08:41:57+00:00: Independent review and 12 concurrent focused runs pass at signed commit
+  46ac642c; full asb-cli, fmt, clippy, and DCO checks pass.
