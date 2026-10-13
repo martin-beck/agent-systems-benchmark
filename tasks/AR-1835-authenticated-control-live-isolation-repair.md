@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "checkpoint_commit": "06565d3de95aa72fa67bf2fde73078753acfd49b",
-  "claim_expires": "2026-10-13T02:43:58+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1763",
     "AR-1764",
@@ -13,7 +13,7 @@
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "06565d3de95aa72fa67bf2fde73078753acfd49b",
-  "owner": "ar1835-control-isolation-luna",
+  "owner": "",
   "plan": "../plans/AR-1835-authenticated-control-live-isolation-repair.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1835.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "blocked",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 65,
+  "task_revision": 66,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T00:45:07+00:00",
+  "updated_at": "2026-10-13T00:45:27+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -265,3 +265,14 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
 
 - 2026-10-13T00:45:07+00:00: Recorded command exit 0; command argv SHA-256
   05423f546638fa0266e03f759296fdc2689e698f112d4b7b172bb75e95f5dca1.
+
+- 2026-10-13T00:45:27+00:00: Independent exact-head review complete: PR #627 remains
+  06565d3de95aa72fa67bf2fde73078753acfd49b with only crates/asb-cli/src/control.rs and generated
+  diagnostic catalog changes. Required Exact TUI inherited-fd/PTY journey fails outside touched
+  paths at tui.rs:6127 (Run Control did not dispatch offline default after readiness), then
+  tui.rs:6182 unwrap. Rerun against current asb-tui main 486d24709d9045d8e4e2d91221db3a754d2fe3b6
+  (tree a871853514aac8ce23a52b15634636c600e1becd) failed identically; complete-metadata local
+  handoff reproduction passed. No safe ASB-only repair exists and no assertion weakening is
+  authorized. Keep PR unmerged. AR-1836 owns the external cross-repository qualification determinism
+  repair; reopen AR-1835 only after two fresh exact-head TUI runs pass and all required checks are
+  green.
