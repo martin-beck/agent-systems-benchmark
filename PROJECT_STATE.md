@@ -42,7 +42,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38351278042 | `6ea3648e483f` | push | Credential-free benchmark path | completed:success |
 | 38351278030 | `6ea3648e483f` | push | Fault assurance | completed:success |
 | 38351278011 | `6ea3648e483f` | push | Hosted portability and native qualification | completed:success |
-| 38351277987 | `6ea3648e483f` | push | Emulated aarch64 portability | in_progress:- |
+| 38351277987 | `6ea3648e483f` | push | Emulated aarch64 portability | completed:success |
 | 38351277973 | `6ea3648e483f` | push | Repository quality | completed:failure |
 | 38351277970 | `6ea3648e483f` | push | Huawei MIT source headers | completed:success |
 | 38351277909 | `6ea3648e483f` | push | Cross-repository development broker qualification | completed:success |
