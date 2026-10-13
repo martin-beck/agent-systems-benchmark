@@ -18,20 +18,20 @@
   "priority": "P0",
   "schema_version": 1,
   "spec_acceptance": {
-    "evidence_class": "contract-test",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:1d74a4ae886d24a0cb23a7d6bbd50fffe7c206c5d2e19036a36af5342781b08d",
+    "evidence_ref": "quality/AR-1837-postmerge-receipt.json",
     "spec_ref": "specs/AR-1835.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1835.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 86,
+  "task_revision": 87,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T06:12:11+00:00",
+  "updated_at": "2026-10-13T06:12:18+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -344,3 +344,9 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
 
 - 2026-10-13T06:12:11+00:00: Recorded command exit 0; command argv SHA-256
   5b8c54a33b95c8cd614e660e9db04c78cac6080f38e59f0bbce08b5535c4a44f.
+
+- 2026-10-13T06:12:18+00:00: Acceptance passed: reviewed signed+DCO PR #627 head 06565d3 is
+  integrated in signed protected-main merge 4a486e97 with exact tree and preserved invalid web merge
+  history; focused control evidence is 74/74 with fmt, clippy and diagnostic-contract checks green;
+  AR-1837 receipt records all ten exact-main workflows terminal-success. AR-1783 remains
+  in_progress.
