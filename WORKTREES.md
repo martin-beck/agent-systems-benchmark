@@ -265,6 +265,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-ar1791-merge` | `DETACHED` | `59cfd9cf6f06` | 0 | behind 307, ahead 0 |
 | `asb-ar1811-merge-base` | `DETACHED` | `07c590e712df` | 0 | behind 66, ahead 0 |
 | `asb-ar1813-merge-base` | `DETACHED` | `5a6c5477cd17` | 0 | behind 63, ahead 0 |
+| `asb-ar1826-explicit-setup-contract` | `codex/ar-1826-explicit-setup-contract` | `4a486e97abbb` | 5 | behind 0, ahead 0 |
+| changed files | - | - | - | `crates/asb-config/src/lib.rs`, `docs/workflows/setup-preflight.md`, `crates/asb-config/schema/v1/config-bound-plan.schema.json`, `crates/asb-config/schema/v1/explicit-setup-config.schema.json`, `crates/asb-config/src/explicit_setup.rs` |
 | `asb-ar1834-integration` | `DETACHED` | `da0cbe0848a1` | 0 | behind 4, ahead 0 |
 | `asb-ar1834-protected-main-identity` | `repair/ar-1834-ar1775-protected-main-identity` | `4107fcd177ef` | 0 | behind 5, ahead 0 |
 | `asb-ar1837-merge` | `DETACHED` | `6ea3648e483f` | 0 | behind 2, ahead 0 |
