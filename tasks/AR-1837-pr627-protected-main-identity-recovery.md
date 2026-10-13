@@ -15,19 +15,19 @@
   "schema_version": 1,
   "spec_acceptance": {
     "evidence_class": "hosted",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_digest": "sha256:1d74a4ae886d24a0cb23a7d6bbd50fffe7c206c5d2e19036a36af5342781b08d",
+    "evidence_ref": "quality/AR-1837-postmerge-receipt.json",
     "spec_ref": "specs/AR-1837.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1837.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates.",
-  "task_revision": 32,
+  "task_revision": 33,
   "title": "PR #627 protected-main identity recovery",
-  "updated_at": "2026-10-13T06:06:46+00:00",
+  "updated_at": "2026-10-13T06:07:00+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1837-pr627-protected-main-identity"
 }
 ---
@@ -132,3 +132,7 @@ receipt. This AR owns only a forward recovery from the current main tip.
 
 - 2026-10-13T06:06:46+00:00: Recorded command exit 0; command argv SHA-256
   819507c80908e7d0f961bda582bed4551953e58ffbff136a489cbb200f46f81e.
+
+- 2026-10-13T06:07:00+00:00: Exact signed merge 4a486e97 and all ten exact-main workflows
+  terminal-success; Credential-free succeeded on rerun attempt 2. Immutable web merge 6ea3648e and
+  its failure remain preserved.
