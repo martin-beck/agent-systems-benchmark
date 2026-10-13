@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Remain blocked from merge on repeated hosted TUI qualification failure. Preserve exact logs and local-pass evidence; escalate as external asb-tui/main qualification or hosted-environment failure. No PR commit or merge until the required TUI check is independently resolved and all exact-head checks are green.",
+  "next_action": "Merge PR #627 only through the reviewed signed integration procedure, then run post-merge exact-main verification and reconcile AR-1835; keep AR-1783 in progress.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "06565d3de95aa72fa67bf2fde73078753acfd49b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 71,
+  "task_revision": 72,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T05:19:49+00:00",
+  "updated_at": "2026-10-13T05:24:00+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -289,3 +289,14 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   aceec5565bbe3cbe34b57323365cadb2751ee1ce60644f6846dc1b33cd390653.
 
 - 2026-10-13T05:19:49+00:00: Heartbeat by ar1835-control-isolation-luna.
+
+- 2026-10-13T05:24:00+00:00: Independent exact-head review APPROVED for PR #627 at
+  06565d3de95aa72fa67bf2fde73078753acfd49b (tree clean, SSH signature and matching DCO verified).
+  Diff limited to authenticated RuntimeBootstrap catalog validation/test fixture in
+  crates/asb-cli/src/control.rs and regenerated diagnostic call-site catalog. Focused asb-cli
+  control suite passed 74/74 in second-drive checkout; cargo fmt --all -- --check and cargo clippy
+  --locked -p asb-cli --all-targets -- -D warnings passed; diagnostic_contract
+  ordinary_cli_producers_are_mechanically_closed passed. Hosted Exact TUI rerun 38325731442
+  completed success at this exact head against asb-tui main
+  c4f554e79c16bcc910b4a9af6a665a230b3339fb. No product-path, privacy, authority, signature, DCO, or
+  evidence defect found. Do not merge outside signed integration workflow.
