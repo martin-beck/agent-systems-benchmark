@@ -1,7 +1,7 @@
 ---
 {
   "branch": "",
-  "checkpoint_commit": "5e31d2147b4f475962af77c260831b06a74f08c5",
+  "checkpoint_commit": "25e1ebd8555000d0f896c0df82229d937de38813",
   "claim_expires": "2026-10-13T08:03:55+00:00",
   "depends_on": [],
   "id": "AR-1838",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 7,
+  "task_revision": 8,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T06:07:42+00:00",
+  "updated_at": "2026-10-13T06:11:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -59,3 +59,5 @@ boundaries.
   Reproduction focused test currently passes; tracing fixture race.
 
 - 2026-10-13T06:07:42+00:00: Checkpointed source commit 5e31d2147b4f475962af77c260831b06a74f08c5.
+
+- 2026-10-13T06:11:51+00:00: Checkpointed source commit 25e1ebd8555000d0f896c0df82229d937de38813.
