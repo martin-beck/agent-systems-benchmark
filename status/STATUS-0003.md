@@ -1836,6 +1836,20 @@
 | Summary | Make logical names the only user-facing selection keys while ASB and asb-tui resolve and verify paths, hashes, versions, providers, and models internally. |
 | Next action | Promote after AR-1832 is complete; inventory every user-facing selection and freeze the shared name-to-identity resolver contract before implementation. |
 
+### AR-1843 — Hosted formal workspace permission repair
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Repair hosted formal TLC workspace permissions for the ASB state runner. |
+| Next action | Promote and claim; repair the hosted formal workflow workspace initialization so the gha-asb-state runner can create its per-run TLC workspace and attestation directory without weakening the formal gate, then rerun the exact-head formal workflow. |
+
 
 ## Dependency graph
 
@@ -2722,6 +2736,7 @@ flowchart LR
         AR_1840["AR-1840 - Done"]:::status_done
         AR_1841["AR-1841 - In progress"]:::status_in_progress
         AR_1842["AR-1842 - Planned"]:::status_planned
+        AR_1843["AR-1843 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4738,4 +4753,3 @@ flowchart LR
 | [AR-0301](../tasks/AR-0301-agent-opencode.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0505](../tasks/AR-0505-agent-replay-conformance.md), [AR-0506](../tasks/AR-0506-replay-opencode.md), [AR-1003](../tasks/AR-1003-execution-budgets.md) |
 | [AR-0302](../tasks/AR-0302-agent-opendesk.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0505](../tasks/AR-0505-agent-replay-conformance.md), [AR-0507](../tasks/AR-0507-replay-opendesk.md), [AR-0516](../tasks/AR-0516-opendesk-strict-replay-http-compatibility.md), [AR-1003](../tasks/AR-1003-execution-budgets.md) |
 | [AR-0303](../tasks/AR-0303-agent-aider.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0505](../tasks/AR-0505-agent-replay-conformance.md), [AR-0508](../tasks/AR-0508-replay-aider.md), [AR-0850](../tasks/AR-0850-aider-deterministic-replay.md), [AR-1003](../tasks/AR-1003-execution-budgets.md) |
-| [AR-0304](../tasks/AR-0304-agent-codex.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0505](../tasks/AR-0505-agent-replay-conformance.md), [AR-0509](../tasks/AR-0509-replay-codex.md), [AR-1003](../tasks/AR-1003-execution-budgets.md) |
