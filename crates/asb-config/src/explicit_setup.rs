@@ -1,3 +1,5 @@
+// Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+// SPDX-License-Identifier: MIT
 //! Explicit, portable setup configuration and configuration-bound plans.
 //!
 //! This contract is deliberately independent of the process, network and
