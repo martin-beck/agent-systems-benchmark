@@ -1766,6 +1766,20 @@
 | Summary | Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates. |
 | Next action | Await completion of exact-main rerun attempt 2 for Credential-free benchmark path plus remaining Rust, Repository quality, and Emulated AArch64 workflows; release only after all terminal-success and reconcile AR-1835 evidence. |
 
+### AR-1838 — Repair reproducible source checkout fixture failure
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. |
+| Next action | Reproduce the repeated source_checkout fixture Unavailable failure, repair the owning test/fixture contract without weakening it, then run full gates and publish a reviewed repair. |
+
 
 ## Dependency graph
 
@@ -2647,6 +2661,7 @@ flowchart LR
         AR_1835["AR-1835 - In progress"]:::status_in_progress
         AR_1836["AR-1836 - Planned"]:::status_planned
         AR_1837["AR-1837 - In progress"]:::status_in_progress
+        AR_1838["AR-1838 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4667,4 +4682,3 @@ flowchart LR
 | [AR-0307](../tasks/AR-0307-agent-goose.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0512](../tasks/AR-0512-replay-goose.md) |
 | [AR-0308](../tasks/AR-0308-agent-mini-swe.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0513](../tasks/AR-0513-replay-miniswe.md), [AR-0909](../tasks/AR-0909-mini-swe-cancellation-reap-test-isolation.md) |
 | [AR-0309](../tasks/AR-0309-agent-openhands.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0514](../tasks/AR-0514-replay-openhands.md), [AR-0521](../tasks/AR-0521-openhands-environment-pin.md) |
-| [AR-0310](../tasks/AR-0310-provider-profile-contract.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-1001](../tasks/AR-1001-experiment-comparability.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0314](../tasks/AR-0314-recording-source-choice.md), [AR-0318](../tasks/AR-0318-credential-reference-boundary.md), [AR-0857](../tasks/AR-0857-openjiuwen-provenance.md), [AR-0863](../tasks/AR-0863-workbuddy-provenance.md), [AR-1325](../tasks/AR-1325-provider-openrouter.md) |
