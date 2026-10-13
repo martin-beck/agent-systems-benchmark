@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T11:05:49+00:00",
   "depends_on": [],
   "id": "AR-1826",
-  "next_action": "Repair legacy worktree binding metadata, then reconstruct a signed+DCO topic from reviewed e9d95999 onto current main d0e6a28; rerun independent review and exact-head CI before merge.",
+  "next_action": "State metadata repair is required before product requalification: legacy worktree_key is populated while branch is empty. Coordinator repair must restore the declared branch/worktree binding without changing owner/evidence, then rebuild reviewed e9d95999 onto current main d0e6a28 and rerun exact-head review/CI.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts.",
-  "task_revision": 34,
+  "task_revision": 35,
   "title": "Define explicit setup configuration and plan-binding contract",
-  "updated_at": "2026-10-13T09:11:26+00:00",
+  "updated_at": "2026-10-13T09:14:13+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
@@ -147,3 +147,8 @@ and compatibility contract on which the remaining ARs depend.
   merged main d0e6a28. handoffctl bind-worktree refuses retained legacy worktree_key with empty
   branch; handoffctl run refuses undeclared branch/worktree. No product mutation or stale merge
   attempted.
+
+- 2026-10-13T09:14:13+00:00: Narrow repair audit: doctor --live is clean, but bind-worktree
+  correctly refuses the inconsistent legacy pair (branch empty, worktree_key
+  agent-systems-benchmark-ar-1826-explicit-setup-config-contract). No product, PR, owner, or
+  evidence mutation performed.

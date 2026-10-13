@@ -1610,7 +1610,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. |
-| Next action | Repair legacy worktree binding metadata, then reconstruct a signed+DCO topic from reviewed e9d95999 onto current main d0e6a28; rerun independent review and exact-head CI before merge. |
+| Next action | State metadata repair is required before product requalification: legacy worktree_key is populated while branch is empty. Coordinator repair must restore the declared branch/worktree binding without changing owner/evidence, then rebuild reviewed e9d95999 onto current main d0e6a28 and rerun exact-head review/CI. |
 
 ### AR-1827 — Author complete explicit benchmark configuration with asb setup
 
