@@ -297,7 +297,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1826](../tasks/AR-1826-explicit-setup-config-contract.md): Define explicit setup configuration and plan-binding contract | ar1826_setup_contract_luna | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. | Await remaining exact-head checks at e9d95999c0cacff327dd350670d611aab64e69b2; then merge through signed local procedure and verify exact-main. |
+| P0 | [AR-1826](../tasks/AR-1826-explicit-setup-config-contract.md): Define explicit setup configuration and plan-binding contract | ar1826_setup_contract_luna | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. | Repair legacy worktree binding metadata, then reconstruct a signed+DCO topic from reviewed e9d95999 onto current main d0e6a28; rerun independent review and exact-head CI before merge. |
 | P0 | [AR-1838](../tasks/AR-1838-source-checkout-fixture-repair.md): Repair reproducible source checkout fixture failure | ar1838-source-checkout-repair-luna | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. | Exact-head CI remains pending for Emulated aarch64, Policy/coverage/supply chain, and Rust checks; after all 14 required contexts pass, perform signed local merge and exact-main verification. |
 
 ### Open (2)

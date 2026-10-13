@@ -1610,7 +1610,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. |
-| Next action | Await remaining exact-head checks at e9d95999c0cacff327dd350670d611aab64e69b2; then merge through signed local procedure and verify exact-main. |
+| Next action | Repair legacy worktree binding metadata, then reconstruct a signed+DCO topic from reviewed e9d95999 onto current main d0e6a28; rerun independent review and exact-head CI before merge. |
 
 ### AR-1827 — Author complete explicit benchmark configuration with asb setup
 

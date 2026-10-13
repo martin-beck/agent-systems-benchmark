@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T11:05:49+00:00",
   "depends_on": [],
   "id": "AR-1826",
-  "next_action": "Await remaining exact-head checks at e9d95999c0cacff327dd350670d611aab64e69b2; then merge through signed local procedure and verify exact-main.",
+  "next_action": "Repair legacy worktree binding metadata, then reconstruct a signed+DCO topic from reviewed e9d95999 onto current main d0e6a28; rerun independent review and exact-head CI before merge.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts.",
-  "task_revision": 33,
+  "task_revision": 34,
   "title": "Define explicit setup configuration and plan-binding contract",
-  "updated_at": "2026-10-13T09:05:49+00:00",
+  "updated_at": "2026-10-13T09:11:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
@@ -142,3 +142,8 @@ and compatibility contract on which the remaining ARs depend.
 - 2026-10-13T09:00:56+00:00: Heartbeat by ar1826_setup_contract_luna.
 
 - 2026-10-13T09:05:49+00:00: Heartbeat by ar1826_setup_contract_luna.
+
+- 2026-10-13T09:11:26+00:00: Requalification blocked: PR #629 is behind base 4a486e97 after PR #630
+  merged main d0e6a28. handoffctl bind-worktree refuses retained legacy worktree_key with empty
+  branch; handoffctl run refuses undeclared branch/worktree. No product mutation or stale merge
+  attempted.
