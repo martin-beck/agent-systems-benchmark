@@ -293,19 +293,19 @@
 
 ## Complete AR inventory
 
-### In progress (1)
+### In progress (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1838](../tasks/AR-1838-source-checkout-fixture-repair.md): Repair reproducible source checkout fixture failure | ar1838-source-checkout-repair-luna | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. | Cross-process contention remains unresolved from independent review; do not merge PR #630. Coordinate a narrowly scoped fixture lock/contract repair or document host-capacity root cause, then obtain fresh independent review and exact-head CI. |
+| P1 | [AR-1840](../tasks/AR-1840-persist-ar1839-review-evidence.md): Persist AR-1839 review evidence | ar1840-state-evidence-luna | Persist AR-1839 review evidence without bypassing handoffctl ownership rules. | Persist the staged AR-1839 independent-review artifact through an owner-scoped handoffctl lifecycle and reconcile clean generated state. |
 
-### Open (3)
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Unclaimed | AR-1835 exact-head fixture now covers the authenticated runtime bootstrap/control seam; AR-1783 remains below 90&#37; until that reviewed change is integrated. | Do not duplicate AR-1835 control/bootstrap coverage. Preserve d87352ddb511c48b4be1bdbecdd26fb2cf6597a8 as the AR-1783 product checkpoint; after AR-1835 exact-head merge/reconciliation, rerun serialized coverage and accept only if the unchanged 90&#37; floor passes. |
 | P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Unclaimed | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. |
-| P1 | [AR-1840](../tasks/AR-1840-persist-ar1839-review-evidence.md): Persist AR-1839 review evidence | Unclaimed | Persist AR-1839 review evidence without bypassing handoffctl ownership rules. | Persist the staged AR-1839 independent-review artifact through an owner-scoped handoffctl lifecycle and reconcile clean generated state. |
 
 ### Blocked (85)
 

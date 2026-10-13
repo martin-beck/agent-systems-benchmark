@@ -2,14 +2,14 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-13T10:50:10+00:00",
   "depends_on": [],
   "id": "AR-1840",
   "next_action": "Persist the staged AR-1839 independent-review artifact through an owner-scoped handoffctl lifecycle and reconcile clean generated state.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "ar1840-state-evidence-luna",
   "plan": "../plans/AR-1840-persist-ar1839-review-evidence.md",
   "priority": "P1",
   "schema_version": 1,
@@ -23,11 +23,11 @@
   },
   "spec_ref": "specs/AR-1840.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Persist AR-1839 review evidence without bypassing handoffctl ownership rules.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Persist AR-1839 review evidence",
-  "updated_at": "2026-10-13T08:49:19+00:00",
+  "updated_at": "2026-10-13T08:50:10+00:00",
   "worktree_key": "agent-systems-benchmark-state-ar-1840-evidence"
 }
 ---
@@ -40,3 +40,5 @@ do not edit generated state directly or bypass ownership admission.
 
 - 2026-10-13T08:49:19+00:00: Persist the staged AR-1839 independent-review artifact through a
   dedicated owner-scoped coordination repair.
+
+- 2026-10-13T08:50:10+00:00: Claimed by ar1840-state-evidence-luna.
