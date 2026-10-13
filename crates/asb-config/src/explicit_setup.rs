@@ -272,10 +272,29 @@ impl ConfigBoundPlanV1 {
         &self,
         config: &ExplicitSetupConfigV1,
     ) -> Result<(), ExplicitSetupError> {
-        if self.schema_version != CONFIG_BOUND_PLAN_SCHEMA_VERSION
-            || self.config_id != config.config_id
-            || self.config_sha256 != config.digest()?
+        if self.schema_version != CONFIG_BOUND_PLAN_SCHEMA_VERSION {
+            return Err(ExplicitSetupError::BindingMismatch);
+        }
+        validate_name(&self.plan_id, "plan_id").map_err(|_| ExplicitSetupError::BindingMismatch)?;
+        if self.config_id != config.config_id {
+            return Err(ExplicitSetupError::BindingMismatch);
+        }
+        if self.workloads.is_empty()
+            || self.workloads.iter().collect::<BTreeSet<_>>().len() != self.workloads.len()
+            || self
+                .workloads
+                .iter()
+                .any(|id| !config.workloads.iter().any(|workload| &workload.id == id))
+            || self.agents.is_empty()
+            || self.agents.iter().collect::<BTreeSet<_>>().len() != self.agents.len()
+            || self
+                .agents
+                .iter()
+                .any(|id| !config.agents.iter().any(|agent| &agent.id == id))
         {
+            return Err(ExplicitSetupError::BindingMismatch);
+        }
+        if self.config_sha256 != config.digest()? {
             return Err(ExplicitSetupError::BindingMismatch);
         }
         Ok(())
@@ -377,6 +396,27 @@ mod tests {
             config.execution.results_root = root.into();
             assert!(
                 matches!(config.validate(), Err(ExplicitSetupError::Invalid(field)) if field == "execution.results_root")
+            );
+        }
+    }
+
+    #[test]
+    fn plan_validation_rejects_identity_selection_and_membership_drift() {
+        let config = sample();
+        let plan = config
+            .bind_plan("plan".into(), vec!["workload".into()], vec!["agent".into()])
+            .expect("bind");
+        for mutate in [
+            |candidate: &mut ConfigBoundPlanV1| candidate.plan_id.clear(),
+            |candidate: &mut ConfigBoundPlanV1| candidate.agents.clear(),
+            |candidate: &mut ConfigBoundPlanV1| candidate.workloads.push("missing".into()),
+            |candidate: &mut ConfigBoundPlanV1| candidate.agents.push("agent".into()),
+        ] {
+            let mut candidate = plan.clone();
+            mutate(&mut candidate);
+            assert_eq!(
+                candidate.validate_against(&config),
+                Err(ExplicitSetupError::BindingMismatch)
             );
         }
     }

@@ -10,14 +10,14 @@
     "providers": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/provider"}},
     "models": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/model"}},
     "workloads": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/workload"}},
-    "monitors": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 128}},
-    "measures": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+    "monitors": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+    "measures": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
     "run": {"type": "object", "additionalProperties": false, "required": ["repetitions", "max_attempts", "timeout_seconds"], "properties": {"repetitions": {"type": "integer", "minimum": 1}, "max_attempts": {"type": "integer", "minimum": 1}, "timeout_seconds": {"type": "integer", "minimum": 1}}},
     "execution": {"type": "object", "additionalProperties": false, "required": ["results_root", "live", "network", "cost_acknowledged"], "properties": {"results_root": {"type": "string", "minLength": 1}, "live": {"type": "boolean"}, "network": {"type": "boolean"}, "cost_acknowledged": {"type": "boolean"}}},
     "registries": {"type": "object", "additionalProperties": false, "required": ["provider", "workload", "measurement"], "properties": {"provider": {"$ref": "#/$defs/digest"}, "workload": {"$ref": "#/$defs/digest"}, "measurement": {"$ref": "#/$defs/digest"}}}
   },
   "$defs": {
-    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}, "text": {"type": "string", "minLength": 1, "maxLength": 4096}, "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}, "text": {"type": "string", "minLength": 1, "maxLength": 4096}, "digest": {"type": "string", "pattern": "^[0-9A-Fa-f]{64}$"},
     "credential": {"type": "object", "additionalProperties": false, "required": ["kind", "locator_sha256"], "properties": {"kind": {"enum": ["environment", "file_descriptor", "helper"]}, "locator_sha256": {"$ref": "#/$defs/digest"}}},
     "agent": {"type": "object", "additionalProperties": false, "required": ["id", "executable", "adapter"], "properties": {"id": {"$ref": "#/$defs/id"}, "executable": {"$ref": "#/$defs/text"}, "adapter": {"$ref": "#/$defs/text"}}},
     "provider": {"type": "object", "additionalProperties": false, "required": ["id", "adapter", "credential"], "properties": {"id": {"$ref": "#/$defs/id"}, "adapter": {"$ref": "#/$defs/text"}, "credential": {"$ref": "#/$defs/credential"}}},
