@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 29,
+  "task_revision": 30,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T09:00:20+00:00",
+  "updated_at": "2026-10-13T09:06:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -135,3 +135,6 @@ boundaries.
   pending; no merge authorized until all pass.
 
 - 2026-10-13T09:00:20+00:00: Heartbeat by ar1838-source-checkout-repair-luna.
+
+- 2026-10-13T09:06:11+00:00: Recorded command exit 128; command argv SHA-256
+  f65a4615bc94d60720dc5c287eb0c3ee82810b8936008990f18f1488b79ae6d6.
