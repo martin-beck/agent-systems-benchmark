@@ -1778,7 +1778,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. |
-| Next action | Reproduce the repeated source_checkout fixture Unavailable failure, repair the owning test/fixture contract without weakening it, then run full gates and publish a reviewed repair. |
+| Next action | Resolve independent-review concurrent Err(Unavailable) evidence: determine whether cross-process fixture coordination is required; do not merge PR #630 until reliability passes under documented contention. Then rerun exact-head checks and merge only through signed local integration. |
 
 
 ## Dependency graph

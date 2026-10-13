@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T09:24:41+00:00",
   "depends_on": [],
   "id": "AR-1838",
-  "next_action": "Reproduce the repeated source_checkout fixture Unavailable failure, repair the owning test/fixture contract without weakening it, then run full gates and publish a reviewed repair.",
+  "next_action": "Resolve independent-review concurrent Err(Unavailable) evidence: determine whether cross-process fixture coordination is required; do not merge PR #630 until reliability passes under documented contention. Then rerun exact-head checks and merge only through signed local integration.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 15,
+  "task_revision": 16,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T08:28:53+00:00",
+  "updated_at": "2026-10-13T08:29:07+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -81,3 +81,10 @@ boundaries.
 
 - 2026-10-13T08:28:53+00:00: Recorded command exit 0; command argv SHA-256
   58dc077b489a178004f6975c36f61f3fb063957668e322bc430be9a71a734ba1.
+
+- 2026-10-13T08:29:07+00:00: Independent review reports exact fixture passes 20/20 uncontended but
+  reproduces Err(Unavailable) at iteration 9/immediately on a concurrent review/full cargo process.
+  After that process ended, reran the uncontended focused source_checkout suite: 26/26 passed. This
+  means the in-process semaphore/lock repair is insufficient for concurrent test processes; PR #630
+  remains unapprovable. State publication attempted but push failed because GitHub credentials are
+  unavailable.
