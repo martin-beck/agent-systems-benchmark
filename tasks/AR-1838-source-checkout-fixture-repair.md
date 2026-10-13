@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 59,
+  "task_revision": 60,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T09:21:34+00:00",
+  "updated_at": "2026-10-13T09:22:15+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -232,3 +232,6 @@ boundaries.
   38374103107, 38374103270, 38374103335, 38374103290, 38374103100, 38374103004, 38374103087,
   38374103128. Remote refs/heads/main equals exact merge SHA; commit verification true and matching
   Signed-off-by trailer. Exact-main merge-int checkout is clean; hosted exact-main is authoritative.
+
+- 2026-10-13T09:22:15+00:00: Recorded command exit 0; command argv SHA-256
+  f9b8b2a4aa173599ea24d07e7d5ac6ab0643dddeaeca8bcc8ea04d96c54ddf14.
