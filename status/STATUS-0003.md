@@ -1736,7 +1736,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. |
-| Next action | Wait for PR #627 exact-head required checks; inspect every result and repair only concrete failures, then perform independent exact-head review and guarded merge. |
+| Next action | Continue polling PR #627 exact-head checks; do not merge while any required check is pending or failed. On all-green, perform exact-head review and guarded merge, then verify exact-main CI. |
 
 
 ## Dependency graph

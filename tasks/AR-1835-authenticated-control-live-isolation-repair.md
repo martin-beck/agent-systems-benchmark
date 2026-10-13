@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Wait for PR #627 exact-head required checks; inspect every result and repair only concrete failures, then perform independent exact-head review and guarded merge.",
+  "next_action": "Continue polling PR #627 exact-head checks; do not merge while any required check is pending or failed. On all-green, perform exact-head review and guarded merge, then verify exact-main CI.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "06565d3de95aa72fa67bf2fde73078753acfd49b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 43,
+  "task_revision": 44,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T00:08:31+00:00",
+  "updated_at": "2026-10-13T00:09:15+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -171,3 +171,9 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   passed 74 tests; full cargo test --locked --workspace passed product tests (documented ignored
   native/provider lanes); diagnostic_contract ordinary_cli_producers_are_mechanically_closed passed.
   Required exact-head CI is running; do not merge until all required checks are terminal green.
+
+- 2026-10-13T00:09:15+00:00: Publication remains active at PR #627 exact head
+  06565d3de95aa72fa67bf2fde73078753acfd49b. Hosted rollup currently has AWQ shadow, Huawei/MIT
+  headers, Portable protected-main provenance, and retained faults green; remaining required Rust,
+  policy/coverage, credential-free, platform/QEMU, fuzz, Loom/Kani, mutation, and TUI checks are
+  still pending. Merge is intentionally blocked on exact-head terminal green checks.
