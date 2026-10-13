@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T11:55:50+00:00",
   "depends_on": [],
   "id": "AR-1826",
-  "next_action": "Restore valid GitHub authentication and record durable independent review for exact repaired signed commit e9d95999c0cacff327dd350670d611aab64e69b2; then publish/update PR and merge through the reviewed path.",
+  "next_action": "Await remaining exact-head checks at e9d95999c0cacff327dd350670d611aab64e69b2; then merge through signed local procedure and verify exact-main.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts.",
-  "task_revision": 29,
+  "task_revision": 30,
   "title": "Define explicit setup configuration and plan-binding contract",
-  "updated_at": "2026-10-13T08:55:50+00:00",
+  "updated_at": "2026-10-13T08:56:58+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
@@ -130,3 +130,9 @@ and compatibility contract on which the remaining ARs depend.
   recovery at e9d95999c0cacff327dd350670d611aab64e69b2.
 
 - 2026-10-13T08:55:50+00:00: Claimed by ar1826_setup_contract_luna.
+
+- 2026-10-13T08:56:58+00:00: Independent review completed for exact head
+  e9d95999c0cacff327dd350670d611aab64e69b2: complete diff reviewed in isolated review worktree;
+  strict schema identity/selection, digest case, duplicate-selection and source-header repairs are
+  present; no privacy/secret/path or gate weakening findings. SSH signature and matching DCO
+  verified; git diff --check passes. Required exact-head checks remain in progress.
