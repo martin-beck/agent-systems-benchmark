@@ -2,14 +2,14 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-13T08:03:55+00:00",
   "depends_on": [],
   "id": "AR-1838",
   "next_action": "Reproduce the repeated source_checkout fixture Unavailable failure, repair the owning test/fixture contract without weakening it, then run full gates and publish a reviewed repair.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "ar1838-source-checkout-repair-luna",
   "plan": "../plans/AR-1838-source-checkout-fixture-repair.md",
   "priority": "P0",
   "schema_version": 1,
@@ -23,11 +23,11 @@
   },
   "spec_ref": "specs/AR-1838.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T06:01:32+00:00",
+  "updated_at": "2026-10-13T06:03:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -47,3 +47,5 @@ boundaries.
 
 - 2026-10-13T06:01:32+00:00: Reproducible source checkout fixture failure requires dedicated repair
   worker.
+
+- 2026-10-13T06:03:55+00:00: Claimed by ar1838-source-checkout-repair-luna.
