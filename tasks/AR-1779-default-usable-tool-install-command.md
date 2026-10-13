@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1779-default-usable-tool-install-command",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-13T00:25:07+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1777",
     "AR-1778",
@@ -13,7 +13,7 @@
   "observed_branch": "repair/ar-1779-source-fallback-linear4",
   "observed_dirty": 0,
   "observed_head": "80060a79e716b42e021ddd9b116afdc560bc6cc1",
-  "owner": "ar1779-default-install-luna",
+  "owner": "",
   "plan": "../plans/AR-1779-default-usable-tool-install-command.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1779.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 228,
+  "task_revision": 229,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-12T22:25:07+00:00",
+  "updated_at": "2026-10-13T00:25:35+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -633,3 +633,6 @@ the adapter smoke check failed.
 - 2026-10-12T22:24:52+00:00: Heartbeat by ar1779-default-install-luna.
 
 - 2026-10-12T22:25:07+00:00: Heartbeat by ar1779-default-install-luna.
+
+- 2026-10-13T00:25:35+00:00: Recover expired ownerless state after lease elapsed; preserve branch
+  and evidence for restart.
