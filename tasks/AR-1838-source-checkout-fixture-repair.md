@@ -2,14 +2,14 @@
 {
   "branch": "",
   "checkpoint_commit": "25e1ebd8555000d0f896c0df82229d937de38813",
-  "claim_expires": "2026-10-13T09:24:41+00:00",
+  "claim_expires": "",
   "depends_on": [],
   "id": "AR-1838",
   "next_action": "Cross-process contention remains unresolved from independent review; do not merge PR #630. Coordinate a narrowly scoped fixture lock/contract repair or document host-capacity root cause, then obtain fresh independent review and exact-head CI.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "ar1838-source-checkout-repair-luna",
+  "owner": "",
   "plan": "../plans/AR-1838-source-checkout-fixture-repair.md",
   "priority": "P0",
   "schema_version": 1,
@@ -23,11 +23,11 @@
   },
   "spec_ref": "specs/AR-1838.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 23,
+  "task_revision": 24,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T08:31:00+00:00",
+  "updated_at": "2026-10-13T08:32:03+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -114,3 +114,6 @@ boundaries.
 
 - 2026-10-13T08:31:00+00:00: Recorded command exit 0; command argv SHA-256
   097b1cf0386d6d2be2a380267d3a287afc1a3f86d4c2951b4fa6bfbb6f1b8bd3.
+
+- 2026-10-13T08:32:03+00:00: PR #630 remains unmerged pending AR-1839 cross-process fixture
+  isolation repair and independent requalification.
