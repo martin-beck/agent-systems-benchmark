@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "checkpoint_commit": "d87352ddb511c48b4be1bdbecdd26fb2cf6597a8",
-  "claim_expires": "2026-10-13T01:41:21+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1763",
     "AR-1764",
@@ -13,7 +13,7 @@
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "d87352ddb511c48b4be1bdbecdd26fb2cf6597a8",
-  "owner": "ar1783-workload-selection-luna",
+  "owner": "",
   "plan": "../plans/AR-1783-installed-workload-selection-and-execution.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
-  "status": "in_progress",
+  "status": "open",
   "summary": "AR-1783 delegated runtime fixture is covered; serialized full coverage remains below the 90% line floor (89.28% lines, 85.11% functions, 90.66% regions).",
-  "task_revision": 448,
+  "task_revision": 449,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-12T23:48:03+00:00",
+  "updated_at": "2026-10-13T00:36:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1139,3 +1139,7 @@ the suite from this end-to-end path.
   clean at d87352dd. No review/PR/merge should proceed while the coverage gate remains unmet.
 
 - 2026-10-12T23:48:03+00:00: Checkpointed source commit d87352ddb511c48b4be1bdbecdd26fb2cf6597a8.
+
+- 2026-10-13T00:36:51+00:00: Coordinator recovery: no matching worker process/session is live;
+  release stale active lease while preserving checkpoint d87352d, branch/head, and coverage evidence
+  for replacement Luna worker.
