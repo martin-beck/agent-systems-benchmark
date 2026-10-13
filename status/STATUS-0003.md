@@ -1736,7 +1736,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. |
-| Next action | Continue polling TUI rerun job 115065450191 at roughly 30-second cadence. Guard merge until it reports pass and all required exact-head checks are terminal green. |
+| Next action | Remain blocked from merge on repeated hosted TUI qualification failure. Preserve exact logs and local-pass evidence; escalate as external asb-tui/main qualification or hosted-environment failure. No PR commit or merge until the required TUI check is independently resolved and all exact-head checks are green. |
 
 
 ## Dependency graph

@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Continue polling TUI rerun job 115065450191 at roughly 30-second cadence. Guard merge until it reports pass and all required exact-head checks are terminal green.",
+  "next_action": "Remain blocked from merge on repeated hosted TUI qualification failure. Preserve exact logs and local-pass evidence; escalate as external asb-tui/main qualification or hosted-environment failure. No PR commit or merge until the required TUI check is independently resolved and all exact-head checks are green.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "06565d3de95aa72fa67bf2fde73078753acfd49b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 56,
+  "task_revision": 57,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T00:16:42+00:00",
+  "updated_at": "2026-10-13T00:17:30+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -235,3 +235,9 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   Emulated aarch64, Credential-free, AWQ, Huawei, Kani, Platform, retained faults, Loom, provenance,
   bounded fuzz, and Matcher/SLO all pass. Only rerun Exact TUI inherited-fd and PTY journey job
   115065450191 remains pending; no merge attempted.
+
+- 2026-10-13T00:17:30+00:00: Rerun job 115065450191 also failed with the identical tui.rs:6127
+  offline-default dispatch readiness panic and tui.rs:6182 unwrap; all other required exact-head
+  checks are green. Local exact workflow reproduction with complete ASB_TUI_* metadata passed. PR
+  diff has no tui.rs changes and only control.rs/catalog changes; no signed repair commit is
+  justified by evidence.
