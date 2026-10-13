@@ -280,6 +280,5 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1499` | `feature/ar-1499-development-credential-enrollment` | `0a2f6e9c74f9` | 0 | behind 814, ahead 1280 |
 | `agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution` | `feature/ar-1783-installed-workload-selection-and-execution` | `d87352ddb511` | 0 | behind 2, ahead 32 |
 | `agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract` | `feature/ar-1825-source-to-executable-adapter-runtime-contract` | `630d380866e4` | 0 | behind 13, ahead 0 |
-| `agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair` | `feature/ar-1835-authenticated-control-live-isolation-repair` | `da0cbe0848a1` | 1 | behind 0, ahead 0 |
-| changed files | - | - | - | `crates/asb-cli/src/control.rs` |
+| `agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair` | `feature/ar-1835-authenticated-control-live-isolation-repair` | `06565d3de95a` | 0 | behind 0, ahead 1 |
 | `ar1824-repair.Tp51GE` | `DETACHED` | `c2745e04e231` | 0 | behind 34, ahead 0 |
