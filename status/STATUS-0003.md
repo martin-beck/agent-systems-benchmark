@@ -1770,11 +1770,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | ar1838-source-checkout-repair-luna |
 | Parent | None |
 | Children | None |
 | Summary | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. |
@@ -2675,7 +2675,7 @@ flowchart LR
         AR_1835["AR-1835 - Done"]:::status_done
         AR_1836["AR-1836 - Planned"]:::status_planned
         AR_1837["AR-1837 - Done"]:::status_done
-        AR_1838["AR-1838 - Open"]:::status_open
+        AR_1838["AR-1838 - In progress"]:::status_in_progress
         AR_1839["AR-1839 - Done"]:::status_done
     end
     AR_0001 --> AR_0002
