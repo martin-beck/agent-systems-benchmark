@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 32,
+  "task_revision": 33,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T09:06:52+00:00",
+  "updated_at": "2026-10-13T09:07:45+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -144,3 +144,6 @@ boundaries.
 
 - 2026-10-13T09:06:52+00:00: Recorded command exit 0; command argv SHA-256
   a719a10cf4e8f8f5e58d97b226f3453ae6dd655656f4b9e803ba74647601d89d.
+
+- 2026-10-13T09:07:45+00:00: Recorded command exit 0; command argv SHA-256
+  b398755d6b65dc26e71af92f8f7bd91f23d757dad67f0c844940f99199846985.
