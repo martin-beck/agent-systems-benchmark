@@ -64,6 +64,9 @@ class WorkflowTriggerTests(unittest.TestCase):
         workflow = FORMAL_WORKFLOW.read_text(encoding="utf-8")
         root = "/srv/data/projects/.asb-tlc/ci-${{ github.run_id }}"
         self.assertIn(f"TLC_RUNTIME_ROOT: {root}", workflow)
+        self.assertIn(f"TLC_WORK_ROOT: {root}", workflow)
+        self.assertIn('install -d -m 700 "$TLC_WORK_ROOT"', workflow)
+        self.assertIn('install -d -m 700 "$(dirname -- "$TLC_ATTESTATION_PATH")"', workflow)
         workflow_env, formal_step = workflow.split(
             "      - name: Check exhaustive concurrent-state model", maxsplit=1
         )
