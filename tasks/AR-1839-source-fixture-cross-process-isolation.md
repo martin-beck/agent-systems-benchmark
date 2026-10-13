@@ -1,7 +1,7 @@
 ---
 {
   "branch": "",
-  "checkpoint_commit": "",
+  "checkpoint_commit": "f64756968bbe6e4e4ca4abd9d75f0fc346dd2744",
   "claim_expires": "2026-10-13T10:36:07+00:00",
   "depends_on": [],
   "id": "AR-1839",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make source checkout test fixtures safe when independent cargo processes run concurrently.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "Repair cross-process source fixture isolation",
-  "updated_at": "2026-10-13T08:36:07+00:00",
+  "updated_at": "2026-10-13T08:36:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1839-source-fixture-cross-process-isolation"
 }
 ---
@@ -47,3 +47,5 @@ post-merge verification.
 - 2026-10-13T08:32:05+00:00: Claimed by ar1839-cross-process-fixture-luna.
 
 - 2026-10-13T08:36:07+00:00: Heartbeat by ar1839-cross-process-fixture-luna.
+
+- 2026-10-13T08:36:55+00:00: Checkpointed source commit f64756968bbe6e4e4ca4abd9d75f0fc346dd2744.
