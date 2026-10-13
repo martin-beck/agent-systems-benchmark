@@ -32,20 +32,21 @@ Generated from local Git and GitHub. Do not edit.
 | #618 | `repair/ar-1779-current-main-smoke@f1dbe055aaeb` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): verify supported tool reuse and entrypoints |
 | #619 | `repair/ar-1779-source-fallback-linear3@21372a22aba3` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
 | #624 | `feature/ar-1783-installed-workload-selection-and-execution@32f42827367d` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): bind installed workloads before execution |
+| #629 | `codex/ar-1826-explicit-setup-contract@256fe639a7c7` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | feat(config): define explicit setup and plan binding contract |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38353669498 | `4a486e97abbb` | push | Huawei MIT source headers | completed:success |
-| 38353669203 | `4a486e97abbb` | push | Rust verification | in_progress:- |
-| 38353669122 | `4a486e97abbb` | push | Emulated aarch64 portability | completed:success |
-| 38353669102 | `4a486e97abbb` | push | Credential-free benchmark path | completed:success |
-| 38353669101 | `4a486e97abbb` | push | Hosted portability and native qualification | completed:success |
-| 38353669100 | `4a486e97abbb` | push | Repository quality | in_progress:- |
-| 38353669099 | `4a486e97abbb` | push | Development formal assurance | completed:success |
-| 38353669093 | `4a486e97abbb` | push | Portable protected-main provenance | completed:success |
-| 38353669082 | `4a486e97abbb` | push | Fault assurance | completed:success |
-| 38353669080 | `4a486e97abbb` | push | Cross-repository development broker qualification | completed:success |
-| 38351888480 | `5e78a03bcd09` | pull_request | Emulated aarch64 portability | completed:success |
-| 38351888448 | `5e78a03bcd09` | pull_request | Development formal assurance | completed:success |
+| 38354846651 | `256fe639a7c7` | pull_request | Repository quality | in_progress:- |
+| 38354846650 | `256fe639a7c7` | pull_request | Development formal assurance | in_progress:- |
+| 38354846637 | `256fe639a7c7` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38354846611 | `256fe639a7c7` | pull_request | Cross-repository development broker qualification | in_progress:- |
+| 38354846574 | `256fe639a7c7` | pull_request | Hosted portability and native qualification | in_progress:- |
+| 38354846568 | `256fe639a7c7` | pull_request | Fault assurance | in_progress:- |
+| 38354846559 | `256fe639a7c7` | pull_request | Credential-free benchmark path | in_progress:- |
+| 38354846555 | `256fe639a7c7` | pull_request | Rust verification | in_progress:- |
+| 38354846553 | `256fe639a7c7` | pull_request | Agent Workflow Quality shadow | completed:success |
+| 38354846550 | `256fe639a7c7` | pull_request | Portable protected-main provenance | completed:success |
+| 38354846546 | `256fe639a7c7` | pull_request | Huawei MIT source headers | completed:success |
+| 38354736136 | `7c9a3fb77fc5` | pull_request | Cross-repository development broker qualification | completed:cancelled |
