@@ -1784,11 +1784,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1839-cross-process-fixture-luna |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Make source checkout test fixtures safe when independent cargo processes run concurrently. |
@@ -2676,7 +2676,7 @@ flowchart LR
         AR_1836["AR-1836 - Planned"]:::status_planned
         AR_1837["AR-1837 - Done"]:::status_done
         AR_1838["AR-1838 - Open"]:::status_open
-        AR_1839["AR-1839 - In progress"]:::status_in_progress
+        AR_1839["AR-1839 - Done"]:::status_done
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003

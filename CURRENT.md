@@ -8,7 +8,6 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1826](tasks/AR-1826-explicit-setup-config-contract.md): Define explicit setup configuration and plan-binding contract | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. | Await remaining exact-head CI and independent review for PR #629 at ecf3ed20; then merge and post-merge verify. | ar1826_setup_contract_luna |
-| P0 | [AR-1839](tasks/AR-1839-source-fixture-cross-process-isolation.md): Repair cross-process source fixture isolation | Make source checkout test fixtures safe when independent cargo processes run concurrently. | Reproduce source_checkout fixture collisions across concurrent cargo processes, add process-safe isolation, then run focused/full gates and publish a reviewed repair. | ar1839-cross-process-fixture-luna |
 
 ## Open
 

@@ -2,14 +2,14 @@
 {
   "branch": "",
   "checkpoint_commit": "f64756968bbe6e4e4ca4abd9d75f0fc346dd2744",
-  "claim_expires": "2026-10-13T10:36:07+00:00",
+  "claim_expires": "",
   "depends_on": [],
   "id": "AR-1839",
   "next_action": "Reproduce source_checkout fixture collisions across concurrent cargo processes, add process-safe isolation, then run focused/full gates and publish a reviewed repair.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "ar1839-cross-process-fixture-luna",
+  "owner": "",
   "plan": "../plans/AR-1839-source-fixture-cross-process-isolation.md",
   "priority": "P0",
   "schema_version": 1,
@@ -23,11 +23,11 @@
   },
   "spec_ref": "specs/AR-1839.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Make source checkout test fixtures safe when independent cargo processes run concurrently.",
-  "task_revision": 7,
+  "task_revision": 8,
   "title": "Repair cross-process source fixture isolation",
-  "updated_at": "2026-10-13T08:42:35+00:00",
+  "updated_at": "2026-10-13T08:42:49+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1839-source-fixture-cross-process-isolation"
 }
 ---
@@ -55,3 +55,6 @@ post-merge verification.
 
 - 2026-10-13T08:42:35+00:00: Recorded command exit 0; command argv SHA-256
   6036a4e7f3368c8d6842464147142239f3657ad9c3a0febed87c43de42ec3a28.
+
+- 2026-10-13T08:42:49+00:00: Signed repair 46ac642c and independent review evidence pass;
+  publication remains locally checkpointed pending restored GitHub auth.
