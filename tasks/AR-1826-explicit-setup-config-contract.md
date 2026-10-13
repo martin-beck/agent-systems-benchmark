@@ -2,14 +2,14 @@
 {
   "branch": "",
   "checkpoint_commit": "45427b6ec7fc73f896574701df5e35b6d72b7cf4",
-  "claim_expires": "2026-10-13T09:01:59+00:00",
+  "claim_expires": "",
   "depends_on": [],
   "id": "AR-1826",
   "next_action": "Await remaining exact-head CI and independent review for PR #629 at ecf3ed20; then merge and post-merge verify.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "ar1826_setup_contract_luna",
+  "owner": "",
   "plan": "../plans/AR-1826-explicit-setup-config-contract.md",
   "priority": "P0",
   "schema_version": 1,
@@ -23,11 +23,11 @@
   },
   "spec_ref": "specs/AR-1826.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts.",
-  "task_revision": 23,
+  "task_revision": 24,
   "title": "Define explicit setup configuration and plan-binding contract",
-  "updated_at": "2026-10-13T06:15:28+00:00",
+  "updated_at": "2026-10-13T08:32:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
@@ -105,3 +105,6 @@ and compatibility contract on which the remaining ARs depend.
 - 2026-10-13T06:15:28+00:00: Full owner-scoped cargo test --workspace --locked passed after review
   fixes; focused 39 unit + 2 schema tests and clippy/fmt pass. Exact-head CI is progressing with
   header, provenance, shadow, platform, Kani, Loom, fuzz, and retained-fault gates green.
+
+- 2026-10-13T08:32:08+00:00: PR #629 exact-head checks and independent local review pass;
+  merge/publication awaits restored GitHub authentication and durable review recording.
