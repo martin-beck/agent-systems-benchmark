@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates.",
-  "task_revision": 11,
+  "task_revision": 12,
   "title": "PR #627 protected-main identity recovery",
-  "updated_at": "2026-10-13T05:36:48+00:00",
+  "updated_at": "2026-10-13T05:39:46+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1837-pr627-protected-main-identity"
 }
 ---
@@ -76,3 +76,6 @@ receipt. This AR owns only a forward recovery from the current main tip.
 - 2026-10-13T05:36:48+00:00: Created exact-tree signed-DCO recovery topic 5e78a03b from immutable
   main 6ea3648e; PR #628 exact-head provenance and most checks pass, with Rust, repository quality,
   and emulated-aarch64 still pending. Local repository policy and signature tests pass.
+
+- 2026-10-13T05:39:46+00:00: Recorded command exit 0; command argv SHA-256
+  88ca7864cb9316c6bd317236ea560f8f4d162e9c033542ebb6339f45412060de.
