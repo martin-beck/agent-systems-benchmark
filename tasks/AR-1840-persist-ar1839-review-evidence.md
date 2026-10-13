@@ -2,14 +2,14 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-13T10:50:10+00:00",
+  "claim_expires": "",
   "depends_on": [],
   "id": "AR-1840",
   "next_action": "Reconcile generated views and release AR-1840 with exact artifact digest and bounded doctor/auth evidence.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "ar1840-state-evidence-luna",
+  "owner": "",
   "plan": "../plans/AR-1840-persist-ar1839-review-evidence.md",
   "priority": "P1",
   "schema_version": 1,
@@ -23,11 +23,11 @@
   },
   "spec_ref": "specs/AR-1840.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Persist AR-1839 review evidence without bypassing handoffctl ownership rules.",
-  "task_revision": 7,
+  "task_revision": 8,
   "title": "Persist AR-1839 review evidence",
-  "updated_at": "2026-10-13T08:51:16+00:00",
+  "updated_at": "2026-10-13T08:51:21+00:00",
   "worktree_key": "agent-systems-benchmark-state-ar-1840-evidence"
 }
 ---
@@ -60,3 +60,12 @@ do not edit generated state directly or bypass ownership admission.
   sha256:df024a38a64c4547c2b97213582edd1848642bbf595977643838e243b204a8b0; commit
   e131b2bb99d46a50beb1b6c0d1d2cc34bfd635a0. Local generated-view doctor passed under
   PYTHONDONTWRITEBYTECODE=1; live hosted checks are bounded by gh PR-list auth failure.
+
+- 2026-10-13T08:51:21+00:00: Completed coordination-only persistence. Artifact
+  quality/AR-1839-independent-review-luna.txt is committed at
+  e131b2bb99d46a50beb1b6c0d1d2cc34bfd635a0;
+  sha256:df024a38a64c4547c2b97213582edd1848642bbf595977643838e243b204a8b0. Owner-scoped run recorded
+  clean tree and git show --check. PYTHONDONTWRITEBYTECODE=1 handoffctl doctor passed: OK structure,
+  references, privacy, generated views consistent. Bounded doctor --live and reconcile --commit
+  --push reached the same external gh PR-list auth failure after 3 attempts; hosted state remains
+  unknown and no claim is made.

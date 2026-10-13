@@ -1798,11 +1798,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P1 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1840-state-evidence-luna |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Persist AR-1839 review evidence without bypassing handoffctl ownership rules. |
@@ -2691,7 +2691,7 @@ flowchart LR
         AR_1837["AR-1837 - Done"]:::status_done
         AR_1838["AR-1838 - In progress"]:::status_in_progress
         AR_1839["AR-1839 - Done"]:::status_done
-        AR_1840["AR-1840 - In progress"]:::status_in_progress
+        AR_1840["AR-1840 - Done"]:::status_done
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
