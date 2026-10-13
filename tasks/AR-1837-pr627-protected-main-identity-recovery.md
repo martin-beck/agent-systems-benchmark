@@ -6,9 +6,9 @@
   "depends_on": [],
   "id": "AR-1837",
   "next_action": "Create a clean signed-DCO recovery topic from the current main tip, obtain independent exact-head review and green CI, then publish only with merge_pr.py.",
-  "observed_branch": "",
+  "observed_branch": "repair/ar-1837-pr627-protected-main-identity",
   "observed_dirty": 0,
-  "observed_head": "",
+  "observed_head": "6ea3648e483f25179c3112b54ed7c348e141cad4",
   "owner": "ar1837-protected-main-repair-luna",
   "plan": "../plans/AR-1837-pr627-protected-main-identity-recovery.md",
   "priority": "P0",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "PR #627 protected-main identity recovery",
-  "updated_at": "2026-10-13T05:31:20+00:00",
+  "updated_at": "2026-10-13T05:31:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1837-pr627-protected-main-identity"
 }
 ---
