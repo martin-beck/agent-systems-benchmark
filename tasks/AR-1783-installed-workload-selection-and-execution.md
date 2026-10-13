@@ -29,9 +29,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "AR-1783 delegated runtime fixture is covered; serialized full coverage remains below the 90% line floor (89.28% lines, 85.11% functions, 90.66% regions).",
-  "task_revision": 451,
+  "task_revision": 452,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-13T00:38:24+00:00",
+  "updated_at": "2026-10-13T00:38:29+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1147,3 +1147,6 @@ the suite from this end-to-end path.
 - 2026-10-13T00:38:12+00:00: Claimed by ar1783-workload-selection-luna.
 
 - 2026-10-13T00:38:24+00:00: Checkpointed source commit 4902eb0d316228c9e566a9ceacfa823613a3a9f7.
+
+- 2026-10-13T00:38:29+00:00: Recorded command exit 0; command argv SHA-256
+  05423f546638fa0266e03f759296fdc2689e698f112d4b7b172bb75e95f5dca1.
