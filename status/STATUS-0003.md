@@ -1204,7 +1204,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. |
-| Next action | AR-1825 is accepted on merged PR #622 / main b8fc46907afd281781a49dbd04ccb0aa6337a850: all 10 exact-main post-merge workflows are terminal success and source-executable matrix plus bounded adapter/rollback/smoke negative gates are present. AR-1779 release is blocked until current origin/main 356a669e0c6ebbb6cd3675a119cba16fea486283 is green; current unrelated AR-1775 follow-on has Portable protected-main provenance, Repository quality, and Rust verification failures. Do not touch AR-1826–1832. |
+| Next action | Current origin/main da0cbe0848a10e61a2cd0b9a3144217842a3369 is green across all 10 required workflows; AR-1825 is accepted on merged PR #622 with source-executable matrix and bounded adapter/rollback/smoke negative gates. Release AR-1779 from its owner with durable exact-main and post-merge evidence. Preserve AR-1826–1832. |
 
 ### AR-1780 — Installed tool and workload execution qualification
 

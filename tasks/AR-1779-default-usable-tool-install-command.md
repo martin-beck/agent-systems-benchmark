@@ -9,7 +9,7 @@
     "AR-1784"
   ],
   "id": "AR-1779",
-  "next_action": "AR-1825 is accepted on merged PR #622 / main b8fc46907afd281781a49dbd04ccb0aa6337a850: all 10 exact-main post-merge workflows are terminal success and source-executable matrix plus bounded adapter/rollback/smoke negative gates are present. AR-1779 release is blocked until current origin/main 356a669e0c6ebbb6cd3675a119cba16fea486283 is green; current unrelated AR-1775 follow-on has Portable protected-main provenance, Repository quality, and Rust verification failures. Do not touch AR-1826\u20131832.",
+  "next_action": "Current origin/main da0cbe0848a10e61a2cd0b9a3144217842a3369 is green across all 10 required workflows; AR-1825 is accepted on merged PR #622 with source-executable matrix and bounded adapter/rollback/smoke negative gates. Release AR-1779 from its owner with durable exact-main and post-merge evidence. Preserve AR-1826\u20131832.",
   "observed_branch": "repair/ar-1779-source-fallback-linear4",
   "observed_dirty": 0,
   "observed_head": "80060a79e716b42e021ddd9b116afdc560bc6cc1",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 231,
+  "task_revision": 232,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-13T00:26:36+00:00",
+  "updated_at": "2026-10-13T00:27:19+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -640,3 +640,8 @@ the adapter smoke check failed.
 - 2026-10-13T00:26:19+00:00: Claimed by ar1779-default-install-luna.
 
 - 2026-10-13T00:26:36+00:00: Heartbeat by ar1779-default-install-luna.
+
+- 2026-10-13T00:27:19+00:00: Refreshed current origin/main and verified all 10 required workflows
+  terminal success at da0cbe0848a10e61a2cd0b9a3144217842a3369; prior 356a669 failure state is
+  superseded. Existing merged PR #621 plus AR-1825 PR #622 provide implementation, safety repair,
+  and source contract evidence; no product change is warranted on stale 80060a79 branch.
