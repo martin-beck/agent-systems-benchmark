@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates.",
-  "task_revision": 9,
+  "task_revision": 10,
   "title": "PR #627 protected-main identity recovery",
-  "updated_at": "2026-10-13T05:32:08+00:00",
+  "updated_at": "2026-10-13T05:33:58+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1837-pr627-protected-main-identity"
 }
 ---
@@ -63,3 +63,12 @@ receipt. This AR owns only a forward recovery from the current main tip.
 
 - 2026-10-13T05:32:08+00:00: Recorded command exit 0; command argv SHA-256
   12a7a6f9c64082cafd9bf0cc38aa8025e343cce8caa73825e85976580fdb3a98.
+
+- 2026-10-13T05:33:58+00:00: Independent review at exact head
+  5e78a03bcd0988da32b681ad7c0bff9f2d17c68f: metadata-only tree
+  bf0cab4849363586724b29e649992319c642a6a7 equals current main parent tree; parent is immutable web
+  merge 6ea3648e483f25179c3112b54ed7c348e141cad4; HEAD SSH signature and matching Martin Beck DCO
+  verified; repository policy, current-topic-base, portable provenance, and 57 focused
+  integration/policy tests passed. Hosted PR #628: provenance and 7 other checks passed; 6 required
+  checks still pending at review time. No merge authorized until all exact-head required checks
+  terminal-success.
