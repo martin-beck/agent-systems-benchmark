@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T09:24:41+00:00",
   "depends_on": [],
   "id": "AR-1838",
-  "next_action": "Resolve independent-review concurrent Err(Unavailable) evidence: determine whether cross-process fixture coordination is required; do not merge PR #630 until reliability passes under documented contention. Then rerun exact-head checks and merge only through signed local integration.",
+  "next_action": "Cross-process contention remains unresolved from independent review; do not merge PR #630. Coordinate a narrowly scoped fixture lock/contract repair or document host-capacity root cause, then obtain fresh independent review and exact-head CI.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 19,
+  "task_revision": 20,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T08:29:27+00:00",
+  "updated_at": "2026-10-13T08:29:34+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -97,3 +97,11 @@ boundaries.
 
 - 2026-10-13T08:29:27+00:00: Recorded command exit 0; command argv SHA-256
   98cf2ce4441e50347978d852b4dd0d0fdc1035fcb662e50b2ea33cc417223af0.
+
+- 2026-10-13T08:29:34+00:00: After all other observed ASB test processes were absent, three serial
+  focused exact-fixture invocations passed uncontended (each
+  exact_fixture_checkout_is_returned_and_cleanup_is_explicit succeeded); the full source_checkout
+  suite also passed 26/26. Independent review still reproduces Err(Unavailable) only under
+  concurrent cargo/test processes, so current in-process semaphore/Mutex repair is insufficient for
+  the reviewed contention scenario. State commits are local; pushes fail due unavailable GitHub
+  credentials.
