@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "checkpoint_commit": "06565d3de95aa72fa67bf2fde73078753acfd49b",
-  "claim_expires": "2026-10-13T06:19:49+00:00",
+  "claim_expires": "2026-10-13T07:09:12+00:00",
   "depends_on": [
     "AR-1763",
     "AR-1764",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 81,
+  "task_revision": 82,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T06:07:20+00:00",
+  "updated_at": "2026-10-13T06:09:12+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -331,3 +331,5 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   38353669100, 38353669203, 38353669082, 38353669080, 38353669101, 38353669099, 38353669102 (rerun
   attempt 2), and 38353669498 are terminal-success. Immutable invalid web merge 6ea3648e remains
   preserved; no product-path evidence changed.
+
+- 2026-10-13T06:09:12+00:00: Heartbeat by ar1835-control-isolation-luna.
