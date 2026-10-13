@@ -1736,7 +1736,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. |
-| Next action | Do not merge while hosted TUI check is red. Request/rerun the exact failed hosted TUI job using handoffctl-authorized GitHub tooling if available; otherwise retain precise non-reproducible evidence and wait for/triage required checks. Merge only when all required exact-head checks are green. |
+| Next action | Poll rerun job 115065450191 and remaining required checks at roughly 30-second cadence. Do not merge until every required exact-head check is green; if rerun fails, capture logs and reassess. |
 
 
 ## Dependency graph

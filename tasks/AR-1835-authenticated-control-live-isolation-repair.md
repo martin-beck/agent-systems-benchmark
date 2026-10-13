@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Do not merge while hosted TUI check is red. Request/rerun the exact failed hosted TUI job using handoffctl-authorized GitHub tooling if available; otherwise retain precise non-reproducible evidence and wait for/triage required checks. Merge only when all required exact-head checks are green.",
+  "next_action": "Poll rerun job 115065450191 and remaining required checks at roughly 30-second cadence. Do not merge until every required exact-head check is green; if rerun fails, capture logs and reassess.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "06565d3de95aa72fa67bf2fde73078753acfd49b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 54,
+  "task_revision": 55,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T00:14:15+00:00",
+  "updated_at": "2026-10-13T00:15:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -225,3 +225,8 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
 
 - 2026-10-13T00:14:15+00:00: Recorded command exit 0; command argv SHA-256
   a92b74ce922367746216f26dbd94db171db9c0daeedfe6f0e0fc4e127a9c72b4.
+
+- 2026-10-13T00:15:26+00:00: Reran failed hosted TUI job through handoffctl: original job
+  115063830052 rerun spawned job 115065450191, currently pending. Exact-head PR remains
+  06565d3de95aa72fa67bf2fde73078753acfd49b. Required checks still pending: rerun TUI, Rust,
+  Policy/coverage/supply-chain, Emulated aarch64; all other required checks remain green.
