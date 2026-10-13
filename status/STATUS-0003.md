@@ -1736,7 +1736,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. |
-| Next action | Implement the test-only authenticated backend seeding seam first; then add real Unix-socket runtime bootstrap/cancel positive and stale/replay tests and rerun focused/full gates. |
+| Next action | Wait for PR #627 exact-head required checks; inspect every result and repair only concrete failures, then perform independent exact-head review and guarded merge. |
 
 
 ## Dependency graph

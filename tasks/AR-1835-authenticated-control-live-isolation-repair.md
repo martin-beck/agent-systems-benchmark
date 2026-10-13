@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Implement the test-only authenticated backend seeding seam first; then add real Unix-socket runtime bootstrap/cancel positive and stale/replay tests and rerun focused/full gates.",
+  "next_action": "Wait for PR #627 exact-head required checks; inspect every result and repair only concrete failures, then perform independent exact-head review and guarded merge.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "06565d3de95aa72fa67bf2fde73078753acfd49b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 42,
+  "task_revision": 43,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T00:08:09+00:00",
+  "updated_at": "2026-10-13T00:08:31+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -163,3 +163,11 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
 
 - 2026-10-13T00:08:09+00:00: Recorded command exit 0; command argv SHA-256
   eaead05ed317219b0787fb90a3a1d025631103eeea1b96037096c57d49c217a7.
+
+- 2026-10-13T00:08:31+00:00: Published PR #627 at exact head
+  06565d3de95aa72fa67bf2fde73078753acfd49b (tree verified clean; SSH signature and matching DCO
+  verified). Independent diff review covered control.rs authenticated seed/socket flow, catalog
+  mutation projection validation, and generated diagnostic call-site refresh. Focused control suite
+  passed 74 tests; full cargo test --locked --workspace passed product tests (documented ignored
+  native/provider lanes); diagnostic_contract ordinary_cli_producers_are_mechanically_closed passed.
+  Required exact-head CI is running; do not merge until all required checks are terminal green.
