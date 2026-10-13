@@ -1736,7 +1736,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. |
-| Next action | Poll rerun job 115065450191 and remaining required checks at roughly 30-second cadence. Do not merge until every required exact-head check is green; if rerun fails, capture logs and reassess. |
+| Next action | Continue polling TUI rerun job 115065450191 at roughly 30-second cadence. Guard merge until it reports pass and all required exact-head checks are terminal green. |
 
 
 ## Dependency graph

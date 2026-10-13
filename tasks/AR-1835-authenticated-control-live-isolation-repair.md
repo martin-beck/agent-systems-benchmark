@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Poll rerun job 115065450191 and remaining required checks at roughly 30-second cadence. Do not merge until every required exact-head check is green; if rerun fails, capture logs and reassess.",
+  "next_action": "Continue polling TUI rerun job 115065450191 at roughly 30-second cadence. Guard merge until it reports pass and all required exact-head checks are terminal green.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "06565d3de95aa72fa67bf2fde73078753acfd49b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 55,
+  "task_revision": 56,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T00:15:26+00:00",
+  "updated_at": "2026-10-13T00:16:42+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -230,3 +230,8 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   115063830052 rerun spawned job 115065450191, currently pending. Exact-head PR remains
   06565d3de95aa72fa67bf2fde73078753acfd49b. Required checks still pending: rerun TUI, Rust,
   Policy/coverage/supply-chain, Emulated aarch64; all other required checks remain green.
+
+- 2026-10-13T00:16:42+00:00: Exact-head CI update: Rust checks, Policy/coverage/supply-chain,
+  Emulated aarch64, Credential-free, AWQ, Huawei, Kani, Platform, retained faults, Loom, provenance,
+  bounded fuzz, and Matcher/SLO all pass. Only rerun Exact TUI inherited-fd and PTY journey job
+  115065450191 remains pending; no merge attempted.
