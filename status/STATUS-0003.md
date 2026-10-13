@@ -1728,11 +1728,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | ar1835-control-isolation-luna |
 | Parent | None |
 | Children | None |
 | Summary | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. |
@@ -2630,7 +2630,7 @@ flowchart LR
         AR_1832["AR-1832 - Planned"]:::status_planned
         AR_1833["AR-1833 - Done"]:::status_done
         AR_1834["AR-1834 - Done"]:::status_done
-        AR_1835["AR-1835 - Open"]:::status_open
+        AR_1835["AR-1835 - In progress"]:::status_in_progress
         AR_1836["AR-1836 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
