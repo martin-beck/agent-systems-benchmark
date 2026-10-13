@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T10:37:31+00:00",
   "depends_on": [],
   "id": "AR-1826",
-  "next_action": "Await remaining exact-head CI and independent review for PR #629 at ecf3ed20; then merge and post-merge verify.",
+  "next_action": "Restore valid GitHub authentication and record durable independent review for exact repaired signed commit e9d95999c0cacff327dd350670d611aab64e69b2; then publish/update PR and merge through the reviewed path.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts.",
-  "task_revision": 25,
+  "task_revision": 26,
   "title": "Define explicit setup configuration and plan-binding contract",
-  "updated_at": "2026-10-13T08:37:31+00:00",
+  "updated_at": "2026-10-13T08:47:15+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
@@ -110,3 +110,12 @@ and compatibility contract on which the remaining ARs depend.
   merge/publication awaits restored GitHub authentication and durable review recording.
 
 - 2026-10-13T08:37:31+00:00: Claimed by ar1826_setup_contract_luna.
+
+- 2026-10-13T08:47:15+00:00: Reconciliation attempt: bind-worktree refused because legacy worktree
+  metadata is non-empty. Product worktree remains clean at signed
+  ecf3ed20fa150a4aaa8289e68e6b91f5cdae291f on PR #629; exact repaired signed commit
+  e9d95999c0cacff327dd350670d611aab64e69b2 is present locally on codex/ar1826-schema-contract-repair
+  and verifies SSH signature plus DCO. Unauthenticated public GitHub API confirms PR #629 open,
+  unmerged, mergeable, and all 14 check-runs success for ecf3ed20fa150a4aaa8289e68e6b91f5cdae291f.
+  Publication is blocked by invalid/hanging GitHub auth and absent durable independent review; no
+  merge attempted.

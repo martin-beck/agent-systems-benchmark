@@ -1610,7 +1610,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. |
-| Next action | Await remaining exact-head CI and independent review for PR #629 at ecf3ed20; then merge and post-merge verify. |
+| Next action | Restore valid GitHub authentication and record durable independent review for exact repaired signed commit e9d95999c0cacff327dd350670d611aab64e69b2; then publish/update PR and merge through the reviewed path. |
 
 ### AR-1827 — Author complete explicit benchmark configuration with asb setup
 
