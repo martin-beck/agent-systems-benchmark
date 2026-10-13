@@ -32,18 +32,18 @@ Generated from local Git and GitHub. Do not edit.
 | #618 | `repair/ar-1779-current-main-smoke@f1dbe055aaeb` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): verify supported tool reuse and entrypoints |
 | #619 | `repair/ar-1779-source-fallback-linear3@21372a22aba3` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
 | #624 | `feature/ar-1783-installed-workload-selection-and-execution@32f42827367d` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): bind installed workloads before execution |
-| #629 | `codex/ar-1826-explicit-setup-contract@e9d95999c0ca` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS, IN_PROGRESS: | feat(config): define explicit setup and plan binding contract |
-| #630 | `repair/ar-1838-source-checkout-fixture-repair-luna@15f70ef23af6` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS: | test(cli): retain source fixture semaphore while locking |
+| #629 | `codex/ar-1826-explicit-setup-contract@e9d95999c0ca` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(config): define explicit setup and plan binding contract |
+| #630 | `repair/ar-1838-source-checkout-fixture-repair-luna@15f70ef23af6` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | test(cli): retain source fixture semaphore while locking |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38372373194 | `e9d95999c0ca` | pull_request | Cross-repository development broker qualification | in_progress:- |
-| 38372373179 | `e9d95999c0ca` | pull_request | Fault assurance | in_progress:- |
+| 38372373194 | `e9d95999c0ca` | pull_request | Cross-repository development broker qualification | completed:success |
+| 38372373179 | `e9d95999c0ca` | pull_request | Fault assurance | completed:success |
 | 38372373129 | `e9d95999c0ca` | pull_request | Huawei MIT source headers | completed:success |
-| 38372373035 | `e9d95999c0ca` | pull_request | Hosted portability and native qualification | in_progress:- |
-| 38372373015 | `e9d95999c0ca` | pull_request | Credential-free benchmark path | in_progress:- |
+| 38372373035 | `e9d95999c0ca` | pull_request | Hosted portability and native qualification | completed:success |
+| 38372373015 | `e9d95999c0ca` | pull_request | Credential-free benchmark path | completed:success |
 | 38372373001 | `e9d95999c0ca` | pull_request | Repository quality | in_progress:- |
 | 38372372995 | `e9d95999c0ca` | pull_request | Rust verification | in_progress:- |
 | 38372372984 | `e9d95999c0ca` | pull_request | Emulated aarch64 portability | in_progress:- |
