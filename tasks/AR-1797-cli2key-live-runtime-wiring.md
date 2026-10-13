@@ -21,19 +21,19 @@
   "schema_version": 1,
   "spec_acceptance": {
     "evidence_class": "environmental",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_digest": "sha256:b6e14cca735fb83ad65fa8f18571d2414c446826dc6eedbb7e8c1f55f2a735d9",
+    "evidence_ref": "main/da0cbe0848a10e61a2cd0b9a3144217842a3369b",
     "spec_ref": "specs/AR-1797.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1797.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair cli2key so an installed pinned bridge receives a runtime-issued sidecar launch and can execute a development ASB benchmark.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "Wire cli2key sidecar into live benchmark execution",
-  "updated_at": "2026-10-13T00:35:05+00:00",
+  "updated_at": "2026-10-13T00:35:10+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1797-cli2key-live-runtime-wiring"
 }
 ---
@@ -62,3 +62,9 @@ path and records only redacted provenance and typed outcome evidence.
   05423f546638fa0266e03f759296fdc2689e698f112d4b7b172bb75e95f5dca1.
 
 - 2026-10-13T00:35:05+00:00: Checkpointed source commit c21b4f5a639e9f4de4bef7c3923cc0cc3f8aa1ea.
+
+- 2026-10-13T00:35:10+00:00: PR #603 merged cli2key runtime authority wiring. Exact protected main
+  descendant was independently reviewed clean; credential-free fake cli2key contract passed; focused
+  runtime (14) and CLI (4), full workspace tests, fmt, clippy, and all recorded PR #603 hosted
+  checks passed. No opt-in live benchmark was run because user authorization and Codex login were
+  unavailable; no credentials were read or exposed.
