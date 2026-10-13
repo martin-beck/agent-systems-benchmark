@@ -2,14 +2,14 @@
 {
   "branch": "repair/ar-1837-pr627-protected-main-identity",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-13T08:05:33+00:00",
+  "claim_expires": "",
   "depends_on": [],
   "id": "AR-1837",
   "next_action": "Await completion of exact-main rerun attempt 2 for Credential-free benchmark path plus remaining Rust, Repository quality, and Emulated AArch64 workflows; release only after all terminal-success and reconcile AR-1835 evidence.",
   "observed_branch": "repair/ar-1837-pr627-protected-main-identity",
   "observed_dirty": 0,
   "observed_head": "6ea3648e483f25179c3112b54ed7c348e141cad4",
-  "owner": "ar1837-protected-main-repair-luna",
+  "owner": "",
   "plan": "../plans/AR-1837-pr627-protected-main-identity-recovery.md",
   "priority": "P0",
   "schema_version": 1,
@@ -23,11 +23,11 @@
   },
   "spec_ref": "specs/AR-1837.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates.",
-  "task_revision": 33,
+  "task_revision": 34,
   "title": "PR #627 protected-main identity recovery",
-  "updated_at": "2026-10-13T06:07:00+00:00",
+  "updated_at": "2026-10-13T06:07:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1837-pr627-protected-main-identity"
 }
 ---
@@ -136,3 +136,10 @@ receipt. This AR owns only a forward recovery from the current main tip.
 - 2026-10-13T06:07:00+00:00: Exact signed merge 4a486e97 and all ten exact-main workflows
   terminal-success; Credential-free succeeded on rerun attempt 2. Immutable web merge 6ea3648e and
   its failure remain preserved.
+
+- 2026-10-13T06:07:08+00:00: Completed forward-only protected-main identity recovery. Preserved
+  immutable web merge 6ea3648e483f25179c3112b54ed7c348e141cad4 and failure evidence. PR #628 exact
+  head 5e78a03b passed all checks. Published signed+DCO local two-parent merge
+  4a486e97abbb450eb5927faf599119a5aa8be6fb with parents 6ea3648e and 5e78a03b, exact tree bf0cab48,
+  verified SSH signature/DCO. All ten exact-main workflows terminal-success; Credential-free passed
+  on rerun attempt 2. Receipt quality/AR-1837-postmerge-receipt.json.

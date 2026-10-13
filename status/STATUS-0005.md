@@ -287,13 +287,12 @@
 
 ## Complete AR inventory
 
-### In progress (4)
+### In progress (3)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1826](../tasks/AR-1826-explicit-setup-config-contract.md): Define explicit setup configuration and plan-binding contract | ar1826_setup_contract_luna | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. | Independent review and exact-head CI for PR #629 at 256fe639; then merge and post-merge verify. |
 | P0 | [AR-1835](../tasks/AR-1835-authenticated-control-live-isolation-repair.md): Authenticated control and live-isolation coverage repair | ar1835-control-isolation-luna | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. | Merge PR #627 only through the reviewed signed integration procedure, then run post-merge exact-main verification and reconcile AR-1835; keep AR-1783 in progress. |
-| P0 | [AR-1837](../tasks/AR-1837-pr627-protected-main-identity-recovery.md): PR #627 protected-main identity recovery | ar1837-protected-main-repair-luna | Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates. | Await completion of exact-main rerun attempt 2 for Credential-free benchmark path plus remaining Rust, Repository quality, and Emulated AArch64 workflows; release only after all terminal-success and reconcile AR-1835 evidence. |
 | P0 | [AR-1838](../tasks/AR-1838-source-checkout-fixture-repair.md): Repair reproducible source checkout fixture failure | ar1838-source-checkout-repair-luna | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. | Reproduce the repeated source_checkout fixture Unavailable failure, repair the owning test/fixture contract without weakening it, then run full gates and publish a reviewed repair. |
 
 ### Open (2)
@@ -493,7 +492,7 @@
 | --- | --- | --- | --- | --- |
 | P4 | [AR-0703](../tasks/AR-0703-native-platform-lab.md): Provision native platform qualification capacity | Unclaimed | Optionally provide native ARM64 Debian/openEuler capacity for future claim-scoped evidence. | When separately authorized, provision genuine ARM64 Debian/openEuler capacity for optional future native evidence; absence must not block any AR. |
 
-### Done (602)
+### Done (603)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -642,3 +641,5 @@
 | P0 | [AR-1397](../tasks/AR-1397-protected-main-postmerge-concurrency-repair.md): Protected-main post-merge concurrency and tree repair | Unclaimed | Repair protected-main merge-tree admission and serialize exact post-merge evidence across concurrent main pushes. | Preserve merge 123ba915d2732ee8a6c99fae301bfd64cf0aac4f and its seven successful post-merge runs as immutable evidence; it has exact tree/parents but GitHub-generated signature E and no matching Signed-off-by trailer. Create a signed descendant repair AR through the local merge path, then rerun exact-main gates before closing AR-1314/AR-1395/AR-1397. |
 | P0 | [AR-1398](../tasks/AR-1398-signed-protected-main-recovery.md): Signed protected-main recovery | Unclaimed | Restore signed+DCO protected-main evidence after an unsigned GitHub-generated repair merge. | Watch all seven exact-main workflows for merge b63394b; after terminal success, record conclusions and release AR-1398 done. |
 | P0 | [AR-1421](../tasks/AR-1421-protected-main-literature-merge-race.md): Protected-main literature merge race repair | Unclaimed | Repair protected-main merge-tree requalification after a literature PR merges onto an advanced main. | Release AR-1421 done: merged tree equals reviewed topic tree e5d99b7; parents are 5ddac12 and 28e3560; topic passes SSH signature and DCO. Seven exact-main workflows all terminal SUCCESS. |
+| P0 | [AR-1427](../tasks/AR-1427-protected-main-merge-tree-requalification.md): Protected-main merge-tree requalification repair | Unclaimed | Repair exact protected-main merge-tree requalification after sequential tutorial merges. | Promote and reproduce PR #310 merge f511645 versus reviewed topic 9d97e168; repair exact protected-main merge-tree requalification, then rerun AR-1215 post-merge evidence. |
+| P0 | [AR-1431](../tasks/AR-1431-protected-main-stale-base-repair.md): Protected-main stale-base merge requalification repair | Unclaimed | Prevent stale-base sequential merges from passing review but failing protected-main merge-tree policy. | Monitor seven post-merge workflows for exact merge ed907603; release AR-1431 only after all seven terminal success, then coordinate AR-1216 release. |

@@ -1756,11 +1756,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1837-protected-main-repair-luna |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates. |
@@ -2660,7 +2660,7 @@ flowchart LR
         AR_1834["AR-1834 - Done"]:::status_done
         AR_1835["AR-1835 - In progress"]:::status_in_progress
         AR_1836["AR-1836 - Planned"]:::status_planned
-        AR_1837["AR-1837 - In progress"]:::status_in_progress
+        AR_1837["AR-1837 - Done"]:::status_done
         AR_1838["AR-1838 - In progress"]:::status_in_progress
     end
     AR_0001 --> AR_0002
