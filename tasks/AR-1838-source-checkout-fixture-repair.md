@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 25,
+  "task_revision": 26,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T08:44:04+00:00",
+  "updated_at": "2026-10-13T08:48:58+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -119,3 +119,6 @@ boundaries.
   isolation repair and independent requalification.
 
 - 2026-10-13T08:44:04+00:00: Claimed by ar1838-source-checkout-repair-luna.
+
+- 2026-10-13T08:48:58+00:00: Recorded command exit 0; command argv SHA-256
+  358ce6b8ede1fdef2c7e856076b9600ef98bbd48ec593e75a58e6ce043a7be5f.
