@@ -1840,7 +1840,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | planned |
+| Status | open |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
@@ -2736,7 +2736,7 @@ flowchart LR
         AR_1840["AR-1840 - Done"]:::status_done
         AR_1841["AR-1841 - In progress"]:::status_in_progress
         AR_1842["AR-1842 - Planned"]:::status_planned
-        AR_1843["AR-1843 - Planned"]:::status_planned
+        AR_1843["AR-1843 - Open"]:::status_open
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
