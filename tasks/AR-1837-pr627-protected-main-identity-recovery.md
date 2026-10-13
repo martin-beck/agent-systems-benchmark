@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates.",
-  "task_revision": 12,
+  "task_revision": 13,
   "title": "PR #627 protected-main identity recovery",
-  "updated_at": "2026-10-13T05:39:46+00:00",
+  "updated_at": "2026-10-13T05:40:22+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1837-pr627-protected-main-identity"
 }
 ---
@@ -79,3 +79,6 @@ receipt. This AR owns only a forward recovery from the current main tip.
 
 - 2026-10-13T05:39:46+00:00: Recorded command exit 0; command argv SHA-256
   88ca7864cb9316c6bd317236ea560f8f4d162e9c033542ebb6339f45412060de.
+
+- 2026-10-13T05:40:22+00:00: Recorded command exit 0; command argv SHA-256
+  acb9e76f0ab803d47bc3bb755b59054859f060c84e60cbce9137696dd1019947.
