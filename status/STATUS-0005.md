@@ -298,7 +298,7 @@
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1838](../tasks/AR-1838-source-checkout-fixture-repair.md): Repair reproducible source checkout fixture failure | ar1838-source-checkout-repair-luna | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. | Cross-process contention remains unresolved from independent review; do not merge PR #630. Coordinate a narrowly scoped fixture lock/contract repair or document host-capacity root cause, then obtain fresh independent review and exact-head CI. |
-| P1 | [AR-1840](../tasks/AR-1840-persist-ar1839-review-evidence.md): Persist AR-1839 review evidence | ar1840-state-evidence-luna | Persist AR-1839 review evidence without bypassing handoffctl ownership rules. | Persist the staged AR-1839 independent-review artifact through an owner-scoped handoffctl lifecycle and reconcile clean generated state. |
+| P1 | [AR-1840](../tasks/AR-1840-persist-ar1839-review-evidence.md): Persist AR-1839 review evidence | ar1840-state-evidence-luna | Persist AR-1839 review evidence without bypassing handoffctl ownership rules. | Reconcile generated views and release AR-1840 with exact artifact digest and bounded doctor/auth evidence. |
 
 ### Open (2)
 

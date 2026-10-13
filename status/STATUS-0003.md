@@ -1806,7 +1806,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Persist AR-1839 review evidence without bypassing handoffctl ownership rules. |
-| Next action | Persist the staged AR-1839 independent-review artifact through an owner-scoped handoffctl lifecycle and reconcile clean generated state. |
+| Next action | Reconcile generated views and release AR-1840 with exact artifact digest and bounded doctor/auth evidence. |
 
 
 ## Dependency graph
