@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T09:01:59+00:00",
   "depends_on": [],
   "id": "AR-1826",
-  "next_action": "Independent review and exact-head CI for PR #629 at 256fe639; then merge and post-merge verify.",
+  "next_action": "Independent review and exact-head CI for PR #629 at ecf3ed20; then merge and post-merge verify.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts.",
-  "task_revision": 20,
+  "task_revision": 21,
   "title": "Define explicit setup configuration and plan-binding contract",
-  "updated_at": "2026-10-13T06:13:10+00:00",
+  "updated_at": "2026-10-13T06:13:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
@@ -94,3 +94,7 @@ and compatibility contract on which the remaining ARs depend.
 
 - 2026-10-13T06:13:10+00:00: Recorded command exit 0; command argv SHA-256
   fcfe00a36f1f324f4565ae4b364f1439e26ccccbe4a7087b286f19d2eb9cb172.
+
+- 2026-10-13T06:13:33+00:00: Applied independent review fixes: strict plan identity/selection
+  membership validation, digest/schema case alignment, duplicate selection schema constraints, and
+  schema positive/negative tests. Focused tests and clippy/fmt pass; published ecf3ed20.
