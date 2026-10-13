@@ -1,0 +1,48 @@
+---
+{
+  "branch": "repair/ar-1837-pr627-protected-main-identity",
+  "checkpoint_commit": "",
+  "claim_expires": "",
+  "depends_on": ["AR-1835"],
+  "id": "AR-1837",
+  "next_action": "Create a clean signed-DCO recovery topic from the current main tip, obtain independent exact-head review and green CI, then publish only with merge_pr.py.",
+  "observed_branch": "",
+  "observed_dirty": 0,
+  "observed_head": "",
+  "owner": "",
+  "plan": "../plans/AR-1837-pr627-protected-main-identity-recovery.md",
+  "priority": "P0",
+  "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "hosted",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1837.json",
+    "spec_revision": 1,
+    "status": "pending"
+  },
+  "spec_ref": "specs/AR-1837.json",
+  "spec_revision": 1,
+  "status": "planned",
+  "summary": "Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates.",
+  "task_revision": 1,
+  "title": "PR #627 protected-main identity recovery",
+  "updated_at": "2026-10-13T05:30:00+00:00",
+  "worktree_key": "agent-systems-benchmark-ar-1837-pr627-protected-main-identity"
+}
+---
+
+PR #627 was correctly reviewed and all exact-head checks passed, but its GitHub
+merge commit `6ea3648e483f25179c3112b54ed7c348e141cad4` was created by
+`GitHub <noreply@github.com>`. The protected-main provenance gate therefore
+failed, as designed. Preserve that immutable historical merge and its failure
+receipt. This AR owns only a forward recovery from the current main tip.
+
+- Do not rewrite or force-update main, reuse the old-base PR, weaken the
+  provenance policy, accept arbitrary signers, or alter unrelated ARs.
+- Create the smallest signed-DCO recovery topic preserving the current product
+  tree, review it independently, run all focused/full gates and exact-head CI,
+  and publish a local signed two-parent merge only through
+  `tools/integration/merge_pr.py`.
+- Verify the repaired exact-main merge, every required post-merge workflow, and
+  durable state before acceptance.
