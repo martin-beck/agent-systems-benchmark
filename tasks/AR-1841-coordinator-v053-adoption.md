@@ -7,7 +7,7 @@
     "AR-1795"
   ],
   "id": "AR-1841",
-  "next_action": "Promote and claim; synchronize the immutable Coordinator v0.5.3 snapshot containing upstream AR-0088, then run complete state gates and publish the reviewed adoption.",
+  "next_action": "Publish reviewed state PR for exact head 1826a4806b1c8a3d8b817edc62ee850f7ade4b27; await exact-head CI before merge.",
   "owner": "ar1841-v053-adoption-luna",
   "plan": "../plans/AR-1841-coordinator-v053-adoption.md",
   "priority": "P0",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Adopt Coordinator v0.5.3 with partial legacy worktree binding.",
-  "task_revision": 20,
+  "task_revision": 21,
   "title": "Coordinator v0.5.3 adoption",
-  "updated_at": "2026-10-13T09:49:43+00:00",
+  "updated_at": "2026-10-13T09:50:19+00:00",
   "worktree_key": "agent-systems-benchmark-state-ar-1841-v053"
 }
 ---
@@ -88,3 +88,10 @@ with the verified v0.5.3 snapshot needed to unblock AR-1826.
 
 - 2026-10-13T09:49:43+00:00: Recorded command exit 0; command argv SHA-256
   9795de54ce2b2be7f580df9467c1b876fa29a3260a741d75694d306a1b860648.
+
+- 2026-10-13T09:50:19+00:00: Independent exact-head review ACCEPTED
+  1826a4806b1c8a3d8b817edc62ee850f7ade4b27 against origin/main
+  9e75e863a5a12d736753979f8e8eb325dc724fb2: clean 37-file vendor adoption diff, immutable v0.5.3
+  vendor verification at upstream 2714cfd87f9dd1c6229ab6d9622b13862de186b1, diff-check clean, all
+  reviewed commits SSH-signed with matching DCO, and prior focused/full/formal/generated/privacy
+  gates passed.
