@@ -60,7 +60,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1797-cli2key-live-runtime-wiring` | `DETACHED` | `da0cbe0848a1` | 0 | behind 2, ahead 0 |
 | `agent-systems-benchmark-ar-1799-tui-install-rustup-invalid` | `repair/ar-1799-tui-install-rustup-invalid` | `e058ea2b5881` | 0 | behind 33, ahead 0 |
 | `agent-systems-benchmark-ar-1800-development-warning-only-trust-contract` | `feature/ar-1800-development-warning-only-trust-contract` | `961243b302dc` | 0 | behind 41, ahead 0 |
-| `agent-systems-benchmark-ar-1837-pr627-protected-main-identity` | `repair/ar-1837-pr627-protected-main-identity` | `5e78a03bcd09` | 0 | behind 0, ahead 1 |
+| `agent-systems-benchmark-ar-1837-pr627-protected-main-identity` | `DETACHED` | `6ea3648e483f` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 816, ahead 326 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
 | `agent-systems-benchmark-asb-tui-capabilities-command` | `feature/asb-tui-capabilities-command` | `d60d23510044` | 0 | behind 816, ahead 323 |
