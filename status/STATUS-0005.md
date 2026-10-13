@@ -296,12 +296,13 @@
 | P0 | [AR-1826](../tasks/AR-1826-explicit-setup-config-contract.md): Define explicit setup configuration and plan-binding contract | ar1826_setup_contract_luna | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. | Await remaining exact-head CI and independent review for PR #629 at ecf3ed20; then merge and post-merge verify. |
 | P0 | [AR-1838](../tasks/AR-1838-source-checkout-fixture-repair.md): Repair reproducible source checkout fixture failure | ar1838-source-checkout-repair-luna | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. | Cross-process contention remains unresolved from independent review; do not merge PR #630. Coordinate a narrowly scoped fixture lock/contract repair or document host-capacity root cause, then obtain fresh independent review and exact-head CI. |
 
-### Open (2)
+### Open (3)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Unclaimed | AR-1835 exact-head fixture now covers the authenticated runtime bootstrap/control seam; AR-1783 remains below 90&#37; until that reviewed change is integrated. | Do not duplicate AR-1835 control/bootstrap coverage. Preserve d87352ddb511c48b4be1bdbecdd26fb2cf6597a8 as the AR-1783 product checkpoint; after AR-1835 exact-head merge/reconciliation, rerun serialized coverage and accept only if the unchanged 90&#37; floor passes. |
 | P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Unclaimed | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. |
+| P0 | [AR-1839](../tasks/AR-1839-source-fixture-cross-process-isolation.md): Repair cross-process source fixture isolation | Unclaimed | Make source checkout test fixtures safe when independent cargo processes run concurrently. | Reproduce source_checkout fixture collisions across concurrent cargo processes, add process-safe isolation, then run focused/full gates and publish a reviewed repair. |
 
 ### Blocked (84)
 
@@ -392,7 +393,7 @@
 | P2 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md): Provide native openEuler capacity | Unclaimed | Qualify booted openEuler on native x86_64 and applicable QEMU AArch64; keep native ARM64 optional. | Qualify native x86_64 openEuler and required applicable pinned QEMU AArch64 behavior; document genuine native ARM64 as optional future evidence. |
 | P2 | [AR-1444](../tasks/AR-1444-first-class-journey-qualification.md): First-class journey qualification | Unclaimed | Optional cross-repository journey evidence; never an ASB release blocker. | Optional cross-repository qualification only: wait for external asb-tui AR-1327 to provide an exact pinned acceptance revision and credential-free journey transcript; this AR is not an ASB release or first-customer blocker. Do not modify asb-tui from this repository. |
 
-### Planned (91)
+### Planned (90)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -445,7 +446,6 @@
 | P0 | [AR-1830](../tasks/AR-1830-config-bound-plan-run-sweep.md): Execute config-bound live runs and sweeps | Unclaimed | Make plan validation, run, and sweep require the setup config and safely execute complete live benchmark selections from config-bound plans. | Require explicit config validation for plan validation, live run, and live sweep, then wire bounded multi-agent execution. |
 | P0 | [AR-1832](../tasks/AR-1832-explicit-config-e2e-qualification.md): Qualify explicit setup-config benchmark workflow end-to-end | Unclaimed | Qualify fresh-user setup-output through explicit config-bound plan creation, validation, live run, sweep, reporting, and legacy-surface absence. | Qualify the full fresh-user explicit-config route across supported selection matrices and live development execution. |
 | P0 | [AR-1836](../tasks/AR-1836-cross-repo-tui-qualification-determinism.md): Cross-repository Exact TUI qualification determinism | Unclaimed | Repair the deterministic cross-repository Exact TUI inherited-fd/PTY qualification seam exposed by AR-1835 without weakening its assertions. | Promote after AR-1835 dependency resolution; reproduce the two hosted failures with complete workflow metadata, identify the owning workflow/asb-tui seam, and implement only a deterministic qualification repair without weakening the gate. |
-| P0 | [AR-1839](../tasks/AR-1839-source-fixture-cross-process-isolation.md): Repair cross-process source fixture isolation | Unclaimed | Make source checkout test fixtures safe when independent cargo processes run concurrently. | Reproduce source_checkout fixture collisions across concurrent cargo processes, add process-safe isolation, then run focused/full gates and publish a reviewed repair. |
 | P1 | [AR-0808](../tasks/AR-0808-core-workflow-guides.md): Publish core program workflow guides | Unclaimed | Document tested workflows for installing, configuring, running, replaying, comparing, and operating ASB. | Document and execute the qualified CLI setup, reconfiguration, recording, strict-offline and analysis workflows. |
 | P1 | [AR-0809](../tasks/AR-0809-frontend-workflow-guides.md): Publish terminal frontend workflow guides | Unclaimed | Document guided configuration, launch, monitoring, history, repeat, and analysis in the TUI. | Document the exact standalone first-run, provider/auth/model, defaults, recording, offline run and analysis journeys after cross-repository parity passes. |
 | P1 | [AR-0810](../tasks/AR-0810-github-pages-documentation.md): Publish workflow documentation to GitHub Pages | Unclaimed | Publish core and frontend workflows as a searchable, accessible, versioned GitHub Pages site. | Build and publish the versioned workflow documentation on the project&#x27;s GitHub Pages site. |
