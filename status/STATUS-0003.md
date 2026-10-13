@@ -1764,7 +1764,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates. |
-| Next action | Create a clean signed-DCO recovery topic from the current main tip, obtain independent exact-head review and green CI, then publish only with merge_pr.py. |
+| Next action | Await terminal-success exact-head checks on PR #628 and independent review; then publish only with tools/integration/merge_pr.py and verify exact-main workflows. |
 
 
 ## Dependency graph

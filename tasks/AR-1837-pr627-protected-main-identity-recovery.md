@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T06:30:22+00:00",
   "depends_on": [],
   "id": "AR-1837",
-  "next_action": "Create a clean signed-DCO recovery topic from the current main tip, obtain independent exact-head review and green CI, then publish only with merge_pr.py.",
+  "next_action": "Await terminal-success exact-head checks on PR #628 and independent review; then publish only with tools/integration/merge_pr.py and verify exact-main workflows.",
   "observed_branch": "repair/ar-1837-pr627-protected-main-identity",
   "observed_dirty": 0,
   "observed_head": "5e78a03bcd0988da32b681ad7c0bff9f2d17c68f",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates.",
-  "task_revision": 10,
+  "task_revision": 11,
   "title": "PR #627 protected-main identity recovery",
-  "updated_at": "2026-10-13T05:33:58+00:00",
+  "updated_at": "2026-10-13T05:36:48+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1837-pr627-protected-main-identity"
 }
 ---
@@ -72,3 +72,7 @@ receipt. This AR owns only a forward recovery from the current main tip.
   integration/policy tests passed. Hosted PR #628: provenance and 7 other checks passed; 6 required
   checks still pending at review time. No merge authorized until all exact-head required checks
   terminal-success.
+
+- 2026-10-13T05:36:48+00:00: Created exact-tree signed-DCO recovery topic 5e78a03b from immutable
+  main 6ea3648e; PR #628 exact-head provenance and most checks pass, with Rust, repository quality,
+  and emulated-aarch64 still pending. Local repository policy and signature tests pass.

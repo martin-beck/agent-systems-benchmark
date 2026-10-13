@@ -8,7 +8,7 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1835](tasks/AR-1835-authenticated-control-live-isolation-repair.md): Authenticated control and live-isolation coverage repair | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. | Merge PR #627 only through the reviewed signed integration procedure, then run post-merge exact-main verification and reconcile AR-1835; keep AR-1783 in progress. | ar1835-control-isolation-luna |
-| P0 | [AR-1837](tasks/AR-1837-pr627-protected-main-identity-recovery.md): PR #627 protected-main identity recovery | Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates. | Create a clean signed-DCO recovery topic from the current main tip, obtain independent exact-head review and green CI, then publish only with merge_pr.py. | ar1837-protected-main-repair-luna |
+| P0 | [AR-1837](tasks/AR-1837-pr627-protected-main-identity-recovery.md): PR #627 protected-main identity recovery | Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates. | Await terminal-success exact-head checks on PR #628 and independent review; then publish only with tools/integration/merge_pr.py and verify exact-main workflows. | ar1837-protected-main-repair-luna |
 
 ## Open
 
