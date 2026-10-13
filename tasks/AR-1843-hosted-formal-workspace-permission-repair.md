@@ -1,0 +1,42 @@
+---
+{
+  "branch": "",
+  "checkpoint_commit": "",
+  "claim_expires": "",
+  "depends_on": [],
+  "id": "AR-1843",
+  "next_action": "Promote and claim; repair the hosted formal workflow workspace initialization so the gha-asb-state runner can create its per-run TLC workspace and attestation directory without weakening the formal gate, then rerun the exact-head formal workflow.",
+  "owner": "",
+  "plan": "../plans/AR-1843-hosted-formal-workspace-permission-repair.md",
+  "priority": "P0",
+  "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "mechanical",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1843.json",
+    "spec_revision": 1,
+    "status": "pending"
+  },
+  "spec_ref": "specs/AR-1843.json",
+  "spec_revision": 1,
+  "status": "planned",
+  "summary": "Repair hosted formal TLC workspace permissions for the ASB state runner.",
+  "task_revision": 1,
+  "title": "Hosted formal workspace permission repair",
+  "updated_at": "2026-10-13T00:00:00+00:00",
+  "worktree_key": ""
+}
+---
+
+PR #142 exposed a runner-only failure before model execution: the formal
+workflow defaults `TLC_WORK_ROOT` to `/tmp/agent-workflow-coordinator-tlc`,
+which is owned by the interactive user and is not writable by the
+`gha-asb-state` service account. Repair the workflow and runner-owned
+per-run workspace initialization using a path under the approved
+`/srv/data/projects/.asb-tlc` root. Preserve bounded cleanup, private
+permissions, and all formal admission/attestation checks.
+
+Acceptance requires the exact failing PR head to pass the hosted formal job
+after the repair, including the same model and implementation contract; no
+formal assertion, timeout, or resource-bound gate may be removed or weakened.
