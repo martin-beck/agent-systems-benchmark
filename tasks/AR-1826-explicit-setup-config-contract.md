@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "45427b6ec7fc73f896574701df5e35b6d72b7cf4",
-  "claim_expires": "2026-10-13T11:55:50+00:00",
+  "claim_expires": "2026-10-13T11:58:11+00:00",
   "depends_on": [],
   "id": "AR-1826",
   "next_action": "Await remaining exact-head checks at e9d95999c0cacff327dd350670d611aab64e69b2; then merge through signed local procedure and verify exact-main.",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts.",
-  "task_revision": 30,
+  "task_revision": 31,
   "title": "Define explicit setup configuration and plan-binding contract",
-  "updated_at": "2026-10-13T08:56:58+00:00",
+  "updated_at": "2026-10-13T08:58:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
@@ -136,3 +136,5 @@ and compatibility contract on which the remaining ARs depend.
   strict schema identity/selection, digest case, duplicate-selection and source-header repairs are
   present; no privacy/secret/path or gate weakening findings. SSH signature and matching DCO
   verified; git diff --check passes. Required exact-head checks remain in progress.
+
+- 2026-10-13T08:58:11+00:00: Heartbeat by ar1826_setup_contract_luna.
