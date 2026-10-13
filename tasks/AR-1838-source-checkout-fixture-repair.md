@@ -1,7 +1,7 @@
 ---
 {
   "branch": "",
-  "checkpoint_commit": "aedabc91688df719b101c1fce8d5520cc4ff2fd3",
+  "checkpoint_commit": "4a486e97abbb450eb5927faf599119a5aa8be6fb",
   "claim_expires": "2026-10-13T08:03:55+00:00",
   "depends_on": [],
   "id": "AR-1838",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T06:04:17+00:00",
+  "updated_at": "2026-10-13T06:04:40+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -51,3 +51,5 @@ boundaries.
 - 2026-10-13T06:03:55+00:00: Claimed by ar1838-source-checkout-repair-luna.
 
 - 2026-10-13T06:04:17+00:00: Checkpointed source commit aedabc91688df719b101c1fce8d5520cc4ff2fd3.
+
+- 2026-10-13T06:04:40+00:00: Checkpointed source commit 4a486e97abbb450eb5927faf599119a5aa8be6fb.
