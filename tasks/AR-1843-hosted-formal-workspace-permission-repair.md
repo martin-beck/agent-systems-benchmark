@@ -1,6 +1,6 @@
 ---
 {
-  "branch": "",
+  "branch": "codex/ar1843-formal-workspace-repair",
   "checkpoint_commit": "",
   "claim_expires": "2026-10-13T11:57:02+00:00",
   "depends_on": [],
@@ -22,10 +22,10 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair hosted formal TLC workspace permissions for the ASB state runner.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Hosted formal workspace permission repair",
-  "updated_at": "2026-10-13T09:57:02+00:00",
-  "worktree_key": ""
+  "updated_at": "2026-10-13T09:57:28+00:00",
+  "worktree_key": "agent-systems-benchmark-ar-1843-formal-workspace-repair"
 }
 ---
 
@@ -44,3 +44,6 @@ formal assertion, timeout, or resource-bound gate may be removed or weakened.
 - 2026-10-13T09:56:20+00:00: Runner infrastructure repair required by PR #142 formal failure
 
 - 2026-10-13T09:57:02+00:00: Claimed by ar1843-formal-workspace-repair-luna.
+
+- 2026-10-13T09:57:28+00:00: Bound worktree agent-systems-benchmark-ar-1843-formal-workspace-repair
+  on branch codex/ar1843-formal-workspace-repair.
