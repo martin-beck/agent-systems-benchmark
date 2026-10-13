@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1783",
-  "next_action": "Keep AR-1783 in progress and add narrowly scoped coverage for remaining live_service/control bootstrap branches; do not weaken the floor or fabricate authority.",
+  "next_action": "Do not duplicate AR-1835 control/bootstrap coverage. Preserve d87352ddb511c48b4be1bdbecdd26fb2cf6597a8 as the AR-1783 product checkpoint; after AR-1835 exact-head merge/reconciliation, rerun serialized coverage and accept only if the unchanged 90% floor passes.",
   "observed_branch": "feature/ar-1783-installed-workload-selection-and-execution",
   "observed_dirty": 0,
   "observed_head": "d87352ddb511c48b4be1bdbecdd26fb2cf6597a8",
@@ -28,10 +28,10 @@
   "spec_ref": "specs/AR-1783.json",
   "spec_revision": 2,
   "status": "in_progress",
-  "summary": "AR-1783 delegated runtime fixture is covered; serialized full coverage remains below the 90% line floor (89.28% lines, 85.11% functions, 90.66% regions).",
-  "task_revision": 453,
+  "summary": "AR-1835 exact-head fixture now covers the authenticated runtime bootstrap/control seam; AR-1783 remains below 90% until that reviewed change is integrated.",
+  "task_revision": 454,
   "title": "Installed workload selection and execution",
-  "updated_at": "2026-10-13T00:38:31+00:00",
+  "updated_at": "2026-10-13T00:39:03+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution"
 }
 ---
@@ -1152,3 +1152,10 @@ the suite from this end-to-end path.
   05423f546638fa0266e03f759296fdc2689e698f112d4b7b172bb75e95f5dca1.
 
 - 2026-10-13T00:38:31+00:00: Heartbeat by ar1783-workload-selection-luna.
+
+- 2026-10-13T00:39:03+00:00: Overlap audit: AR-1835 head 06565d3d adds
+  unix_runtime_bootstrap_uses_kernel_session_and_rejects_stale_replay, covering authenticated
+  ControlClient/server bootstrap, stale replay and cancellation. This is the exact
+  live_service/control bootstrap seam identified by AR-1783; no distinct AR-1783 production contract
+  remains to implement. No retry of the hanging control fixture; await reviewed AR-1835 integration,
+  then rerun one bounded serialized coverage command.

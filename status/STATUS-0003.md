@@ -1259,8 +1259,8 @@
 | Owner | ar1783-workload-selection-luna |
 | Parent | None |
 | Children | None |
-| Summary | AR-1783 delegated runtime fixture is covered; serialized full coverage remains below the 90&#37; line floor (89.28&#37; lines, 85.11&#37; functions, 90.66&#37; regions). |
-| Next action | Keep AR-1783 in progress and add narrowly scoped coverage for remaining live_service/control bootstrap branches; do not weaken the floor or fabricate authority. |
+| Summary | AR-1835 exact-head fixture now covers the authenticated runtime bootstrap/control seam; AR-1783 remains below 90&#37; until that reviewed change is integrated. |
+| Next action | Do not duplicate AR-1835 control/bootstrap coverage. Preserve d87352ddb511c48b4be1bdbecdd26fb2cf6597a8 as the AR-1783 product checkpoint; after AR-1835 exact-head merge/reconciliation, rerun serialized coverage and accept only if the unchanged 90&#37; floor passes. |
 
 ### AR-1784 — Command dependency registry and preflight
 
