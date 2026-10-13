@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T06:53:51+00:00",
   "depends_on": [],
   "id": "AR-1837",
-  "next_action": "Await terminal-success exact-head checks on PR #628 and independent review; then publish only with tools/integration/merge_pr.py and verify exact-main workflows.",
+  "next_action": "Await completion of exact-main rerun attempt 2 for Credential-free benchmark path plus remaining Rust, Repository quality, and Emulated AArch64 workflows; release only after all terminal-success and reconcile AR-1835 evidence.",
   "observed_branch": "repair/ar-1837-pr627-protected-main-identity",
   "observed_dirty": 0,
   "observed_head": "6ea3648e483f25179c3112b54ed7c348e141cad4",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates.",
-  "task_revision": 25,
+  "task_revision": 26,
   "title": "PR #627 protected-main identity recovery",
-  "updated_at": "2026-10-13T05:56:02+00:00",
+  "updated_at": "2026-10-13T05:57:31+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1837-pr627-protected-main-identity"
 }
 ---
@@ -109,3 +109,9 @@ receipt. This AR owns only a forward recovery from the current main tip.
 
 - 2026-10-13T05:56:02+00:00: Recorded command exit 0; command argv SHA-256
   819507c80908e7d0f961bda582bed4551953e58ffbff136a489cbb200f46f81e.
+
+- 2026-10-13T05:57:31+00:00: Published signed local merge 4a486e97abbb450eb5927faf599119a5aa8be6fb
+  with exact parents 6ea3648e and 5e78a03b, exact tree bf0cab48, and verified SSH signature/DCO.
+  Exact-main provenance passed. Credential-free attempt 1 failed on transient source_checkout
+  fixture Unavailable at source_checkout.rs:913; rerun attempt 2 requested. Other workflows
+  terminal-success or still running.

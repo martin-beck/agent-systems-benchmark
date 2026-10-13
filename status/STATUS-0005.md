@@ -287,7 +287,7 @@
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1835](../tasks/AR-1835-authenticated-control-live-isolation-repair.md): Authenticated control and live-isolation coverage repair | ar1835-control-isolation-luna | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. | Merge PR #627 only through the reviewed signed integration procedure, then run post-merge exact-main verification and reconcile AR-1835; keep AR-1783 in progress. |
-| P0 | [AR-1837](../tasks/AR-1837-pr627-protected-main-identity-recovery.md): PR #627 protected-main identity recovery | ar1837-protected-main-repair-luna | Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates. | Await terminal-success exact-head checks on PR #628 and independent review; then publish only with tools/integration/merge_pr.py and verify exact-main workflows. |
+| P0 | [AR-1837](../tasks/AR-1837-pr627-protected-main-identity-recovery.md): PR #627 protected-main identity recovery | ar1837-protected-main-repair-luna | Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates. | Await completion of exact-main rerun attempt 2 for Credential-free benchmark path plus remaining Rust, Repository quality, and Emulated AArch64 workflows; release only after all terminal-success and reconcile AR-1835 evidence. |
 
 ### Open (3)
 
