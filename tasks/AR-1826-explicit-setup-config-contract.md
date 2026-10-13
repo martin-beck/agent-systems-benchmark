@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts.",
-  "task_revision": 21,
+  "task_revision": 22,
   "title": "Define explicit setup configuration and plan-binding contract",
-  "updated_at": "2026-10-13T06:13:33+00:00",
+  "updated_at": "2026-10-13T06:15:05+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
@@ -98,3 +98,6 @@ and compatibility contract on which the remaining ARs depend.
 - 2026-10-13T06:13:33+00:00: Applied independent review fixes: strict plan identity/selection
   membership validation, digest/schema case alignment, duplicate selection schema constraints, and
   schema positive/negative tests. Focused tests and clippy/fmt pass; published ecf3ed20.
+
+- 2026-10-13T06:15:05+00:00: Recorded command exit 0; command argv SHA-256
+  2c7f822d0c4efeef82f7adbe3a43e7da667905bd9457da1c77d1da9d1f259a66.
