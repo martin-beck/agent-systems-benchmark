@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1779-default-usable-tool-install-command",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-13T01:57:39+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1777",
     "AR-1778",
@@ -13,7 +13,7 @@
   "observed_branch": "repair/ar-1779-source-fallback-linear4",
   "observed_dirty": 0,
   "observed_head": "80060a79e716b42e021ddd9b116afdc560bc6cc1",
-  "owner": "ar1779-default-install-luna",
+  "owner": "",
   "plan": "../plans/AR-1779-default-usable-tool-install-command.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1779.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 235,
+  "task_revision": 236,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-13T00:27:53+00:00",
+  "updated_at": "2026-10-13T00:27:58+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -657,3 +657,9 @@ the adapter smoke check failed.
   adapter matrix, receipt-validated reuse, bounded smoke, rollback, and false-usable negative gates
   are present. Existing stale 80060a79 branch requires no additional product change. AR-1826–1832
   preserved.
+
+- 2026-10-13T00:27:58+00:00: Release complete: accepted contract-test evidence binds merged PR #622
+  and exact current origin/main da0cbe0848a10e61a2cd0b9a3144217842a3369 with 10/10 terminal-success
+  required workflows. PR #621 safety/provenance repair and PR #622 source adapter/runtime contract
+  are merged and independently evidenced; no new change was needed from stale 80060a79. Preserve
+  AR-1826–1832 ordering.

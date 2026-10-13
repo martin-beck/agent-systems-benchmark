@@ -277,11 +277,10 @@
 
 ## Complete AR inventory
 
-### In progress (3)
+### In progress (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md): Default usable tool-install command | ar1779-default-install-luna | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. | Current origin/main da0cbe0848a10e61a2cd0b9a3144217842a3369 is green across all 10 required workflows; AR-1825 is accepted on merged PR #622 with source-executable matrix and bounded adapter/rollback/smoke negative gates. Release AR-1779 from its owner with durable exact-main and post-merge evidence. Preserve AR-1826–1832. |
 | P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | ar1783-workload-selection-luna | AR-1783 delegated runtime fixture is covered; serialized full coverage remains below the 90&#37; line floor (89.28&#37; lines, 85.11&#37; functions, 90.66&#37; regions). | Keep AR-1783 in progress and add narrowly scoped coverage for remaining live_service/control bootstrap branches; do not weaken the floor or fabricate authority. |
 | P0 | [AR-1835](../tasks/AR-1835-authenticated-control-live-isolation-repair.md): Authenticated control and live-isolation coverage repair | ar1835-control-isolation-luna | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. | Remain blocked from merge on repeated hosted TUI qualification failure. Preserve exact logs and local-pass evidence; escalate as external asb-tui/main qualification or hosted-environment failure. No PR commit or merge until the required TUI check is independently resolved and all exact-head checks are green. |
 
@@ -483,7 +482,7 @@
 | --- | --- | --- | --- | --- |
 | P4 | [AR-0703](../tasks/AR-0703-native-platform-lab.md): Provision native platform qualification capacity | Unclaimed | Optionally provide native ARM64 Debian/openEuler capacity for future claim-scoped evidence. | When separately authorized, provision genuine ARM64 Debian/openEuler capacity for optional future native evidence; absence must not block any AR. |
 
-### Done (600)
+### Done (601)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -635,3 +634,4 @@
 | P0 | [AR-1427](../tasks/AR-1427-protected-main-merge-tree-requalification.md): Protected-main merge-tree requalification repair | Unclaimed | Repair exact protected-main merge-tree requalification after sequential tutorial merges. | Promote and reproduce PR #310 merge f511645 versus reviewed topic 9d97e168; repair exact protected-main merge-tree requalification, then rerun AR-1215 post-merge evidence. |
 | P0 | [AR-1431](../tasks/AR-1431-protected-main-stale-base-repair.md): Protected-main stale-base merge requalification repair | Unclaimed | Prevent stale-base sequential merges from passing review but failing protected-main merge-tree policy. | Monitor seven post-merge workflows for exact merge ed907603; release AR-1431 only after all seven terminal success, then coordinate AR-1216 release. |
 | P0 | [AR-1432](../tasks/AR-1432-local-openrouter-execution-bridge.md): Local OpenRouter execution bridge | Unclaimed | Qualify credential-free OpenRouter user execution through a deterministic loopback mock without external-provider access. | Local deterministic mock-attempt backend is delivered by AR-1433 (PR #325, merge 2872a31f) and is no longer blocked for development qualification. Preserve this AR&#x27;s remaining optional production live-bridge boundary: do not synthesize LiveProviderAttempt or weaken ProviderEgressTarget; runtime-owned relay/backend acquisition remains separately fail-closed. |
+| P0 | [AR-1433](../tasks/AR-1433-runtime-mock-attempt-backend.md): Runtime mock-attempt backend | Unclaimed | Add an approved runtime mock-attempt backend for deterministic local run and sweep qualification. | Done: signed+DCO PR #325 merged as 2872a31f with all seven exact-main workflows green and post-merge local-mock verification complete. Preserve AR-1432&#x27;s separate optional production live-bridge blocker. |
