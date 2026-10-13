@@ -1,6 +1,6 @@
 ---
 {
-  "branch": "",
+  "branch": "codex/ar1841-v053-adoption",
   "checkpoint_commit": "",
   "claim_expires": "2026-10-13T12:33:59+00:00",
   "depends_on": [
@@ -24,10 +24,10 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Adopt Coordinator v0.5.3 with partial legacy worktree binding.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Coordinator v0.5.3 adoption",
-  "updated_at": "2026-10-13T09:33:59+00:00",
-  "worktree_key": ""
+  "updated_at": "2026-10-13T09:34:13+00:00",
+  "worktree_key": "agent-systems-benchmark-state-ar-1841-v053"
 }
 ---
 
@@ -39,3 +39,6 @@ with the verified v0.5.3 snapshot needed to unblock AR-1826.
   exact release tag verified locally
 
 - 2026-10-13T09:33:59+00:00: Claimed by ar1841-v053-adoption-luna.
+
+- 2026-10-13T09:34:13+00:00: Bound worktree agent-systems-benchmark-state-ar-1841-v053 on branch
+  codex/ar1841-v053-adoption.
