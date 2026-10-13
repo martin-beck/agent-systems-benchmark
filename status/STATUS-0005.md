@@ -276,9 +276,9 @@
 | [AR-1832](../tasks/AR-1832-explicit-config-e2e-qualification.md) | [AR-1827](../tasks/AR-1827-complete-setup-authoring.md), [AR-1828](../tasks/AR-1828-retire-provider-selection-surfaces.md), [AR-1829](../tasks/AR-1829-config-bound-plan-create.md), [AR-1830](../tasks/AR-1830-config-bound-plan-run-sweep.md), [AR-1831](../tasks/AR-1831-explicit-config-cli-tui-docs.md) | None |
 | [AR-1833](../tasks/AR-1833-repair-ar1689-receipt.md) | [AR-1689](../tasks/AR-1689.md) | None |
 | [AR-1834](../tasks/AR-1834-ar1775-protected-main-identity-recovery.md) | None | None |
-| [AR-1835](../tasks/AR-1835-authenticated-control-live-isolation-repair.md) | [AR-1763](../tasks/AR-1763-generated-catalog-selection.md), [AR-1764](../tasks/AR-1764-project-run-integration.md), [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md) | [AR-1836](../tasks/AR-1836-cross-repo-tui-qualification-determinism.md), [AR-1837](../tasks/AR-1837-pr627-protected-main-identity-recovery.md) |
+| [AR-1835](../tasks/AR-1835-authenticated-control-live-isolation-repair.md) | [AR-1763](../tasks/AR-1763-generated-catalog-selection.md), [AR-1764](../tasks/AR-1764-project-run-integration.md), [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md) | [AR-1836](../tasks/AR-1836-cross-repo-tui-qualification-determinism.md) |
 | [AR-1836](../tasks/AR-1836-cross-repo-tui-qualification-determinism.md) | [AR-1835](../tasks/AR-1835-authenticated-control-live-isolation-repair.md) | None |
-| [AR-1837](../tasks/AR-1837-pr627-protected-main-identity-recovery.md) | [AR-1835](../tasks/AR-1835-authenticated-control-live-isolation-repair.md) | None |
+| [AR-1837](../tasks/AR-1837-pr627-protected-main-identity-recovery.md) | None | None |
 
 ## Complete AR inventory
 

@@ -4630,7 +4630,6 @@ flowchart LR
     AR_1830 --> AR_1832
     AR_1831 --> AR_1832
     AR_1835 --> AR_1836
-    AR_1835 --> AR_1837
     classDef status_in_progress fill:#1565c0,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_open fill:#2e7d32,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_blocked fill:#c62828,color:#ffffff,stroke:#263238,stroke-width:2px
