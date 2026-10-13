@@ -7,7 +7,7 @@
     "AR-1795"
   ],
   "id": "AR-1841",
-  "next_action": "Publish reviewed state PR for exact head 1826a4806b1c8a3d8b817edc62ee850f7ade4b27; await exact-head CI before merge.",
+  "next_action": "Await rerun of exact-head PR #142 formal verification and coordination checks; merge only after all required checks are green.",
   "owner": "ar1841-v053-adoption-luna",
   "plan": "../plans/AR-1841-coordinator-v053-adoption.md",
   "priority": "P0",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Adopt Coordinator v0.5.3 with partial legacy worktree binding.",
-  "task_revision": 25,
+  "task_revision": 26,
   "title": "Coordinator v0.5.3 adoption",
-  "updated_at": "2026-10-13T09:51:30+00:00",
+  "updated_at": "2026-10-13T09:51:44+00:00",
   "worktree_key": "agent-systems-benchmark-state-ar-1841-v053"
 }
 ---
@@ -107,3 +107,8 @@ with the verified v0.5.3 snapshot needed to unblock AR-1826.
 
 - 2026-10-13T09:51:30+00:00: Recorded command exit 0; command argv SHA-256
   7f5c48df09d8ec76bbb7659068c7b7d345798c548a408a29e701564231c515cc.
+
+- 2026-10-13T09:51:44+00:00: PR #142 exact-head hosted formal verification initially failed due
+  runner infrastructure permissions (mktemp denied under /tmp/agent-workflow-coordinator-tlc and
+  /outcomes.manifest permission denied), not a model assertion; rerun requested for run 38379221269.
+  Other observed checks: AWQ shadow and source headers green; coordination was in progress.

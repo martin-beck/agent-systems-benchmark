@@ -1820,7 +1820,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Adopt Coordinator v0.5.3 with partial legacy worktree binding. |
-| Next action | Publish reviewed state PR for exact head 1826a4806b1c8a3d8b817edc62ee850f7ade4b27; await exact-head CI before merge. |
+| Next action | Await rerun of exact-head PR #142 formal verification and coordination checks; merge only after all required checks are green. |
 
 
 ## Dependency graph
