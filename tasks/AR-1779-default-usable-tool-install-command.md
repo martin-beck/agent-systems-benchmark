@@ -18,20 +18,20 @@
   "priority": "P0",
   "schema_version": 1,
   "spec_acceptance": {
-    "evidence_class": "integration-test",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_class": "contract-test",
+    "evidence_digest": "sha256:0454bac1d8f554d88b23a7f963ea5e556e9442a1687e1ff916783c18c9a433e3",
+    "evidence_ref": "https://github.com/martin-beck/agent-systems-benchmark/pull/622",
     "spec_ref": "specs/AR-1779.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1779.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 234,
+  "task_revision": 235,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-13T00:27:39+00:00",
+  "updated_at": "2026-10-13T00:27:53+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -650,3 +650,10 @@ the adapter smoke check failed.
   4ab8a8e2a91519519f022faa56c08c603221863f2e1a4a5ebbd7257cf26b9db5.
 
 - 2026-10-13T00:27:39+00:00: Heartbeat by ar1779-default-install-luna.
+
+- 2026-10-13T00:27:53+00:00: Accepted after merged PR #621 safety/provenance repair and merged PR
+  #622 bounded source-to-executable adapter contract. Current origin/main
+  da0cbe0848a10e61a2cd0b9a3144217842a3369 has terminal success for all 10 required workflows;
+  adapter matrix, receipt-validated reuse, bounded smoke, rollback, and false-usable negative gates
+  are present. Existing stale 80060a79 branch requires no additional product change. AR-1826–1832
+  preserved.
