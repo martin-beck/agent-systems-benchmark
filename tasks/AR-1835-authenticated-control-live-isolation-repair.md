@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 72,
+  "task_revision": 73,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T05:24:00+00:00",
+  "updated_at": "2026-10-13T05:24:36+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -300,3 +300,6 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   completed success at this exact head against asb-tui main
   c4f554e79c16bcc910b4a9af6a665a230b3339fb. No product-path, privacy, authority, signature, DCO, or
   evidence defect found. Do not merge outside signed integration workflow.
+
+- 2026-10-13T05:24:36+00:00: Recorded command exit 1; command argv SHA-256
+  7fda6de859e84e23c9f8a945d9faa11d11c120fb0054e39bded2d1aa4eabb24f.
