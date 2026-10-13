@@ -73,8 +73,8 @@ use asb_store::{
     RunManifest, StoreLimits,
 };
 use asb_workloads::{
-    CatalogKind, OriginalWorkloads, PreparedWorkloadChoice, WorkloadEvaluation, describe_workload,
-    prepare_workload, select_workload, workload_catalog,
+    CatalogKind, InstalledPreparedWorkload, OriginalWorkloads, PreparedWorkloadChoice,
+    WorkloadEvaluation, describe_workload, prepare_workload, select_workload, workload_catalog,
 };
 use rustix::fs::{
     AtFlags, Mode as RustixMode, OFlags, RenameFlags, fchmod, fsync, mkdirat, openat, readlinkat,
@@ -4221,7 +4221,7 @@ fn workload_with_progress_inner(
                 let _ = fs::rename(&previous_prepared, &prepared_path);
                 return Err(error);
             }
-            let receipt = json!({"schema_version": 1, "workload_id": id, "catalog_revision": version, "source": source_url, "revision": revision, "archive_digest_sha256": archive_digest, "license": license, "status": "verified", "preparation": "bounded-extracted; no installer executed", "evaluator_entrypoint": preparation});
+            let receipt = json!({"schema_version": 1, "workload_id": id, "catalog_revision": version, "source": source_url, "revision": revision, "archive_digest_sha256": archive_digest, "license": license, "status": "verified", "preparation": "bounded-extracted; no installer executed", "adapter_version": "asb-workload-adapter-v1", "evaluator_entrypoint": preparation});
             let receipt_bytes = serde_json::to_vec_pretty(&receipt)
                 .map_err(|_| CliError::legacy_operation("workload receipt cannot be encoded"))?;
             if let Err(error) =
@@ -9493,7 +9493,7 @@ fn execute_inner_from_source_with_owner_project(
         }
     };
     let plan = if let Some(project) = project {
-        project.bind_plan(plan)
+        project.bind_plan(plan)?
     } else {
         plan
     };
@@ -10276,6 +10276,52 @@ fn local_mock_attempt_summary(
     }
 }
 
+/// Resolve the exact project-local prepared tree for an installed external workload.
+/// Standalone and explicitly built-in plans retain the original fixture path.
+fn installed_workload_source(
+    plan: &PlanFile,
+    _attempt_root: &Path,
+) -> Result<Option<PathBuf>, CliError> {
+    let work_root = &plan.work_root;
+    let project_root = work_root
+        .parent()
+        .and_then(Path::parent)
+        .ok_or_else(|| CliError::legacy_validation("project workload root is unavailable"))?;
+    if !project_root.join(PROJECT_INIT_CONFIG).is_file() {
+        return Ok(None);
+    }
+    let config = load_tool_project(project_root)?;
+    let Some(record) = config.workloads.get(&plan.workload) else {
+        return Ok(None);
+    };
+    if !record
+        .capabilities
+        .iter()
+        .any(|capability| capability == "external-workload")
+    {
+        return Ok(None);
+    }
+    let relative = record.path.as_deref().ok_or_else(|| {
+        CliError::legacy_validation("selected installed workload has no project-local path")
+    })?;
+    let installed = project_root.join(relative);
+    if !installed.starts_with(project_root) {
+        return Err(CliError::legacy_validation(
+            "selected installed workload path escapes the project",
+        ));
+    }
+    let prepared = installed.join("prepared");
+    let metadata = fs::symlink_metadata(&prepared).map_err(|_| {
+        CliError::legacy_validation("selected installed workload preparation is missing")
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(CliError::legacy_validation(
+            "selected installed workload preparation is not usable",
+        ));
+    }
+    Ok(Some(prepared))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn run_attempt(
     plan: &PlanFile,
@@ -10294,10 +10340,15 @@ fn run_attempt(
     }
     let phase = if warmup { "warmup" } else { "measured" };
     let attempt_root = work_root.join(format!("{run_id}-{phase}-{input_id}"));
-    let mut prepared = PreparedGuard::new(
+    let prepared_workload = if let Some(source) = installed_workload_source(plan, &attempt_root)? {
+        InstalledPreparedWorkload::prepare(&plan.workload, source, &attempt_root)
+            .map(PreparedWorkloadChoice::Installed)
+            .map_err(|_| CliError::legacy_operation("installed workload preparation failed"))?
+    } else {
         prepare_workload(&plan.workload, &attempt_root)
-            .map_err(|_| CliError::legacy_operation("workload preparation failed"))?,
-    );
+            .map_err(|_| CliError::legacy_operation("workload preparation failed"))?
+    };
+    let mut prepared = PreparedGuard::new(prepared_workload);
     let private_path = attempt_root.join(".asb-private");
     let private =
         prepare_owned_directory(&private_path, 0o700, DirectoryPurpose::RunWorkspace, None)?;
@@ -17266,6 +17317,118 @@ pub(crate) mod tests {
         assert_eq!(summary.outcome, "timed_out");
         assert!(started.elapsed() < Duration::from_secs(3));
         assert!(!plan.work_root.join("timeout-measured-0").exists());
+    }
+
+    #[test]
+    fn installed_workload_run_attempt_uses_project_prepared_tree_end_to_end() {
+        let scratch = Scratch::new("installed-run-attempt");
+        let project = scratch.0.join("project");
+        project_init_with_progress(
+            &[project.display().to_string()],
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+        )
+        .unwrap();
+        let prepared = project.join(".asb/workloads/original.bug-fix/prepared");
+        fs::create_dir_all(&prepared).unwrap();
+        fs::write(prepared.join("manifest.json"), b"installed fixture").unwrap();
+        let mut config = load_tool_project(&project).unwrap();
+        config.workloads.insert(
+            "original.bug-fix".into(),
+            ProjectToolRecordV1 {
+                kind: ProjectToolKind::Workload,
+                source_ref: "fixture://original.bug-fix".into(),
+                version: "fixture-v1".into(),
+                platform: platform_label(),
+                path: Some(".asb/workloads/original.bug-fix".into()),
+                digest_sha256: Some("a".repeat(64)),
+                capabilities: vec!["external-workload".into(), "adapter-ready".into()],
+                status: ProjectToolStatus::Available,
+            },
+        );
+        save_tool_project(&project, &config).unwrap();
+
+        let (_, mut plan) = plan_fixture(&scratch.0, "installed-attempt");
+        plan.work_root = project.join(".asb/work");
+        plan.result_root = project.join("results");
+        prepare_root(&plan.work_root).unwrap();
+        let summary = run_attempt(
+            &plan,
+            &plan.work_root,
+            "installed",
+            0,
+            false,
+            None,
+            plan.measurement_selection.as_ref().unwrap(),
+            Arc::new(AtomicBool::new(false)),
+            false,
+            None,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(summary.outcome, "completed");
+        assert!(summary.grade_passed);
+        assert!(!plan.work_root.join("installed-measured-0").exists());
+    }
+
+    #[test]
+    fn installed_workload_source_rejects_missing_and_escaping_preparations() {
+        let scratch = Scratch::new("installed-source-boundaries");
+        let project = scratch.0.join("project");
+        project_init_with_progress(
+            &[project.display().to_string()],
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+        )
+        .unwrap();
+        let (_, mut plan) = plan_fixture(&scratch.0, "installed-source");
+        plan.workload = "fixture-workload".into();
+        plan.work_root = project.join(".asb/work");
+        assert!(
+            installed_workload_source(&plan, &plan.work_root)
+                .unwrap()
+                .is_none()
+        );
+
+        let mut config = load_tool_project(&project).unwrap();
+        config.workloads.insert(
+            "fixture-workload".into(),
+            ProjectToolRecordV1 {
+                kind: ProjectToolKind::Workload,
+                source_ref: "fixture://fixture-workload".into(),
+                version: "fixture-v1".into(),
+                platform: platform_label(),
+                path: None,
+                digest_sha256: Some("b".repeat(64)),
+                capabilities: vec!["external-workload".into(), "adapter-ready".into()],
+                status: ProjectToolStatus::Available,
+            },
+        );
+        save_tool_project(&project, &config).unwrap();
+        assert!(installed_workload_source(&plan, &plan.work_root).is_err());
+
+        let mut config = load_tool_project(&project).unwrap();
+        config.workloads.get_mut("fixture-workload").unwrap().path = Some("escape".into());
+        save_tool_project(&project, &config).unwrap();
+        assert!(installed_workload_source(&plan, &plan.work_root).is_err());
+
+        let mut config = load_tool_project(&project).unwrap();
+        config.workloads.get_mut("fixture-workload").unwrap().path =
+            Some(".asb/workloads/fixture-workload".into());
+        save_tool_project(&project, &config).unwrap();
+        fs::create_dir_all(project.join(".asb/workloads/fixture-workload")).unwrap();
+        assert!(installed_workload_source(&plan, &plan.work_root).is_err());
+
+        #[cfg(unix)]
+        {
+            let prepared = project.join(".asb/workloads/fixture-workload/prepared");
+            let target = project.join("outside-prepared");
+            fs::create_dir_all(&target).unwrap();
+            std::os::unix::fs::symlink(&target, &prepared).unwrap();
+            assert!(installed_workload_source(&plan, &plan.work_root).is_err());
+        }
     }
 
     #[test]

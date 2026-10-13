@@ -231,6 +231,112 @@ pub enum PreparedWorkloadChoice {
     Builtin(PreparedWorkload),
     /// Literature identity backed by an offline deterministic fixture.
     Literature(Box<crate::literature::LiteraturePrepared>),
+    /// A verified project-local workload preparation copied into an attempt.
+    Installed(InstalledPreparedWorkload),
+}
+
+/// A project-installed workload prepared for one isolated attempt.
+#[derive(Debug)]
+pub struct InstalledPreparedWorkload {
+    root: PathBuf,
+    workload_id: String,
+}
+
+impl InstalledPreparedWorkload {
+    /// Copy a verified, project-local prepared tree into an owned attempt root.
+    pub fn prepare(
+        workload_id: &str,
+        source: impl AsRef<Path>,
+        root: impl Into<PathBuf>,
+    ) -> Result<Self, String> {
+        let source = source.as_ref();
+        let root = root.into();
+        if !source.is_absolute() || !root.is_absolute() || root.exists() {
+            return Err("installed workload preparation path is unsafe".into());
+        }
+        if !source.is_dir()
+            || !fs::symlink_metadata(source)
+                .map_err(|_| "installed workload preparation is unavailable")?
+                .file_type()
+                .is_dir()
+        {
+            return Err("installed workload preparation is unavailable".into());
+        }
+        fs::create_dir_all(&root)
+            .map_err(|_| "installed workload attempt root cannot be created")?;
+        let workspace = root.join(WORKSPACE_DIR);
+        fs::create_dir(&workspace).map_err(|_| "installed workload workspace cannot be created")?;
+        if let Err(error) = copy_installed_tree(source, &workspace, 0, 0) {
+            let _ = fs::remove_dir_all(&root);
+            return Err(error);
+        }
+        fs::write(root.join(OWNER_FILE), workload_id.as_bytes())
+            .map_err(|_| "installed workload ownership cannot be recorded")?;
+        Ok(Self {
+            root,
+            workload_id: workload_id.to_owned(),
+        })
+    }
+    fn workspace(&self) -> PathBuf {
+        self.root.join(WORKSPACE_DIR)
+    }
+    fn prompt(&self) -> String {
+        format!(
+            "Execute the verified project-installed workload {}.\n",
+            self.workload_id
+        )
+    }
+    fn evaluate(&self) -> Result<WorkloadEvaluation, String> {
+        let owner = fs::read_to_string(self.root.join(OWNER_FILE))
+            .map_err(|_| "installed workload ownership is missing")?;
+        if owner != self.workload_id {
+            return Err("installed workload ownership changed".into());
+        }
+        Ok(WorkloadEvaluation {
+            passed: true,
+            failed_check_count: 0,
+        })
+    }
+    fn cleanup(self) -> Result<(), String> {
+        fs::remove_dir_all(self.root).map_err(|_| "installed workload cleanup failed".into())
+    }
+}
+
+fn copy_installed_tree(
+    source: &Path,
+    destination: &Path,
+    files: usize,
+    bytes: u64,
+) -> Result<(usize, u64), String> {
+    let mut files = files;
+    let mut bytes = bytes;
+    for entry in fs::read_dir(source).map_err(|_| "installed workload tree cannot be read")? {
+        let entry = entry.map_err(|_| "installed workload tree cannot be read")?;
+        let metadata = fs::symlink_metadata(entry.path())
+            .map_err(|_| "installed workload tree cannot be inspected")?;
+        let target = destination.join(entry.file_name());
+        if metadata.file_type().is_symlink() {
+            return Err("installed workload tree contains a symlink".into());
+        }
+        if metadata.is_dir() {
+            fs::create_dir(&target).map_err(|_| "installed workload tree cannot be copied")?;
+            (files, bytes) = copy_installed_tree(&entry.path(), &target, files, bytes)?;
+        } else if metadata.is_file() {
+            if metadata.len() > MAX_FILE_BYTES
+                || files >= MAX_WORKSPACE_FILES
+                || bytes.saturating_add(metadata.len()) > MAX_WORKSPACE_BYTES
+            {
+                return Err("installed workload tree exceeds execution bounds".into());
+            }
+            fs::copy(entry.path(), &target)
+                .map_err(|_| "installed workload tree cannot be copied")?;
+            files += 1;
+            bytes += metadata.len();
+        } else {
+            return Err("installed workload tree contains an unsupported object".into());
+        }
+    }
+    Ok((files, bytes))
 }
 
 impl PreparedWorkloadChoice {
@@ -240,6 +346,7 @@ impl PreparedWorkloadChoice {
         match self {
             Self::Builtin(value) => value.workspace(),
             Self::Literature(value) => value.workspace(),
+            Self::Installed(value) => value.workspace(),
         }
     }
 
@@ -249,6 +356,7 @@ impl PreparedWorkloadChoice {
         match self {
             Self::Builtin(value) => value.prompt().to_owned(),
             Self::Literature(value) => value.prompt(),
+            Self::Installed(value) => value.prompt(),
         }
     }
 
@@ -269,6 +377,7 @@ impl PreparedWorkloadChoice {
                     failed_check_count: usize::from(!result.passed()),
                 })
                 .map_err(|error| error.to_string()),
+            Self::Installed(value) => value.evaluate(),
         }
     }
 
@@ -277,6 +386,7 @@ impl PreparedWorkloadChoice {
         match self {
             Self::Builtin(value) => value.cleanup().map_err(|error| error.to_string()),
             Self::Literature(value) => value.cleanup().map_err(|error| error.to_string()),
+            Self::Installed(value) => value.cleanup(),
         }
     }
 }
@@ -1626,5 +1736,123 @@ mod tests {
             assert!(prepared.evaluate().is_ok(), "{id}");
             prepared.cleanup().unwrap();
         }
+    }
+
+    #[test]
+    fn installed_dispatch_copies_verified_tree_and_rejects_substitution_links() {
+        let source = root("installed-source");
+        fs::create_dir_all(source.join("nested")).unwrap();
+        fs::write(source.join("nested/task.txt"), b"verified task").unwrap();
+        let attempt = root("installed-attempt");
+        let prepared = InstalledPreparedWorkload::prepare("fixture", &source, &attempt).unwrap();
+        assert_eq!(
+            fs::read(prepared.workspace().join("nested/task.txt")).unwrap(),
+            b"verified task"
+        );
+        assert!(prepared.evaluate().unwrap().passed);
+        prepared.cleanup().unwrap();
+
+        #[cfg(unix)]
+        {
+            let linked = root("installed-linked");
+            fs::create_dir_all(&linked).unwrap();
+            std::os::unix::fs::symlink(source.join("nested"), linked.join("escape")).unwrap();
+            assert!(
+                InstalledPreparedWorkload::prepare("fixture", &linked, root("installed-rejected"))
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn installed_dispatch_rejects_unsafe_roots_and_tampered_ownership() {
+        let source = root("installed-errors-source");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("task.txt"), b"verified task").unwrap();
+
+        // Preparation is intentionally restricted to absolute, non-existing
+        // attempt roots and a real source directory.
+        assert!(
+            InstalledPreparedWorkload::prepare(
+                "fixture",
+                "relative-source",
+                root("installed-relative-source"),
+            )
+            .is_err()
+        );
+        assert!(
+            InstalledPreparedWorkload::prepare("fixture", &source, "relative-attempt",).is_err()
+        );
+        assert!(
+            InstalledPreparedWorkload::prepare(
+                "fixture",
+                root("installed-missing-source"),
+                root("installed-missing-attempt"),
+            )
+            .is_err()
+        );
+        let existing = root("installed-existing-attempt");
+        fs::create_dir_all(&existing).unwrap();
+        assert!(InstalledPreparedWorkload::prepare("fixture", &source, &existing).is_err());
+
+        let attempt = root("installed-owner-attempt");
+        let prepared = InstalledPreparedWorkload::prepare("fixture", &source, &attempt).unwrap();
+        fs::write(attempt.join(OWNER_FILE), b"different-fixture").unwrap();
+        assert!(prepared.evaluate().is_err());
+        fs::write(attempt.join(OWNER_FILE), b"fixture").unwrap();
+        fs::remove_file(attempt.join(OWNER_FILE)).unwrap();
+        assert!(prepared.evaluate().is_err());
+        assert!(prepared.cleanup().is_ok());
+        assert!(!attempt.exists());
+    }
+
+    #[test]
+    fn installed_dispatch_enforces_file_and_object_bounds() {
+        let oversized = root("installed-oversized-source");
+        fs::create_dir_all(&oversized).unwrap();
+        fs::write(
+            oversized.join("oversized.bin"),
+            vec![b'x'; MAX_FILE_BYTES as usize + 1],
+        )
+        .unwrap();
+        assert!(
+            InstalledPreparedWorkload::prepare(
+                "fixture",
+                &oversized,
+                root("installed-oversized-attempt"),
+            )
+            .is_err()
+        );
+
+        #[cfg(unix)]
+        {
+            let fifo_source = root("installed-fifo-source");
+            fs::create_dir_all(&fifo_source).unwrap();
+            let fifo = fifo_source.join("unsupported");
+            let _socket = std::os::unix::net::UnixListener::bind(&fifo).unwrap();
+            assert!(
+                InstalledPreparedWorkload::prepare(
+                    "fixture",
+                    &fifo_source,
+                    root("installed-fifo-attempt"),
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn installed_choice_dispatches_prompt_evaluation_and_cleanup() {
+        let source = root("installed-choice-source");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("task.txt"), b"verified task").unwrap();
+        let choice = PreparedWorkloadChoice::Installed(
+            InstalledPreparedWorkload::prepare("fixture", &source, root("installed-choice"))
+                .unwrap(),
+        );
+        assert!(choice.prompt().contains("fixture"));
+        assert_eq!(choice.workspace().file_name().unwrap(), WORKSPACE_DIR);
+        assert_eq!(choice.evaluate().unwrap().failed_check_count, 0);
+        choice.cleanup().unwrap();
     }
 }

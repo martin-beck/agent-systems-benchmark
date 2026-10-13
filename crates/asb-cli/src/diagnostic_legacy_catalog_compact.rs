@@ -1125,6 +1125,57 @@ const AR1782_REVIEWED_LEGACY_CLI_CATALOG: &[(&str, u32, &str, Cause)] = &[
     ("crates/asb-cli/src/lib.rs", 19473, "legacy_cli_ar1782_repair_0066", Cause::InvalidPath),
 ];
 
+// Reviewed identities introduced by AR-1783 installed-workload execution.
+#[rustfmt::skip]
+const AR1783_REVIEWED_LEGACY_CLI_CATALOG: &[(&str, u32, &str, Cause)] = &[
+    ("crates/asb-cli/src/lib.rs", 12153, "legacy_cli_ar1783_reviewed_032", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/lib.rs", 18871, "legacy_cli_ar1783_reviewed_033", Cause::UnavailableCapability),
+    ("crates/asb-cli/src/project_run.rs", 192, "legacy_cli_ar1783_reviewed_023", Cause::StaleIdentity),
+    ("crates/asb-cli/src/project_run.rs", 219, "legacy_cli_ar1783_reviewed_034", Cause::StaleIdentity),
+    ("crates/asb-cli/src/project_run.rs", 228, "legacy_cli_ar1783_reviewed_035", Cause::InvalidPath),
+    ("crates/asb-cli/src/project_run.rs", 233, "legacy_cli_ar1783_reviewed_036", Cause::MissingInput),
+    ("crates/asb-cli/src/project_run.rs", 237, "legacy_cli_ar1783_reviewed_037", Cause::InvalidPath),
+    ("crates/asb-cli/src/project_run.rs", 245, "legacy_cli_ar1783_reviewed_038", Cause::MissingInput),
+    ("crates/asb-cli/src/project_run.rs", 253, "legacy_cli_ar1783_reviewed_039", Cause::MissingInput),
+    ("crates/asb-cli/src/project_run.rs", 261, "legacy_cli_ar1783_reviewed_040", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_run.rs", 266, "legacy_cli_ar1783_reviewed_041", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_run.rs", 274, "legacy_cli_ar1783_reviewed_042", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_run.rs", 276, "legacy_cli_ar1783_reviewed_043", Cause::StaleIdentity),
+    ("crates/asb-cli/src/project_run.rs", 281, "legacy_cli_ar1783_reviewed_044", Cause::StaleIdentity),
+    ("crates/asb-cli/src/project_run.rs", 297, "legacy_cli_ar1783_reviewed_045", Cause::StaleIdentity),
+    ("crates/asb-cli/src/project_run.rs", 298, "legacy_cli_ar1783_reviewed_046", Cause::StaleIdentity),
+    ("crates/asb-cli/src/project_run.rs", 81, "legacy_cli_ar1783_reviewed_013", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/project_run.rs", 83, "legacy_cli_ar1783_reviewed_014", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/project_run.rs", 93, "legacy_cli_ar1783_reviewed_015", Cause::UnsafeTopology),
+    ("crates/asb-cli/src/project_run.rs", 97, "legacy_cli_ar1783_reviewed_016", Cause::MissingParent),
+    ("crates/asb-cli/src/project_run.rs", 99, "legacy_cli_ar1783_reviewed_017", Cause::UnsafeTopology),
+    ("crates/asb-cli/src/project_run.rs", 108, "legacy_cli_ar1783_reviewed_018", Cause::InvalidPath),
+    ("crates/asb-cli/src/project_run.rs", 114, "legacy_cli_ar1783_reviewed_019", Cause::InvalidPath),
+    ("crates/asb-cli/src/project_run.rs", 143, "legacy_cli_ar1783_reviewed_020", Cause::UnavailableCapability),
+    ("crates/asb-cli/src/project_run.rs", 148, "legacy_cli_ar1783_reviewed_021", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/project_run.rs", 153, "legacy_cli_ar1783_reviewed_022", Cause::UnexpectedProductFailure),
+    ("crates/asb-cli/src/project_run.rs", 200, "legacy_cli_ar1783_reviewed_001", Cause::StaleIdentity),
+    ("crates/asb-cli/src/project_run.rs", 209, "legacy_cli_ar1783_reviewed_002", Cause::StaleIdentity),
+    ("crates/asb-cli/src/project_run.rs", 214, "legacy_cli_ar1783_reviewed_003", Cause::MissingInput),
+    ("crates/asb-cli/src/project_run.rs", 218, "legacy_cli_ar1783_reviewed_004", Cause::InvalidPath),
+    ("crates/asb-cli/src/project_run.rs", 223, "legacy_cli_ar1783_reviewed_005", Cause::MissingInput),
+    ("crates/asb-cli/src/project_run.rs", 227, "legacy_cli_ar1783_reviewed_024", Cause::InvalidPath),
+    ("crates/asb-cli/src/project_run.rs", 226, "legacy_cli_ar1783_reviewed_006", Cause::InvalidPath),
+    ("crates/asb-cli/src/project_run.rs", 235, "legacy_cli_ar1783_reviewed_025", Cause::InvalidPath),
+    ("crates/asb-cli/src/project_run.rs", 232, "legacy_cli_ar1783_reviewed_007", Cause::MissingInput),
+    ("crates/asb-cli/src/project_run.rs", 234, "legacy_cli_ar1783_reviewed_008", Cause::InvalidPath),
+    ("crates/asb-cli/src/project_run.rs", 241, "legacy_cli_ar1783_reviewed_026", Cause::MissingInput),
+    ("crates/asb-cli/src/project_run.rs", 243, "legacy_cli_ar1783_reviewed_027", Cause::InvalidPath),
+    ("crates/asb-cli/src/project_run.rs", 240, "legacy_cli_ar1783_reviewed_009", Cause::MissingInput),
+    ("crates/asb-cli/src/project_run.rs", 249, "legacy_cli_ar1783_reviewed_028", Cause::MissingInput),
+    ("crates/asb-cli/src/project_run.rs", 251, "legacy_cli_ar1783_reviewed_029", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_run.rs", 256, "legacy_cli_ar1783_reviewed_030", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_run.rs", 268, "legacy_cli_ar1783_reviewed_031", Cause::StaleIdentity),
+    ("crates/asb-cli/src/project_run.rs", 242, "legacy_cli_ar1783_reviewed_010", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_run.rs", 247, "legacy_cli_ar1783_reviewed_011", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_run.rs", 259, "legacy_cli_ar1783_reviewed_012", Cause::StaleIdentity),
+];
+
 
 // Reviewed identities retained for the AR-1793 output-diagnostic journey.
 const AR1773_RETAINED_AR1793_CATALOG: &[(&str, u32, &str, Cause)] = &[
@@ -2041,6 +2092,7 @@ fn legacy_cli_catalog(file: &str, line: u32) -> Option<(&str, Cause)> {
         .chain(AR1793_LEGACY_CLI_CATALOG.iter())
         .chain(AR1800_REVIEWED_LEGACY_CLI_CATALOG.iter())
         .chain(AR1782_REVIEWED_LEGACY_CLI_CATALOG.iter())
+        .chain(AR1783_REVIEWED_LEGACY_CLI_CATALOG.iter())
         .chain(AR1773_RETAINED_AR1793_CATALOG.iter())
         .chain(AR1773_RECONCILED_LEGACY_CLI_CATALOG.iter())
         .chain(AR1779_RECONCILED_LEGACY_CLI_CATALOG.iter())
