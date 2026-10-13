@@ -1610,7 +1610,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. |
-| Next action | Independent review and exact-head CI for PR #629 at ecf3ed20; then merge and post-merge verify. |
+| Next action | Await remaining exact-head CI and independent review for PR #629 at ecf3ed20; then merge and post-merge verify. |
 
 ### AR-1827 — Author complete explicit benchmark configuration with asb setup
 

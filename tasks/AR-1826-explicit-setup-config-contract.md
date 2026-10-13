@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T09:01:59+00:00",
   "depends_on": [],
   "id": "AR-1826",
-  "next_action": "Independent review and exact-head CI for PR #629 at ecf3ed20; then merge and post-merge verify.",
+  "next_action": "Await remaining exact-head CI and independent review for PR #629 at ecf3ed20; then merge and post-merge verify.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts.",
-  "task_revision": 22,
+  "task_revision": 23,
   "title": "Define explicit setup configuration and plan-binding contract",
-  "updated_at": "2026-10-13T06:15:05+00:00",
+  "updated_at": "2026-10-13T06:15:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
@@ -101,3 +101,7 @@ and compatibility contract on which the remaining ARs depend.
 
 - 2026-10-13T06:15:05+00:00: Recorded command exit 0; command argv SHA-256
   2c7f822d0c4efeef82f7adbe3a43e7da667905bd9457da1c77d1da9d1f259a66.
+
+- 2026-10-13T06:15:28+00:00: Full owner-scoped cargo test --workspace --locked passed after review
+  fixes; focused 39 unit + 2 schema tests and clippy/fmt pass. Exact-head CI is progressing with
+  header, provenance, shadow, platform, Kani, Loom, fuzz, and retained-fault gates green.
