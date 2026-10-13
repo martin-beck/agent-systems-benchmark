@@ -1,5 +1,6 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1513](../tasks/AR-1513-authenticated-lease-dispatch-bridge.md) | [AR-1484](../tasks/AR-1484-runtime-control-owner-contract.md), [AR-1502](../tasks/AR-1502-runtime-bootstrap-authority.md) | [AR-1523](../tasks/AR-1523.md), [AR-1551](../tasks/AR-1551-platform-authority-deployment-bootstrap.md) |
 | [AR-1514](../tasks/AR-1514-runtime-auth-reconciliation.md) | [AR-1499](../tasks/AR-1499-development-credential-enrollment.md), [AR-1500](../tasks/AR-1500-development-credential-provider-fixture.md) | [AR-1523](../tasks/AR-1523.md), [AR-1526](../tasks/AR-1526.md), [AR-1551](../tasks/AR-1551-platform-authority-deployment-bootstrap.md) |
 | [AR-1515](../tasks/AR-1515-ar1307-runner-ci-oom-repair.md) | [AR-1302](../tasks/AR-1302-portable-tlc-runner.md) | None |
 | [AR-1516](../tasks/AR-1516-ar1308-qemu-fixture-evidence-repair.md) | [AR-1304](../tasks/AR-1304-required-tier-qemu-runner.md) | None |
@@ -284,6 +285,7 @@
 | [AR-1836](../tasks/AR-1836-cross-repo-tui-qualification-determinism.md) | [AR-1835](../tasks/AR-1835-authenticated-control-live-isolation-repair.md) | None |
 | [AR-1837](../tasks/AR-1837-pr627-protected-main-identity-recovery.md) | None | None |
 | [AR-1838](../tasks/AR-1838-source-checkout-fixture-repair.md) | None | None |
+| [AR-1839](../tasks/AR-1839-source-fixture-cross-process-isolation.md) | None | None |
 
 ## Complete AR inventory
 
@@ -390,7 +392,7 @@
 | P2 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md): Provide native openEuler capacity | Unclaimed | Qualify booted openEuler on native x86_64 and applicable QEMU AArch64; keep native ARM64 optional. | Qualify native x86_64 openEuler and required applicable pinned QEMU AArch64 behavior; document genuine native ARM64 as optional future evidence. |
 | P2 | [AR-1444](../tasks/AR-1444-first-class-journey-qualification.md): First-class journey qualification | Unclaimed | Optional cross-repository journey evidence; never an ASB release blocker. | Optional cross-repository qualification only: wait for external asb-tui AR-1327 to provide an exact pinned acceptance revision and credential-free journey transcript; this AR is not an ASB release or first-customer blocker. Do not modify asb-tui from this repository. |
 
-### Planned (90)
+### Planned (91)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -443,6 +445,7 @@
 | P0 | [AR-1830](../tasks/AR-1830-config-bound-plan-run-sweep.md): Execute config-bound live runs and sweeps | Unclaimed | Make plan validation, run, and sweep require the setup config and safely execute complete live benchmark selections from config-bound plans. | Require explicit config validation for plan validation, live run, and live sweep, then wire bounded multi-agent execution. |
 | P0 | [AR-1832](../tasks/AR-1832-explicit-config-e2e-qualification.md): Qualify explicit setup-config benchmark workflow end-to-end | Unclaimed | Qualify fresh-user setup-output through explicit config-bound plan creation, validation, live run, sweep, reporting, and legacy-surface absence. | Qualify the full fresh-user explicit-config route across supported selection matrices and live development execution. |
 | P0 | [AR-1836](../tasks/AR-1836-cross-repo-tui-qualification-determinism.md): Cross-repository Exact TUI qualification determinism | Unclaimed | Repair the deterministic cross-repository Exact TUI inherited-fd/PTY qualification seam exposed by AR-1835 without weakening its assertions. | Promote after AR-1835 dependency resolution; reproduce the two hosted failures with complete workflow metadata, identify the owning workflow/asb-tui seam, and implement only a deterministic qualification repair without weakening the gate. |
+| P0 | [AR-1839](../tasks/AR-1839-source-fixture-cross-process-isolation.md): Repair cross-process source fixture isolation | Unclaimed | Make source checkout test fixtures safe when independent cargo processes run concurrently. | Reproduce source_checkout fixture collisions across concurrent cargo processes, add process-safe isolation, then run focused/full gates and publish a reviewed repair. |
 | P1 | [AR-0808](../tasks/AR-0808-core-workflow-guides.md): Publish core program workflow guides | Unclaimed | Document tested workflows for installing, configuring, running, replaying, comparing, and operating ASB. | Document and execute the qualified CLI setup, reconfiguration, recording, strict-offline and analysis workflows. |
 | P1 | [AR-0809](../tasks/AR-0809-frontend-workflow-guides.md): Publish terminal frontend workflow guides | Unclaimed | Document guided configuration, launch, monitoring, history, repeat, and analysis in the TUI. | Document the exact standalone first-run, provider/auth/model, defaults, recording, offline run and analysis journeys after cross-repository parity passes. |
 | P1 | [AR-0810](../tasks/AR-0810-github-pages-documentation.md): Publish workflow documentation to GitHub Pages | Unclaimed | Publish core and frontend workflows as a searchable, accessible, versioned GitHub Pages site. | Build and publish the versioned workflow documentation on the project&#x27;s GitHub Pages site. |
@@ -641,4 +644,3 @@
 | P0 | [AR-1398](../tasks/AR-1398-signed-protected-main-recovery.md): Signed protected-main recovery | Unclaimed | Restore signed+DCO protected-main evidence after an unsigned GitHub-generated repair merge. | Watch all seven exact-main workflows for merge b63394b; after terminal success, record conclusions and release AR-1398 done. |
 | P0 | [AR-1421](../tasks/AR-1421-protected-main-literature-merge-race.md): Protected-main literature merge race repair | Unclaimed | Repair protected-main merge-tree requalification after a literature PR merges onto an advanced main. | Release AR-1421 done: merged tree equals reviewed topic tree e5d99b7; parents are 5ddac12 and 28e3560; topic passes SSH signature and DCO. Seven exact-main workflows all terminal SUCCESS. |
 | P0 | [AR-1427](../tasks/AR-1427-protected-main-merge-tree-requalification.md): Protected-main merge-tree requalification repair | Unclaimed | Repair exact protected-main merge-tree requalification after sequential tutorial merges. | Promote and reproduce PR #310 merge f511645 versus reviewed topic 9d97e168; repair exact protected-main merge-tree requalification, then rerun AR-1215 post-merge evidence. |
-| P0 | [AR-1431](../tasks/AR-1431-protected-main-stale-base-repair.md): Protected-main stale-base merge requalification repair | Unclaimed | Prevent stale-base sequential merges from passing review but failing protected-main merge-tree policy. | Monitor seven post-merge workflows for exact merge ed907603; release AR-1431 only after all seven terminal success, then coordinate AR-1216 release. |
