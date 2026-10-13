@@ -289,12 +289,13 @@
 | P0 | [AR-1835](../tasks/AR-1835-authenticated-control-live-isolation-repair.md): Authenticated control and live-isolation coverage repair | ar1835-control-isolation-luna | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. | Merge PR #627 only through the reviewed signed integration procedure, then run post-merge exact-main verification and reconcile AR-1835; keep AR-1783 in progress. |
 | P0 | [AR-1837](../tasks/AR-1837-pr627-protected-main-identity-recovery.md): PR #627 protected-main identity recovery | ar1837-protected-main-repair-luna | Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates. | Await terminal-success exact-head checks on PR #628 and independent review; then publish only with tools/integration/merge_pr.py and verify exact-main workflows. |
 
-### Open (2)
+### Open (3)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Unclaimed | AR-1835 exact-head fixture now covers the authenticated runtime bootstrap/control seam; AR-1783 remains below 90&#37; until that reviewed change is integrated. | Do not duplicate AR-1835 control/bootstrap coverage. Preserve d87352ddb511c48b4be1bdbecdd26fb2cf6597a8 as the AR-1783 product checkpoint; after AR-1835 exact-head merge/reconciliation, rerun serialized coverage and accept only if the unchanged 90&#37; floor passes. |
 | P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Unclaimed | Keep autonomous development live during concurrent protected-main integration. | Obtain fresh exact-head full-exhaustive formal attestation, then execute and verify the v0.5.2 release. |
+| P0 | [AR-1826](../tasks/AR-1826-explicit-setup-config-contract.md): Define explicit setup configuration and plan-binding contract | Unclaimed | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. | Define and approve the one-file explicit setup configuration and plan-binding contract before implementing any command migration. |
 
 ### Blocked (84)
 
@@ -385,7 +386,7 @@
 | P2 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md): Provide native openEuler capacity | Unclaimed | Qualify booted openEuler on native x86_64 and applicable QEMU AArch64; keep native ARM64 optional. | Qualify native x86_64 openEuler and required applicable pinned QEMU AArch64 behavior; document genuine native ARM64 as optional future evidence. |
 | P2 | [AR-1444](../tasks/AR-1444-first-class-journey-qualification.md): First-class journey qualification | Unclaimed | Optional cross-repository journey evidence; never an ASB release blocker. | Optional cross-repository qualification only: wait for external asb-tui AR-1327 to provide an exact pinned acceptance revision and credential-free journey transcript; this AR is not an ASB release or first-customer blocker. Do not modify asb-tui from this repository. |
 
-### Planned (91)
+### Planned (90)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -432,7 +433,6 @@
 | P0 | [AR-1773](../tasks/AR-1773-universal-command-step-instrumentation.md): Universal command step instrumentation | Unclaimed | Route every eligible public ASB command step through the shared status/progress reporter with real work updates. | Instrument every eligible public command operation through the shared reporter after the diagnostic gate and reporter are accepted. |
 | P0 | [AR-1774](../tasks/AR-1774-status-progress-completeness-ci.md): Status and progress completeness CI | Unclaimed | Make CI reject missing quiet support, status/progress bypasses, false estimates, and any human output in JSON mode. | Add required CI enforcement and controlled-defect tests for quiet, status, and progress completeness after universal instrumentation lands. |
 | P0 | [AR-1780](../tasks/AR-1780-installed-tool-workload-execution-qualification.md): Installed tool and workload execution qualification | Unclaimed | End-to-end qualify default-installed supported tools and workload bundles through actual ASB execution. | Qualify every development external workload, after installation and selection, through actual run, sweep, report, and comparison flows. |
-| P0 | [AR-1826](../tasks/AR-1826-explicit-setup-config-contract.md): Define explicit setup configuration and plan-binding contract | Unclaimed | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. | Define and approve the one-file explicit setup configuration and plan-binding contract before implementing any command migration. |
 | P0 | [AR-1827](../tasks/AR-1827-complete-setup-authoring.md): Author complete explicit benchmark configuration with asb setup | Unclaimed | Make asb setup --output the complete authoring route for agents, live providers/models, workloads, monitors, measures, and bounded execution choices. | Implement the complete interactive and noninteractive setup authoring route against the explicit configuration contract. |
 | P0 | [AR-1828](../tasks/AR-1828-retire-provider-selection-surfaces.md): Retire legacy provider selection and implicit configuration surfaces | Unclaimed | Retire public config/catalog/provider-plan commands and all ProviderSelection artifacts in favor of setup-created explicit config. | Remove legacy public config, provider-catalog, provider-plan, and ProviderSelection surfaces after setup contains their user-facing selection responsibilities. |
 | P0 | [AR-1829](../tasks/AR-1829-config-bound-plan-create.md): Compile config-bound benchmark plans with explicit output | Unclaimed | Make asb plan create compile a complete setup file into an explicit-output immutable benchmark plan with no provider-selection inputs. | Implement config-only benchmark plan compilation with mandatory --config and --output arguments. |
