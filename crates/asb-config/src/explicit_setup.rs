@@ -370,6 +370,12 @@ mod tests {
         let plan = config
             .bind_plan("plan".into(), vec!["workload".into()], vec!["agent".into()])
             .expect("bind");
+        let mut uppercase_digest = plan.clone();
+        uppercase_digest.config_sha256 = uppercase_digest.config_sha256.to_ascii_uppercase();
+        assert_eq!(
+            uppercase_digest.validate_against(&config),
+            Err(ExplicitSetupError::BindingMismatch)
+        );
         let mut changed = config.clone();
         changed.measures.push("energy".into());
         assert_eq!(
