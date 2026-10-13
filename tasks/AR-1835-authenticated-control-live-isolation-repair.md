@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Merge PR #627 only through the reviewed signed integration procedure, then run post-merge exact-main verification and reconcile AR-1835; keep AR-1783 in progress.",
+  "next_action": "Reconcile AR-1835 acceptance against signed protected-main merge 4a486e97 and receipt quality/AR-1837-postmerge-receipt.json; preserve AR-1783 in progress.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "06565d3de95aa72fa67bf2fde73078753acfd49b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 80,
+  "task_revision": 81,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T05:30:08+00:00",
+  "updated_at": "2026-10-13T06:07:20+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -324,3 +324,10 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
 
 - 2026-10-13T05:30:08+00:00: Recorded command exit 0; command argv SHA-256
   eaf2472e4b0ec29bac3303a6d46474c99be3c0ab077feca87b1c3650d4745e53.
+
+- 2026-10-13T06:07:20+00:00: Post-merge evidence recorded from AR-1837: PR #627 head
+  06565d3de95aa72fa67bf2fde73078753acfd49b was published in signed+DCO local merge
+  4a486e97abbb450eb5927faf599119a5aa8be6fb. Exact-main workflows 38353669093, 38353669122,
+  38353669100, 38353669203, 38353669082, 38353669080, 38353669101, 38353669099, 38353669102 (rerun
+  attempt 2), and 38353669498 are terminal-success. Immutable invalid web merge 6ea3648e remains
+  preserved; no product-path evidence changed.
