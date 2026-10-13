@@ -1820,7 +1820,21 @@
 | Parent | None |
 | Children | None |
 | Summary | Adopt Coordinator v0.5.3 with partial legacy worktree binding. |
-| Next action | Await rerun of exact-head PR #142 formal verification and coordination checks; merge only after all required checks are green. |
+| Next action | External blocker: repair/restart hosted formal verification runner permissions, then rerun PR #142 exact-head checks; do not merge until formal and coordination checks pass. |
+
+### AR-1842 — Name-first selection and internal identity resolution
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Make logical names the only user-facing selection keys while ASB and asb-tui resolve and verify paths, hashes, versions, providers, and models internally. |
+| Next action | Promote after AR-1832 is complete; inventory every user-facing selection and freeze the shared name-to-identity resolver contract before implementation. |
 
 
 ## Dependency graph
@@ -2707,6 +2721,7 @@ flowchart LR
         AR_1839["AR-1839 - Done"]:::status_done
         AR_1840["AR-1840 - Done"]:::status_done
         AR_1841["AR-1841 - In progress"]:::status_in_progress
+        AR_1842["AR-1842 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4690,6 +4705,7 @@ flowchart LR
     AR_1830 --> AR_1831
     AR_1830 --> AR_1832
     AR_1831 --> AR_1832
+    AR_1832 --> AR_1842
     AR_1835 --> AR_1836
     classDef status_in_progress fill:#1565c0,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_open fill:#2e7d32,color:#ffffff,stroke:#263238,stroke-width:2px
@@ -4723,5 +4739,3 @@ flowchart LR
 | [AR-0302](../tasks/AR-0302-agent-opendesk.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0505](../tasks/AR-0505-agent-replay-conformance.md), [AR-0507](../tasks/AR-0507-replay-opendesk.md), [AR-0516](../tasks/AR-0516-opendesk-strict-replay-http-compatibility.md), [AR-1003](../tasks/AR-1003-execution-budgets.md) |
 | [AR-0303](../tasks/AR-0303-agent-aider.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0505](../tasks/AR-0505-agent-replay-conformance.md), [AR-0508](../tasks/AR-0508-replay-aider.md), [AR-0850](../tasks/AR-0850-aider-deterministic-replay.md), [AR-1003](../tasks/AR-1003-execution-budgets.md) |
 | [AR-0304](../tasks/AR-0304-agent-codex.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0505](../tasks/AR-0505-agent-replay-conformance.md), [AR-0509](../tasks/AR-0509-replay-codex.md), [AR-1003](../tasks/AR-1003-execution-budgets.md) |
-| [AR-0305](../tasks/AR-0305-agent-gemini.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0510](../tasks/AR-0510-replay-gemini.md) |
-| [AR-0306](../tasks/AR-0306-agent-qwen-code.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md) | [AR-0311](../tasks/AR-0311-provider-openai.md), [AR-0312](../tasks/AR-0312-provider-ollama.md), [AR-0315](../tasks/AR-0315-provider-parity-conformance.md), [AR-0316](../tasks/AR-0316-agent-runtime-bundles.md), [AR-0511](../tasks/AR-0511-replay-qwen.md) |

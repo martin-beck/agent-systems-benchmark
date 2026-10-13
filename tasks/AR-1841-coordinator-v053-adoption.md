@@ -7,7 +7,7 @@
     "AR-1795"
   ],
   "id": "AR-1841",
-  "next_action": "Await rerun of exact-head PR #142 formal verification and coordination checks; merge only after all required checks are green.",
+  "next_action": "External blocker: repair/restart hosted formal verification runner permissions, then rerun PR #142 exact-head checks; do not merge until formal and coordination checks pass.",
   "owner": "ar1841-v053-adoption-luna",
   "plan": "../plans/AR-1841-coordinator-v053-adoption.md",
   "priority": "P0",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Adopt Coordinator v0.5.3 with partial legacy worktree binding.",
-  "task_revision": 27,
+  "task_revision": 28,
   "title": "Coordinator v0.5.3 adoption",
-  "updated_at": "2026-10-13T09:51:57+00:00",
+  "updated_at": "2026-10-13T09:52:11+00:00",
   "worktree_key": "agent-systems-benchmark-state-ar-1841-v053"
 }
 ---
@@ -115,3 +115,9 @@ with the verified v0.5.3 snapshot needed to unblock AR-1826.
 
 - 2026-10-13T09:51:57+00:00: Recorded command exit 0; command argv SHA-256
   2ce5327b2a013532603b9c4b11ae8cebe2eafe6535828454872a84427cb0d687.
+
+- 2026-10-13T09:52:11+00:00: Formal verification rerun for PR #142 run 38379221269 failed
+  identically before model execution: mktemp denied under /tmp/agent-workflow-coordinator-tlc and
+  /outcomes.manifest permission denied. This is hosted runner infrastructure, not a candidate
+  assertion; exact head remains 1826a4806b1c8a3d8b817edc62ee850f7ade4b27, AWQ shadow and source
+  headers remain green, coordination check remains in progress.
