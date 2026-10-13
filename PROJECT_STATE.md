@@ -32,21 +32,22 @@ Generated from local Git and GitHub. Do not edit.
 | #618 | `repair/ar-1779-current-main-smoke@f1dbe055aaeb` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): verify supported tool reuse and entrypoints |
 | #619 | `repair/ar-1779-source-fallback-linear3@21372a22aba3` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
 | #624 | `feature/ar-1783-installed-workload-selection-and-execution@32f42827367d` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): bind installed workloads before execution |
-| #629 | `codex/ar-1826-explicit-setup-contract@256fe639a7c7` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS, IN_PROGRESS: | feat(config): define explicit setup and plan binding contract |
+| #629 | `codex/ar-1826-explicit-setup-contract@256fe639a7c7` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS: | feat(config): define explicit setup and plan binding contract |
+| #630 | `repair/ar-1838-source-checkout-fixture-repair-luna@5e31d2147b4f` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | test(cli): stabilize filtered source checkout fixture |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
+| 38355021641 | `5e31d2147b4f` | pull_request | Huawei MIT source headers | completed:success |
+| 38355021619 | `5e31d2147b4f` | pull_request | Hosted portability and native qualification | in_progress:- |
+| 38355021617 | `5e31d2147b4f` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38355021509 | `5e31d2147b4f` | pull_request | Rust verification | in_progress:- |
+| 38355021466 | `5e31d2147b4f` | pull_request | Repository quality | in_progress:- |
+| 38355021410 | `5e31d2147b4f` | pull_request | Fault assurance | in_progress:- |
+| 38355021374 | `5e31d2147b4f` | pull_request | Agent Workflow Quality shadow | completed:success |
+| 38355021368 | `5e31d2147b4f` | pull_request | Portable protected-main provenance | completed:success |
+| 38355021357 | `5e31d2147b4f` | pull_request | Development formal assurance | in_progress:- |
+| 38355021346 | `5e31d2147b4f` | pull_request | Credential-free benchmark path | in_progress:- |
+| 38355021328 | `5e31d2147b4f` | pull_request | Cross-repository development broker qualification | in_progress:- |
 | 38354846651 | `256fe639a7c7` | pull_request | Repository quality | in_progress:- |
-| 38354846650 | `256fe639a7c7` | pull_request | Development formal assurance | in_progress:- |
-| 38354846637 | `256fe639a7c7` | pull_request | Emulated aarch64 portability | in_progress:- |
-| 38354846611 | `256fe639a7c7` | pull_request | Cross-repository development broker qualification | in_progress:- |
-| 38354846574 | `256fe639a7c7` | pull_request | Hosted portability and native qualification | in_progress:- |
-| 38354846568 | `256fe639a7c7` | pull_request | Fault assurance | in_progress:- |
-| 38354846559 | `256fe639a7c7` | pull_request | Credential-free benchmark path | in_progress:- |
-| 38354846555 | `256fe639a7c7` | pull_request | Rust verification | in_progress:- |
-| 38354846553 | `256fe639a7c7` | pull_request | Agent Workflow Quality shadow | completed:success |
-| 38354846550 | `256fe639a7c7` | pull_request | Portable protected-main provenance | completed:success |
-| 38354846546 | `256fe639a7c7` | pull_request | Huawei MIT source headers | completed:success |
-| 38354736136 | `7c9a3fb77fc5` | pull_request | Cross-repository development broker qualification | completed:cancelled |

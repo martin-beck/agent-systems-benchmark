@@ -61,8 +61,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1799-tui-install-rustup-invalid` | `repair/ar-1799-tui-install-rustup-invalid` | `e058ea2b5881` | 0 | behind 35, ahead 0 |
 | `agent-systems-benchmark-ar-1800-development-warning-only-trust-contract` | `feature/ar-1800-development-warning-only-trust-contract` | `961243b302dc` | 0 | behind 43, ahead 0 |
 | `agent-systems-benchmark-ar-1837-pr627-protected-main-identity` | `repair/ar-1837-pr627-protected-main-identity` | `6ea3648e483f` | 0 | behind 2, ahead 0 |
-| `agent-systems-benchmark-ar-1838-source-checkout-fixture-repair-luna` | `repair/ar-1838-source-checkout-fixture-repair-luna` | `4a486e97abbb` | 1 | behind 0, ahead 0 |
-| changed files | - | - | - | `crates/asb-cli/src/source_checkout.rs` |
+| `agent-systems-benchmark-ar-1838-source-checkout-fixture-repair-luna` | `repair/ar-1838-source-checkout-fixture-repair-luna` | `5e31d2147b4f` | 0 | behind 0, ahead 1 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 818, ahead 326 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
 | `agent-systems-benchmark-asb-tui-capabilities-command` | `feature/asb-tui-capabilities-command` | `d60d23510044` | 0 | behind 818, ahead 323 |
