@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 16,
+  "task_revision": 17,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T08:29:07+00:00",
+  "updated_at": "2026-10-13T08:29:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -88,3 +88,6 @@ boundaries.
   means the in-process semaphore/lock repair is insufficient for concurrent test processes; PR #630
   remains unapprovable. State publication attempted but push failed because GitHub credentials are
   unavailable.
+
+- 2026-10-13T08:29:24+00:00: Recorded command exit 0; command argv SHA-256
+  98cf2ce4441e50347978d852b4dd0d0fdc1035fcb662e50b2ea33cc417223af0.
