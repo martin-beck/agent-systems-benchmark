@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Do not merge. Capture exact failed TUI evidence, assess as likely independent/flaky baseline failure, and wait for pending required checks; if triage or rerun tooling proves PR-related, repair with a new signed DCO commit and restart exact-head CI.",
+  "next_action": "Do not merge while hosted TUI check is red. Request/rerun the exact failed hosted TUI job using handoffctl-authorized GitHub tooling if available; otherwise retain precise non-reproducible evidence and wait for/triage required checks. Merge only when all required exact-head checks are green.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "06565d3de95aa72fa67bf2fde73078753acfd49b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 52,
+  "task_revision": 53,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T00:13:43+00:00",
+  "updated_at": "2026-10-13T00:14:09+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -213,3 +213,12 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
 
 - 2026-10-13T00:13:43+00:00: Recorded command exit 0; command argv SHA-256
   828ca7ac11878ae9ef7065fdd2300b8b21960c377eee33880745278fba0f5046.
+
+- 2026-10-13T00:14:09+00:00: Exact TUI failure triage complete. Hosted job 115063830052 failed only
+  at tui.rs:6127 with offline-default dispatch readiness, then unwrap at tui.rs:6182. Reproduced
+  locally through handoffctl using cross-repo-qualification with ASB_TUI_BINARY plus source
+  commit/tree metadata: exact test passed (1 passed, 457 filtered, 5.15s). Initial local attempt
+  without required source metadata failed at tui.rs:6014 NotPresent, confirming harness requires all
+  workflow env. No AR-1835 code path overlap (diff is control.rs and generated diagnostic catalog);
+  classify hosted failure as non-reproducible external/asb-tui qualification flake, not a repair
+  candidate.

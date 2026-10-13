@@ -1736,7 +1736,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. |
-| Next action | Do not merge. Capture exact failed TUI evidence, assess as likely independent/flaky baseline failure, and wait for pending required checks; if triage or rerun tooling proves PR-related, repair with a new signed DCO commit and restart exact-head CI. |
+| Next action | Do not merge while hosted TUI check is red. Request/rerun the exact failed hosted TUI job using handoffctl-authorized GitHub tooling if available; otherwise retain precise non-reproducible evidence and wait for/triage required checks. Merge only when all required exact-head checks are green. |
 
 
 ## Dependency graph
