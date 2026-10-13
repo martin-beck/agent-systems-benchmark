@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Persist AR-1839 review evidence without bypassing handoffctl ownership rules.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Persist AR-1839 review evidence",
-  "updated_at": "2026-10-13T08:50:10+00:00",
+  "updated_at": "2026-10-13T08:50:19+00:00",
   "worktree_key": "agent-systems-benchmark-state-ar-1840-evidence"
 }
 ---
@@ -42,3 +42,6 @@ do not edit generated state directly or bypass ownership admission.
   dedicated owner-scoped coordination repair.
 
 - 2026-10-13T08:50:10+00:00: Claimed by ar1840-state-evidence-luna.
+
+- 2026-10-13T08:50:19+00:00: Recorded command exit 0; command argv SHA-256
+  ff6d1fa7a7185010f75fcfafe4bdc1bdd5b9804d8c2b3e7abdd8a1b96cd81c63.
