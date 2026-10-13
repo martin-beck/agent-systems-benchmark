@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T10:44:04+00:00",
   "depends_on": [],
   "id": "AR-1838",
-  "next_action": "Cross-process contention remains unresolved from independent review; do not merge PR #630. Coordinate a narrowly scoped fixture lock/contract repair or document host-capacity root cause, then obtain fresh independent review and exact-head CI.",
+  "next_action": "Exact-head CI remains pending for Emulated aarch64, Policy/coverage/supply chain, and Rust checks; after all 14 required contexts pass, perform signed local merge and exact-main verification.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 27,
+  "task_revision": 28,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T08:49:12+00:00",
+  "updated_at": "2026-10-13T08:56:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -125,3 +125,11 @@ boundaries.
 
 - 2026-10-13T08:49:12+00:00: Recorded command exit 0; command argv SHA-256
   92e5d2b58856e713545437db87a3d640661cb20ac0bb1ad29401ba636049e3fc.
+
+- 2026-10-13T08:56:37+00:00: Independent exact-head review of
+  15f70ef23af626a1fd8eafb7a828c2119ab4f75d (tree and base verified) found the one-file
+  reserve_staging_root repair bounded at 128 attempts, atomically collision-safe across processes,
+  fail-closed on other filesystem errors, with positive/negative tests retained. SSH signatures and
+  matching DCO trailers verified on both topic commits. Focused source_checkout suite: 28 passed;
+  exact fixture stress: 12 concurrent invocations all passed. Hosted exact-head checks: 11 passed, 3
+  pending; no merge authorized until all pass.

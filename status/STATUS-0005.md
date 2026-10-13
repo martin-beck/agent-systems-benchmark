@@ -298,7 +298,7 @@
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1826](../tasks/AR-1826-explicit-setup-config-contract.md): Define explicit setup configuration and plan-binding contract | ar1826_setup_contract_luna | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. | Restore valid GitHub authentication and record durable independent review for exact repaired signed commit e9d95999c0cacff327dd350670d611aab64e69b2; then publish/update PR and merge through the reviewed path. |
-| P0 | [AR-1838](../tasks/AR-1838-source-checkout-fixture-repair.md): Repair reproducible source checkout fixture failure | ar1838-source-checkout-repair-luna | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. | Cross-process contention remains unresolved from independent review; do not merge PR #630. Coordinate a narrowly scoped fixture lock/contract repair or document host-capacity root cause, then obtain fresh independent review and exact-head CI. |
+| P0 | [AR-1838](../tasks/AR-1838-source-checkout-fixture-repair.md): Repair reproducible source checkout fixture failure | ar1838-source-checkout-repair-luna | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. | Exact-head CI remains pending for Emulated aarch64, Policy/coverage/supply chain, and Rust checks; after all 14 required contexts pass, perform signed local merge and exact-main verification. |
 
 ### Open (2)
 

@@ -1778,7 +1778,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. |
-| Next action | Cross-process contention remains unresolved from independent review; do not merge PR #630. Coordinate a narrowly scoped fixture lock/contract repair or document host-capacity root cause, then obtain fresh independent review and exact-head CI. |
+| Next action | Exact-head CI remains pending for Emulated aarch64, Policy/coverage/supply chain, and Rust checks; after all 14 required contexts pass, perform signed local merge and exact-main verification. |
 
 ### AR-1839 — Repair cross-process source fixture isolation
 
