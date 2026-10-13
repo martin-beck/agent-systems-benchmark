@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Continue polling exact-head PR #627; wait for all required checks terminal green before review/merge.",
+  "next_action": "Do not merge. Capture exact failed TUI evidence, assess as likely independent/flaky baseline failure, and wait for pending required checks; if triage or rerun tooling proves PR-related, repair with a new signed DCO commit and restart exact-head CI.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "06565d3de95aa72fa67bf2fde73078753acfd49b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 46,
+  "task_revision": 47,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T00:10:34+00:00",
+  "updated_at": "2026-10-13T00:11:39+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -188,3 +188,13 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   green. Remaining pending required checks are credential-free benchmark, emulated AArch64, exact
   TUI journey, mutation sentinels, policy/coverage/supply chain, and Rust checks. All other listed
   checks remain green; merge stays blocked.
+
+- 2026-10-13T00:11:39+00:00: Exact-head PR #627 remains at 06565d3de95aa72fa67bf2fde73078753acfd49b.
+  Hosted TUI job 115063830052 failed in
+  pinned_tui_inherited_fd_development_launch_uses_pty_and_cleans_up: terminal application failed;
+  crates/asb-cli/src/tui.rs:6127 reported Run Control did not dispatch offline default after
+  readiness, then test unwrap at tui.rs:6182. This PR changes only crates/asb-cli/src/control.rs and
+  generated diagnostic catalog; failure is outside touched paths and is not yet classified as a
+  product regression. Other required checks: Credential-free, bounded fuzz, AWQ, Huawei, Kani,
+  Platform, retained faults, Loom, provenance, Matcher/SLO green; Rust, Policy/supply-chain, and
+  Emulated aarch64 still pending.

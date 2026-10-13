@@ -1736,7 +1736,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. |
-| Next action | Continue polling exact-head PR #627; wait for all required checks terminal green before review/merge. |
+| Next action | Do not merge. Capture exact failed TUI evidence, assess as likely independent/flaky baseline failure, and wait for pending required checks; if triage or rerun tooling proves PR-related, repair with a new signed DCO commit and restart exact-head CI. |
 
 
 ## Dependency graph
