@@ -9,7 +9,7 @@
     "AR-1782"
   ],
   "id": "AR-1835",
-  "next_action": "Continue polling PR #627 exact-head checks; do not merge while any required check is pending or failed. On all-green, perform exact-head review and guarded merge, then verify exact-main CI.",
+  "next_action": "Continue polling exact-head PR #627 until every required check is terminal; repair only concrete failures, then independently review and guarded-merge.",
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "06565d3de95aa72fa67bf2fde73078753acfd49b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 44,
+  "task_revision": 45,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T00:09:15+00:00",
+  "updated_at": "2026-10-13T00:10:00+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -177,3 +177,9 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   headers, Portable protected-main provenance, and retained faults green; remaining required Rust,
   policy/coverage, credential-free, platform/QEMU, fuzz, Loom/Kani, mutation, and TUI checks are
   still pending. Merge is intentionally blocked on exact-head terminal green checks.
+
+- 2026-10-13T00:10:00+00:00: PR #627 exact head 06565d3 terminal progress: Platform evidence, Kani
+  bounded proofs, and Loom/state models are now green; prior AWQ shadow, Huawei/MIT headers,
+  protected-main provenance, and retained faults remain green. Bounded fuzz, credential-free
+  benchmark, emulated AArch64, TUI journey, mutation sentinels, policy/coverage/supply chain, and
+  Rust checks remain pending. Merge remains blocked.
