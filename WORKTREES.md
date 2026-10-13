@@ -61,7 +61,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1799-tui-install-rustup-invalid` | `repair/ar-1799-tui-install-rustup-invalid` | `e058ea2b5881` | 0 | behind 35, ahead 0 |
 | `agent-systems-benchmark-ar-1800-development-warning-only-trust-contract` | `feature/ar-1800-development-warning-only-trust-contract` | `961243b302dc` | 0 | behind 43, ahead 0 |
 | `agent-systems-benchmark-ar-1837-pr627-protected-main-identity` | `repair/ar-1837-pr627-protected-main-identity` | `6ea3648e483f` | 0 | behind 2, ahead 0 |
-| `agent-systems-benchmark-ar-1838-source-checkout-fixture-repair-luna` | `repair/ar-1838-source-checkout-fixture-repair-luna` | `25e1ebd85550` | 0 | behind 0, ahead 1 |
+| `agent-systems-benchmark-ar-1838-source-checkout-fixture-repair-luna` | `repair/ar-1838-source-checkout-fixture-repair-luna` | `15f70ef23af6` | 0 | behind 0, ahead 2 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 818, ahead 326 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
 | `agent-systems-benchmark-asb-tui-capabilities-command` | `feature/asb-tui-capabilities-command` | `d60d23510044` | 0 | behind 818, ahead 323 |
@@ -245,6 +245,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `ar1652-asb` | `ar-1652-record-replay` | `edd9ee0d19b4` | 0 | behind 688, ahead 1 |
 | `ar1653-asb` | `ar-1653-dev-channel` | `b7be789fdf51` | 0 | behind 687, ahead 0 |
 | `ar1689-asb-fix` | `repair/ar-1678-tui-host-preflight` | `a186357977ad` | 0 | behind 647, ahead 0 |
+| `ar1826-review.aYKaPM` | `codex/ar1826-schema-contract-repair` | `e9d95999c0ca` | 0 | behind 0, ahead 4 |
 | `asb-ar-1724-merge` | `DETACHED` | `f090de56710d` | 0 | behind 292, ahead 0 |
 | `asb-ar1596-qual-20261008` | `DETACHED` | `f535e3cb327b` | 0 | behind 536, ahead 0 |
 | `asb-ar1652-codex` | `codex/ar1652-record-replay-20261007` | `0c4ba0c721d0` | 0 | behind 544, ahead 1 |
@@ -286,4 +287,5 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1783-installed-workload-selection-and-execution` | `feature/ar-1783-installed-workload-selection-and-execution` | `d87352ddb511` | 0 | behind 6, ahead 32 |
 | `agent-systems-benchmark-ar-1825-source-to-executable-adapter-runtime-contract` | `feature/ar-1825-source-to-executable-adapter-runtime-contract` | `630d380866e4` | 0 | behind 17, ahead 0 |
 | `agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair` | `feature/ar-1835-authenticated-control-live-isolation-repair` | `06565d3de95a` | 0 | behind 3, ahead 0 |
-| `ar1824-repair.Tp51GE` | `DETACHED` | `c2745e04e231` | 0 | behind 38, ahead 0 |
+| `agent-systems-benchmark-ar-1839` | `codex/ar-1839-cross-process-fixture` | `46ac642c40ce` | 0 | behind 0, ahead 1 |
+| `ar1826-review.IL8AVJ` | `DETACHED` | `ecf3ed20fa15` | 0 | behind 0, ahead 3 |
