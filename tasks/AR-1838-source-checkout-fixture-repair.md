@@ -15,19 +15,19 @@
   "schema_version": 1,
   "spec_acceptance": {
     "evidence_class": "contract-test",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_digest": "sha256:26a6834444a706ae397ec6cb6d81684a2ae371dd715380b90632e34eb93d2242",
+    "evidence_ref": "main/d0e6a28a81b40a990e6b83b48a885e9ada96f0fd",
     "spec_ref": "specs/AR-1838.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1838.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 60,
+  "task_revision": 61,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T09:22:15+00:00",
+  "updated_at": "2026-10-13T09:22:30+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -235,3 +235,7 @@ boundaries.
 
 - 2026-10-13T09:22:15+00:00: Recorded command exit 0; command argv SHA-256
   f9b8b2a4aa173599ea24d07e7d5ac6ab0643dddeaeca8bcc8ea04d96c54ddf14.
+
+- 2026-10-13T09:22:30+00:00: Acceptance passed from exact protected-main merge
+  d0e6a28a81b40a990e6b83b48a885e9ada96f0fd: all required post-merge check-runs terminal success,
+  signed merge and matching DCO verified, remote main exact, clean exact-main checkout.
