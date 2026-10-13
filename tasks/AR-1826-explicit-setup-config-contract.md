@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts.",
-  "task_revision": 17,
+  "task_revision": 18,
   "title": "Define explicit setup configuration and plan-binding contract",
-  "updated_at": "2026-10-13T06:06:43+00:00",
+  "updated_at": "2026-10-13T06:12:15+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
@@ -85,3 +85,6 @@ and compatibility contract on which the remaining ARs depend.
 - 2026-10-13T06:06:43+00:00: Published signed product commits 7c9a3fb7 and 256fe639 on PR #629. Full
   cargo test --workspace --locked passed; header gate repaired at exact head 256fe639. Await
   independent review and remaining exact-head checks.
+
+- 2026-10-13T06:12:15+00:00: Recorded command exit 0; command argv SHA-256
+  28061e28e437287b0013d27fd47fed2ddc8350b90a82501da677b92b21ec027d.
