@@ -3,7 +3,7 @@
   "branch": "repair/ar-1837-pr627-protected-main-identity",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1835"],
+  "depends_on": [],
   "id": "AR-1837",
   "next_action": "Create a clean signed-DCO recovery topic from the current main tip, obtain independent exact-head review and green CI, then publish only with merge_pr.py.",
   "observed_branch": "",
