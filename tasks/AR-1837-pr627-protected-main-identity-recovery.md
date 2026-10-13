@@ -23,11 +23,11 @@
   },
   "spec_ref": "specs/AR-1837.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Recover current protected-main provenance after PR #627 was web-merged with a noreply committer, without rewriting history or weakening gates.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "PR #627 protected-main identity recovery",
-  "updated_at": "2026-10-13T05:30:00+00:00",
+  "updated_at": "2026-10-13T05:30:19+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1837-pr627-protected-main-identity"
 }
 ---
@@ -46,3 +46,6 @@ receipt. This AR owns only a forward recovery from the current main tip.
   `tools/integration/merge_pr.py`.
 - Verify the repaired exact-main merge, every required post-merge workflow, and
   durable state before acceptance.
+
+- 2026-10-13T05:30:19+00:00: Promoted as an independent forward recovery; it preserves PR #627
+  history and requires local signed integration.
