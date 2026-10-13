@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 53,
+  "task_revision": 54,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T00:14:09+00:00",
+  "updated_at": "2026-10-13T00:14:15+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -222,3 +222,6 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   workflow env. No AR-1835 code path overlap (diff is control.rs and generated diagnostic catalog);
   classify hosted failure as non-reproducible external/asb-tui qualification flake, not a repair
   candidate.
+
+- 2026-10-13T00:14:15+00:00: Recorded command exit 0; command argv SHA-256
+  a92b74ce922367746216f26dbd94db171db9c0daeedfe6f0e0fc4e127a9c72b4.
