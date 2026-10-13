@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-13T11:00:20+00:00",
   "depends_on": [],
   "id": "AR-1838",
-  "next_action": "Exact-head CI remains pending for Emulated aarch64, Policy/coverage/supply chain, and Rust checks; after all 14 required contexts pass, perform signed local merge and exact-main verification.",
+  "next_action": "Post-merge exact-main verification complete: merge d0e6a28a81b40a990e6b83b48a885e9ada96f0fd is remote main, signed+DCO verified, and all required post-merge check-runs terminal success; release AR-1838 done.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality.",
-  "task_revision": 58,
+  "task_revision": 59,
   "title": "Repair reproducible source checkout fixture failure",
-  "updated_at": "2026-10-13T09:21:12+00:00",
+  "updated_at": "2026-10-13T09:21:34+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1838-source-checkout-fixture-repair"
 }
 ---
@@ -222,3 +222,13 @@ boundaries.
 
 - 2026-10-13T09:21:12+00:00: Recorded command exit 0; command argv SHA-256
   1b270bf3ed08d50776cb141cbaf43818637b3d467ee4db0e5116e197860c3b97.
+
+- 2026-10-13T09:21:34+00:00: Post-merge receipts complete for merge
+  d0e6a28a81b40a990e6b83b48a885e9ada96f0fd (PR #630). GitHub check-runs at exact SHA all terminal
+  success: Emulated aarch64, Kani bounded proofs, Loom/state models, Exact TUI inherited-fd and PTY
+  journey, Rust checks, Credential-free benchmark path, Exact Huawei 2026/SPDX MIT headers, Retained
+  faults, Bounded fuzz regressions, Policy/coverage/supply chain, Matcher/SLO mutation sentinels,
+  Portable protected-main provenance, Platform evidence. Run IDs observed: 38374103406, 38374103333,
+  38374103107, 38374103270, 38374103335, 38374103290, 38374103100, 38374103004, 38374103087,
+  38374103128. Remote refs/heads/main equals exact merge SHA; commit verification true and matching
+  Signed-off-by trailer. Exact-main merge-int checkout is clean; hosted exact-main is authoritative.

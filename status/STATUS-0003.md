@@ -1778,7 +1778,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. |
-| Next action | Exact-head CI remains pending for Emulated aarch64, Policy/coverage/supply chain, and Rust checks; after all 14 required contexts pass, perform signed local merge and exact-main verification. |
+| Next action | Post-merge exact-main verification complete: merge d0e6a28a81b40a990e6b83b48a885e9ada96f0fd is remote main, signed+DCO verified, and all required post-merge check-runs terminal success; release AR-1838 done. |
 
 ### AR-1839 — Repair cross-process source fixture isolation
 
