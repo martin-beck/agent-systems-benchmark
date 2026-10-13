@@ -1,7 +1,7 @@
 ---
 {
   "branch": "",
-  "checkpoint_commit": "",
+  "checkpoint_commit": "45427b6ec7fc73f896574701df5e35b6d72b7cf4",
   "claim_expires": "2026-10-13T09:01:59+00:00",
   "depends_on": [],
   "id": "AR-1826",
@@ -25,9 +25,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts.",
-  "task_revision": 15,
+  "task_revision": 16,
   "title": "Define explicit setup configuration and plan-binding contract",
-  "updated_at": "2026-10-13T06:05:55+00:00",
+  "updated_at": "2026-10-13T06:06:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1826-explicit-setup-config-contract"
 }
 ---
@@ -79,3 +79,5 @@ and compatibility contract on which the remaining ARs depend.
 
 - 2026-10-13T06:05:55+00:00: Recorded command exit 0; command argv SHA-256
   fcfe00a36f1f324f4565ae4b364f1439e26ccccbe4a7087b286f19d2eb9cb172.
+
+- 2026-10-13T06:06:16+00:00: Checkpointed source commit 45427b6ec7fc73f896574701df5e35b6d72b7cf4.
