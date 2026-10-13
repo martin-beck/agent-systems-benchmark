@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "checkpoint_commit": "06565d3de95aa72fa67bf2fde73078753acfd49b",
-  "claim_expires": "2026-10-13T08:11:08+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1763",
     "AR-1764",
@@ -13,7 +13,7 @@
   "observed_branch": "feature/ar-1835-authenticated-control-live-isolation-repair",
   "observed_dirty": 0,
   "observed_head": "06565d3de95aa72fa67bf2fde73078753acfd49b",
-  "owner": "ar1835-control-isolation-luna",
+  "owner": "",
   "plan": "../plans/AR-1835-authenticated-control-live-isolation-repair.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1835.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates.",
-  "task_revision": 87,
+  "task_revision": 88,
   "title": "Authenticated control and live-isolation coverage repair",
-  "updated_at": "2026-10-13T06:12:18+00:00",
+  "updated_at": "2026-10-13T06:12:36+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1835-authenticated-control-live-isolation-repair"
 }
 ---
@@ -350,3 +350,10 @@ Add a bounded test-only authenticated control fixture and/or delegated-isolation
   history; focused control evidence is 74/74 with fmt, clippy and diagnostic-contract checks green;
   AR-1837 receipt records all ten exact-main workflows terminal-success. AR-1783 remains
   in_progress.
+
+- 2026-10-13T06:12:36+00:00: Released done: acceptance passed against
+  quality/AR-1837-postmerge-receipt.json
+  (sha256:1d74a4ae886d24a0cb23a7d6bbd50fffe7c206c5d2e19036a36af5342781b08d); signed+DCO PR #627
+  exact head 06565d3 is in signed merge 4a486e97; all ten exact-main workflows terminal-success;
+  focused controls 74/74, fmt, clippy and diagnostic-contract evidence retained. AR-1783
+  intentionally remains in_progress.

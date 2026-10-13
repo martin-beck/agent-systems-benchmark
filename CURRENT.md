@@ -8,7 +8,6 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1826](tasks/AR-1826-explicit-setup-config-contract.md): Define explicit setup configuration and plan-binding contract | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. | Independent review and exact-head CI for PR #629 at 256fe639; then merge and post-merge verify. | ar1826_setup_contract_luna |
-| P0 | [AR-1835](tasks/AR-1835-authenticated-control-live-isolation-repair.md): Authenticated control and live-isolation coverage repair | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. | Reconcile AR-1835 acceptance against signed protected-main merge 4a486e97 and receipt quality/AR-1837-postmerge-receipt.json; preserve AR-1783 in progress. | ar1835-control-isolation-luna |
 | P0 | [AR-1838](tasks/AR-1838-source-checkout-fixture-repair.md): Repair reproducible source checkout fixture failure | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. | Reproduce the repeated source_checkout fixture Unavailable failure, repair the owning test/fixture contract without weakening it, then run full gates and publish a reviewed repair. | ar1838-source-checkout-repair-luna |
 
 ## Open

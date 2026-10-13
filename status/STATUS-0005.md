@@ -287,12 +287,11 @@
 
 ## Complete AR inventory
 
-### In progress (3)
+### In progress (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1826](../tasks/AR-1826-explicit-setup-config-contract.md): Define explicit setup configuration and plan-binding contract | ar1826_setup_contract_luna | Define the explicit setup-file and config-bound plan contract that replaces implicit user configuration and provider-selection artifacts. | Independent review and exact-head CI for PR #629 at 256fe639; then merge and post-merge verify. |
-| P0 | [AR-1835](../tasks/AR-1835-authenticated-control-live-isolation-repair.md): Authenticated control and live-isolation coverage repair | ar1835-control-isolation-luna | Repair the missing authenticated ControlClient/server and delegated live-isolation coverage seam without weakening AR-1783 gates. | Reconcile AR-1835 acceptance against signed protected-main merge 4a486e97 and receipt quality/AR-1837-postmerge-receipt.json; preserve AR-1783 in progress. |
 | P0 | [AR-1838](../tasks/AR-1838-source-checkout-fixture-repair.md): Repair reproducible source checkout fixture failure | ar1838-source-checkout-repair-luna | Repair the reproducible source_checkout exact-fixture test failure blocking protected-main post-merge quality. | Reproduce the repeated source_checkout fixture Unavailable failure, repair the owning test/fixture contract without weakening it, then run full gates and publish a reviewed repair. |
 
 ### Open (2)
@@ -492,7 +491,7 @@
 | --- | --- | --- | --- | --- |
 | P4 | [AR-0703](../tasks/AR-0703-native-platform-lab.md): Provision native platform qualification capacity | Unclaimed | Optionally provide native ARM64 Debian/openEuler capacity for future claim-scoped evidence. | When separately authorized, provision genuine ARM64 Debian/openEuler capacity for optional future native evidence; absence must not block any AR. |
 
-### Done (603)
+### Done (604)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
