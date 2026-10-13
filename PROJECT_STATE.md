@@ -32,8 +32,8 @@ Generated from local Git and GitHub. Do not edit.
 | #618 | `repair/ar-1779-current-main-smoke@f1dbe055aaeb` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): verify supported tool reuse and entrypoints |
 | #619 | `repair/ar-1779-source-fallback-linear3@21372a22aba3` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(cli): fail closed on unavailable source adapters |
 | #624 | `feature/ar-1783-installed-workload-selection-and-execution@32f42827367d` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): bind installed workloads before execution |
-| #629 | `codex/ar-1826-explicit-setup-contract@e9d95999c0ca` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(config): define explicit setup and plan binding contract |
-| #630 | `repair/ar-1838-source-checkout-fixture-repair-luna@15f70ef23af6` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | test(cli): retain source fixture semaphore while locking |
+| #629 | `codex/ar-1826-explicit-setup-contract@e9d95999c0ca` | `main` | CLEAN | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(config): define explicit setup and plan binding contract |
+| #630 | `repair/ar-1838-source-checkout-fixture-repair-luna@15f70ef23af6` | `main` | CLEAN | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | test(cli): retain source fixture semaphore while locking |
 
 ## Recent workflows
 
@@ -44,9 +44,9 @@ Generated from local Git and GitHub. Do not edit.
 | 38372373129 | `e9d95999c0ca` | pull_request | Huawei MIT source headers | completed:success |
 | 38372373035 | `e9d95999c0ca` | pull_request | Hosted portability and native qualification | completed:success |
 | 38372373015 | `e9d95999c0ca` | pull_request | Credential-free benchmark path | completed:success |
-| 38372373001 | `e9d95999c0ca` | pull_request | Repository quality | in_progress:- |
-| 38372372995 | `e9d95999c0ca` | pull_request | Rust verification | in_progress:- |
-| 38372372984 | `e9d95999c0ca` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38372373001 | `e9d95999c0ca` | pull_request | Repository quality | completed:success |
+| 38372372995 | `e9d95999c0ca` | pull_request | Rust verification | completed:success |
+| 38372372984 | `e9d95999c0ca` | pull_request | Emulated aarch64 portability | completed:success |
 | 38372372983 | `e9d95999c0ca` | pull_request | Development formal assurance | completed:success |
 | 38372372975 | `e9d95999c0ca` | pull_request | Portable protected-main provenance | completed:success |
 | 38372372961 | `e9d95999c0ca` | pull_request | Agent Workflow Quality shadow | completed:success |
