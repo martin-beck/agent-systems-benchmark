@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "asb_revision": "174411ff73515b3d6ae6d67eda1d902e58078ca4",
-  "cli_source_sha256": "29a0f1f64cc0ab846d66ca558851c0e3b8b8e47d13b16d18435fe227f68ea8c2",
+  "cli_source_sha256": "8bd2d47ce6b9b6ebf0f59a38825c5ed0ebcb2e8da3965ca72923745d34ee9181",
   "replay_fixture_sha256": "529d11312261c2daef88c9c4a25ae4d14cf520f6931b2a09fff2466ffaa37167",
   "guide_contract_sha256": "683f27aeb5143fc757200c6fb3fd65b06288069f08f83517912098c89c24ffe8",
   "transcript_sha256": "357eb762fb8d58a8d37deddfe64d2032a8f957353b5d78dec04d950e6e28ac49",
