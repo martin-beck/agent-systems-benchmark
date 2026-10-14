@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://asb.example.invalid/schema/config/config-bound-plan-v1.json",
+  "title": "ASB configuration-bound plan", "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "plan_id", "config_id", "config_sha256", "workloads", "agents"],
+  "properties": {"schema_version": {"const": 1}, "plan_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}, "config_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}, "config_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "workloads": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "agents": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}
+}

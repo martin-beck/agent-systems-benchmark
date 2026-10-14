@@ -19,3 +19,10 @@ The machine-readable schema is
 [`schema/v1/project-config.schema.json`](schema/v1/project-config.schema.json).
 Rust callers use `ProjectConfigV1::validate` and `decode_project_config`; both
 apply the same bounds and reference checks before a later AR persists state.
+
+The migration route has a separate sole authority: the explicit setup document
+(`explicit-setup-config-v1`) and its `config-bound-plan-v1` companion. Those
+documents are created only at a path supplied to `asb setup --output`; this
+project/tool inventory remains an input and is not an implicit home/XDG setup
+authority. Plans retain the canonical configuration identity and digest so
+validation, run, and sweep can fail closed on stale or mismatched configuration.
