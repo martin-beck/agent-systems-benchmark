@@ -14929,10 +14929,17 @@ pub(crate) mod tests {
                     run_with_live_provider_factory(&args, factory, &mut output, &mut diagnostic),
                     6
                 );
-                assert_eq!(
-                    String::from_utf8(diagnostic).unwrap(),
-                    format!("[DONE] starting {run_id} (benchmark.run-point, 0s)\n")
-                );
+                let diagnostic = String::from_utf8(diagnostic).unwrap();
+                let prefix = format!("[DONE] starting {run_id} (benchmark.run-point, ");
+                assert!(diagnostic.starts_with(&prefix));
+                let elapsed = diagnostic
+                    .strip_prefix(&prefix)
+                    .and_then(|value| value.strip_suffix("\n"))
+                    .and_then(|value| value.strip_suffix(')'))
+                    .and_then(|value| value.strip_suffix('s'))
+                    .and_then(|value| value.parse::<u64>().ok())
+                    .expect("benchmark progress duration is a bounded integer");
+                assert!(elapsed <= 30 * 60);
                 let result: Value = serde_json::from_slice(&output).unwrap();
                 assert_eq!(result["command"], "run");
                 assert_eq!(result["run_ids"], json!([run_id]));

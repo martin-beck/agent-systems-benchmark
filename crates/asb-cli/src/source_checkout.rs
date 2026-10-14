@@ -371,7 +371,15 @@ mod tests {
 
     fn fixture_lock() -> std::sync::MutexGuard<'static, ()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| {
+                // A fixture panic must not turn every later checkout test into a
+                // process-wide PoisonError.  The checkout itself remains
+                // fail-closed; this only permits the next isolated fixture to
+                // report its own result and perform cleanup.
+                poisoned.into_inner()
+            })
     }
 
     fn fixture_repository() -> (PathBuf, String, PathBuf) {
