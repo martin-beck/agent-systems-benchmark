@@ -91,6 +91,17 @@ known-vulnerable lockfile and an impossible coverage floor. A missing tool,
 unexpectedly permissive new release, or stale command syntax therefore fails CI
 instead of silently skipping a gate.
 
+Status and progress completeness is also fail-closed. The public command
+inventory in `crates/asb-cli/src/human.rs` must stay aligned with the generated
+route fixture at `crates/asb-cli/fixtures/human/command-surface-v1.json`; every
+eligible route declares human and JSON behavior. Run
+`python3 tools/quality/check_status_progress_completeness.py` when adding a
+route. Human progress is emitted only by `step_progress.rs`, using its injected
+clock and bounded renderer. Add deterministic Rust tests for new steps and
+output modes, including quiet and JSON negative cases. CI includes controlled
+defects that remove a route or introduce a direct ANSI writer, so an
+unregistered command or hand-maintained checklist cannot silently pass.
+
 Development PRs and ordinary pushes deliberately do not run TLC or Alloy. The
 development formal workflow retains the Kani and Loom checks, while the single
 `Final delivery formal assurance (future)` workflow is restricted to a future
