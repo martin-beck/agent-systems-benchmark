@@ -261,7 +261,7 @@ fn human_journey_reaches_selection_sweep_report_compare_and_tui() {
         .join(" ");
     assert!(catalog_words.contains("openrouter -> cohere/north-mini-code:free (setup supported)"));
     assert!(catalog_words.contains("gemini-2.5-flash (setup persistence unavailable)"));
-    assert!(catalog_text.contains("Supported agents:"));
+    assert!(catalog_text.contains("Registered agent adapters:"));
     assert!(catalog_text.contains("codex"));
     assert!(catalog_text.contains("openrouter"));
     assert!(catalog_text.contains("cohere/north-mini-code:free"));

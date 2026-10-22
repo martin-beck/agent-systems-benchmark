@@ -16,8 +16,10 @@ only secret channel.
 
 Every selected agent must have an exact projection. A generic wrapper cannot claim a different
 provider by changing its defaults: the launch digest and profile identity are fixed by the
-constructor-controlled projection and are revalidated immediately before spawn. Replay remains
-offline and must use its existing exact cassette/network-denial contract.
+constructor-controlled projection and are revalidated immediately before spawn. Every selectable
+coding-agent route also requires the selected model to explicitly advertise function/tool calls;
+an absent capability declaration is unavailable, never inferred. Replay remains offline and must
+use its existing exact cassette/network-denial contract.
 
 ## Supported agent/provider/model matrix
 
@@ -30,8 +32,8 @@ reachability, or model quality.
 
 | Provider | Exact model | Agents in catalog contract | Availability/evidence boundary |
 | --- | --- | --- | --- |
-| `openai` | `gpt-5.2-2025-12-11` | `opencode`, `opendesk`, `aider`, `codex`, `qwen_code`, `goose`, `mini_swe`, `openhands` | catalog-selectable; Gemini is rejected before launch; live use is explicit and runtime-authorized |
-| `openrouter` | `cohere/north-mini-code:free` (dated snapshot `2026-09-25`) | `opencode`, `opendesk`, `aider`, `codex`, `qwen_code`, `goose`, `mini_swe`, `openhands` | catalog-selectable; Gemini is rejected before launch; live use is optional |
+| `openai` | `gpt-5.2-2025-12-11` | `opencode`, `opendesk`, `aider`, `codex`, `qwen_code`, `goose`, `mini_swe`, `openhands` | catalog-selectable only after endpoint-route and tool-call preflight; Gemini has no route |
+| `openrouter` | `cohere/north-mini-code:free` (dated snapshot `2026-09-25`) | `opencode`, `opendesk`, `aider`, `codex`, `qwen_code`, `goose`, `mini_swe`, `openhands` | catalog-selectable only after endpoint-route and explicit model tool-call support; Gemini has no route |
 | `ollama` | `qwen3-coder:30b` | none | unavailable: verified local-daemon evidence is unavailable |
 
 The matrix intentionally excludes secret values and endpoint credentials. Refresh the catalog
