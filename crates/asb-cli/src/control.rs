@@ -8115,6 +8115,7 @@ mod tests {
                         model_id: "example/free".into(),
                         prompt_price: "0".into(),
                         completion_price: "0".into(),
+                        supports_tool_calls: true,
                     }],
                 }))
             })
@@ -8140,6 +8141,7 @@ mod tests {
                 model_id: "example/free".into(),
                 prompt_price: "0".into(),
                 completion_price: "0".into(),
+                supports_tool_calls: true,
             }],
         };
         let projection = project_openrouter_catalog(Ok(catalog));
@@ -8206,6 +8208,7 @@ mod tests {
                     model_id: "example/free".into(),
                     prompt_price: "0".into(),
                     completion_price: "0".into(),
+                    supports_tool_calls: true,
                 }],
             }));
         let dynamic_catalog =

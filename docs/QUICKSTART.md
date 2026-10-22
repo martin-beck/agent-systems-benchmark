@@ -94,7 +94,9 @@ The production-shaped workflow is deliberately explicit:
 The exact provider/model/agent support boundary is the digest-anchored matrix in
 [Provider-aware launches](PROVIDER_LAUNCH.md). A catalog-selectable cell is not
 native, official, or quality qualification; retain those evidence labels in every
-report.
+report. The provider-specific agent list is authoritative: a registered adapter
+without an endpoint route is shown as unavailable, and a dynamically discovered
+OpenRouter model is selectable only when it explicitly advertises tool calls.
 
 ## Selecting one provider for several agents
 

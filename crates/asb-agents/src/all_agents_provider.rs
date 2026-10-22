@@ -80,6 +80,8 @@ pub enum EffectiveApiMode {
 pub enum UnsupportedProviderField {
     /// The adapter has no exact route for the chosen provider profile.
     ProviderRoute,
+    /// The selected model did not explicitly advertise function/tool calls.
+    ToolCalls,
 }
 
 /// Deterministic credential-free incompatibility report for one agent.
@@ -102,6 +104,8 @@ pub struct EffectiveAgentProvider {
     pub profile_sha256: String,
     /// Exact provider API route.
     pub api_mode: EffectiveApiMode,
+    /// The selected provider/model contract explicitly supports tool calls.
+    pub tool_calls_supported: bool,
 }
 
 /// Constructor-controlled complete preflight result.
@@ -175,6 +179,7 @@ pub fn preflight_openai_all(
     preflight(
         selected,
         profile.provider_profile().settings_sha256.as_str(),
+        true,
         |agent| {
             profile
                 .translate(openai_agent(agent), profile.provider_profile())
@@ -207,6 +212,7 @@ pub fn preflight_openrouter_all(
     preflight(
         selected,
         profile.provider_profile().settings_sha256.as_str(),
+        true,
         |agent| {
             profile
                 .translate(openrouter_agent(agent), profile.provider_profile())
@@ -241,6 +247,7 @@ pub fn preflight_ollama_all(
     preflight(
         selected,
         profile.provider_profile().settings_sha256.as_str(),
+        true,
         |agent| {
             profile
                 .translate(ollama_agent(agent))
@@ -289,6 +296,7 @@ enum PreflightFailure {
 fn preflight(
     selected: &[SelectedAgent],
     profile_sha256: &str,
+    tool_calls_supported: bool,
     mut resolve: impl FnMut(SelectedAgent) -> Result<EffectiveApiMode, PreflightFailure>,
 ) -> Result<AllAgentsProviderPlan, AllAgentsProviderError> {
     if selected.is_empty() {
@@ -308,11 +316,19 @@ fn preflight(
     let mut effective = Vec::with_capacity(ordered.len());
     let mut issues = Vec::new();
     for agent in ordered {
+        if !tool_calls_supported {
+            issues.push(ProviderPreflightIssue {
+                agent,
+                unsupported_fields: BTreeSet::from([UnsupportedProviderField::ToolCalls]),
+            });
+            continue;
+        }
         match resolve(agent) {
             Ok(api_mode) => effective.push(EffectiveAgentProvider {
                 agent,
                 profile_sha256: profile_sha256.to_owned(),
                 api_mode,
+                tool_calls_supported,
             }),
             Err(PreflightFailure::UnsupportedRoute) => issues.push(ProviderPreflightIssue {
                 agent,
@@ -406,6 +422,11 @@ mod tests {
                 .iter()
                 .all(|item| item.profile_sha256 == plan.profile_sha256())
         );
+        assert!(
+            plan.effective()
+                .iter()
+                .all(|item| item.tool_calls_supported)
+        );
         assert_eq!(
             plan.effective()
                 .iter()
@@ -432,6 +453,30 @@ mod tests {
                 agent: SelectedAgent::Gemini,
                 unsupported_fields: BTreeSet::from([UnsupportedProviderField::ProviderRoute]),
             }])
+        );
+    }
+
+    #[test]
+    fn missing_tool_capability_rejects_every_selected_route_before_translation() {
+        let mut translated = 0usize;
+        let error = preflight(&COMPATIBLE, "a", false, |_| {
+            translated += 1;
+            Ok(EffectiveApiMode::ChatCompletions)
+        })
+        .unwrap_err();
+        assert_eq!(translated, 0);
+        assert_eq!(
+            error,
+            AllAgentsProviderError::Incompatible(
+                COMPATIBLE
+                    .iter()
+                    .copied()
+                    .map(|agent| ProviderPreflightIssue {
+                        agent,
+                        unsupported_fields: BTreeSet::from([UnsupportedProviderField::ToolCalls]),
+                    })
+                    .collect(),
+            )
         );
     }
 

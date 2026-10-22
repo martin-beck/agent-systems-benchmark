@@ -39,8 +39,8 @@ asb setup --agent codex --agent opendesk \
   --persist
 ```
 
-The wizard presents only catalog-advertised agents, compatible providers, and
-models. Select every agent first, then one provider/model profile that covers
+The wizard presents only provider-scoped agents, compatible providers, and
+models that explicitly advertise the required tool calls. Select every agent first, then one provider/model profile that covers
 the complete selection. The saved configuration contains identities and a
 credential-reference digest, never a secret value. Re-run setup to edit the
 selection; use `--no-default` when it must not replace shared defaults.

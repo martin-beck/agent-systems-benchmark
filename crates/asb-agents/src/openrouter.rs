@@ -186,6 +186,9 @@ pub struct OpenRouterDiscoveredModel {
     pub prompt_price: String,
     /// Normalized completion price per token, as returned by OpenRouter.
     pub completion_price: String,
+    /// Whether the provider explicitly advertises function/tool calling for
+    /// this exact model.  Absence is not treated as support.
+    pub supports_tool_calls: bool,
 }
 
 impl OpenRouterDiscoveredModel {
@@ -198,12 +201,13 @@ impl OpenRouterDiscoveredModel {
 /// Deterministic normalized public model catalog.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OpenRouterModelCatalog {
-    /// Explicitly zero-price models, sorted by provider model ID.
+    /// Explicitly zero-price models with provider-advertised tool support,
+    /// sorted by provider model ID.
     pub free_models: Vec<OpenRouterDiscoveredModel>,
 }
 
 impl OpenRouterModelCatalog {
-    /// Deterministic digest of the normalized zero-price roster.
+    /// Deterministic digest of the normalized zero-price, tool-capable roster.
     pub fn digest_sha256(&self) -> String {
         let mut digest = Sha256::new();
         digest.update(b"asb-openrouter-free-catalog-v1\0");
@@ -214,6 +218,7 @@ impl OpenRouterModelCatalog {
             digest.update([0]);
             digest.update(model.completion_price.as_bytes());
             digest.update([0]);
+            digest.update([u8::from(model.supports_tool_calls)]);
         }
         format!("{:x}", digest.finalize())
     }
@@ -541,9 +546,11 @@ fn discover_trusted_curl_from(candidates: &[PathBuf]) -> Result<PathBuf, OpenRou
 /// Normalize a bounded response from OpenRouter's public `/models` endpoint.
 ///
 /// The endpoint is intentionally consumed without credentials. Only explicit
-/// zero prompt and completion prices are eligible for the development free
-/// roster; a `:free` suffix alone is not sufficient evidence. Unknown fields
-/// are ignored so provider additions do not break older ASB binaries.
+/// zero prompt and completion prices *and explicit tool support* are eligible
+/// for the development free roster; a `:free` suffix alone is not sufficient
+/// evidence. Unknown fields are ignored so provider additions do not break
+/// older ASB binaries, but a missing `supported_parameters` declaration is
+/// deliberately not guessed to include tools.
 pub fn normalize_openrouter_model_catalog(
     body: &[u8],
 ) -> Result<OpenRouterModelCatalog, OpenRouterCatalogError> {
@@ -580,8 +587,17 @@ pub fn normalize_openrouter_model_catalog(
             model_id: model_id.to_owned(),
             prompt_price,
             completion_price,
+            supports_tool_calls: record
+                .get("supported_parameters")
+                .and_then(Value::as_array)
+                .is_some_and(|parameters| {
+                    parameters
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .any(|parameter| parameter == "tools")
+                }),
         };
-        if model.is_zero_price() {
+        if model.is_zero_price() && model.supports_tool_calls {
             free_models.push(model);
         }
     }
@@ -879,7 +895,7 @@ impl OpenRouterProfile {
         if !catalog
             .free_models
             .iter()
-            .any(|entry| entry.model_id == model)
+            .any(|entry| entry.model_id == model && entry.supports_tool_calls)
         {
             return Err(OpenRouterProfileError::ModelUnavailable);
         }
@@ -1764,10 +1780,10 @@ mod tests {
     fn model_catalog_normalizes_zero_price_models_deterministically() {
         let body = br#"{
           "data": [
-            {"id":"vendor/zeta:free","pricing":{"prompt":"0.000","completion":"0"}},
+            {"id":"vendor/zeta:free","pricing":{"prompt":"0.000","completion":"0"},"supported_parameters":["tools"]},
             {"id":"vendor/paid","pricing":{"prompt":"0","completion":"0.0001"}},
-            {"id":"vendor/alpha","pricing":{"prompt":"0","completion":"0"}},
-            {"id":"vendor/zeta:free","pricing":{"prompt":"0","completion":"0"}},
+            {"id":"vendor/alpha","pricing":{"prompt":"0","completion":"0"},"supported_parameters":["tools"]},
+            {"id":"vendor/zeta:free","pricing":{"prompt":"0","completion":"0"},"supported_parameters":["tools"]},
             {"id":"vendor/missing-pricing"}
           ]
         }"#;
@@ -1785,6 +1801,30 @@ mod tests {
                 .free_models
                 .iter()
                 .all(OpenRouterDiscoveredModel::is_zero_price)
+        );
+        assert!(
+            catalog
+                .free_models
+                .iter()
+                .all(|model| model.supports_tool_calls)
+        );
+    }
+
+    #[test]
+    fn model_catalog_requires_explicit_tool_support_for_selection() {
+        let body = br#"{"data":[
+          {"id":"vendor/no-tools","pricing":{"prompt":"0","completion":"0"},"supported_parameters":["reasoning"]},
+          {"id":"vendor/unknown","pricing":{"prompt":"0","completion":"0"}},
+          {"id":"vendor/tools","pricing":{"prompt":"0","completion":"0"},"supported_parameters":["tools"]}
+        ]}"#;
+        let catalog = normalize_openrouter_model_catalog(body).unwrap();
+        assert_eq!(
+            catalog
+                .free_models
+                .iter()
+                .map(|model| model.model_id.as_str())
+                .collect::<Vec<_>>(),
+            ["vendor/tools"]
         );
     }
 
@@ -1837,6 +1877,7 @@ mod tests {
                 model_id: "vendor/alpha".into(),
                 prompt_price: "0".into(),
                 completion_price: "0".into(),
+                supports_tool_calls: true,
             }],
         };
         let second = OpenRouterModelCatalog {
@@ -1844,6 +1885,7 @@ mod tests {
                 model_id: "vendor/beta".into(),
                 prompt_price: "0".into(),
                 completion_price: "0".into(),
+                supports_tool_calls: true,
             }],
         };
         assert_ne!(first.digest_sha256(), second.digest_sha256());
@@ -1856,6 +1898,7 @@ mod tests {
                 model_id: "vendor/free-model".into(),
                 prompt_price: "0".into(),
                 completion_price: "0".into(),
+                supports_tool_calls: true,
             }],
         };
         let profile = OpenRouterProfile::new_from_free_catalog(

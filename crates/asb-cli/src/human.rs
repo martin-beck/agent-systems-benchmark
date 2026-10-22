@@ -2079,11 +2079,11 @@ fn present_catalog(
                 .map(display_value)
                 .collect::<Vec<_>>();
             if !agents.is_empty() {
-                value.fact(format!("Supported agents: {}.", agents.join(", ")));
+                value.fact(format!("Registered agent adapters: {}.", agents.join(", ")));
             }
         }
         value.fact(
-            "Choose a supported agent and a provider/model route marked setup supported; pass those exact values to asb setup.",
+            "Choose an agent compatible with a provider/model route marked setup supported; pass those exact values to asb setup.",
         );
         value.fact(
             "Command form: asb setup --agent AGENT --provider-profile PROVIDER --model MODEL --persist.",

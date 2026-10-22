@@ -6264,6 +6264,11 @@ struct ProviderCatalogEntry {
     credential_source: &'static str,
     selectable: bool,
     unavailable_reason: Option<&'static str>,
+    /// Agent IDs that passed this profile/model's endpoint and tool-call
+    /// preflight. Frontends must select only from this provider-scoped list.
+    compatible_agents: &'static [&'static str],
+    /// Coding agents require a provider model with function/tool calls.
+    requires_tool_calls: bool,
 }
 
 const AGENT_IDS: [&str; 9] = [
@@ -6272,6 +6277,19 @@ const AGENT_IDS: [&str; 9] = [
     "aider",
     "codex",
     "gemini",
+    "qwen_code",
+    "goose",
+    "mini_swe",
+    "openhands",
+];
+/// The exact routes currently implemented by the OpenAI-compatible profiles.
+/// Gemini is registered as an adapter but has no compatible provider-launch
+/// route here, so it remains visible globally without being selectable.
+const OPENAI_COMPATIBLE_AGENT_IDS: [&str; 8] = [
+    "opencode",
+    "opendesk",
+    "aider",
+    "codex",
     "qwen_code",
     "goose",
     "mini_swe",
@@ -6290,16 +6308,51 @@ fn provider_catalog_digest() -> String {
         digest.update(agent.as_bytes());
         digest.update([0]);
     }
-    digest.update(b"openai\0");
-    digest.update(asb_agents::openai::OPENAI_MODEL.as_bytes());
-    digest.update(b"\0environment\0selectable\0openrouter\0");
-    digest.update(asb_agents::openrouter::OPENROUTER_MODEL.as_bytes());
-    digest.update(b"\0environment\0selectable\0ollama\0");
-    digest.update(asb_agents::ollama::OLLAMA_MODEL.as_bytes());
-    digest.update(b"\0none\0requires-verified-daemon\0");
-    digest.update(b"gemini\0");
-    digest.update(GEMINI_MODEL.as_bytes());
-    digest.update(b"\0environment\0selectable\0");
+    for (id, model, credential, selectable, unavailable, agents) in [
+        (
+            "openai",
+            asb_agents::openai::OPENAI_MODEL,
+            "environment",
+            true,
+            "",
+            &OPENAI_COMPATIBLE_AGENT_IDS[..],
+        ),
+        (
+            "openrouter",
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "environment",
+            true,
+            "",
+            &OPENAI_COMPATIBLE_AGENT_IDS[..],
+        ),
+        (
+            "ollama",
+            asb_agents::ollama::OLLAMA_MODEL,
+            "none",
+            false,
+            "verified local daemon evidence is unavailable",
+            &[][..],
+        ),
+        (
+            "gemini",
+            GEMINI_MODEL,
+            "environment",
+            false,
+            "no provider-launch route is implemented",
+            &[][..],
+        ),
+    ] {
+        for value in [id, model, credential, unavailable] {
+            digest.update((value.len() as u64).to_be_bytes());
+            digest.update(value.as_bytes());
+        }
+        digest.update([u8::from(selectable), 1]);
+        digest.update((agents.len() as u64).to_be_bytes());
+        for agent in agents {
+            digest.update((agent.len() as u64).to_be_bytes());
+            digest.update(agent.as_bytes());
+        }
+    }
     format!("{:x}", digest.finalize())
 }
 
@@ -6419,6 +6472,8 @@ fn provider_catalog_with_models(
                     credential_source: "environment",
                     selectable: true,
                     unavailable_reason: None,
+                    compatible_agents: &OPENAI_COMPATIBLE_AGENT_IDS,
+                    requires_tool_calls: true,
                 },
                 ProviderCatalogEntry {
                     id: "openrouter",
@@ -6426,6 +6481,8 @@ fn provider_catalog_with_models(
                     credential_source: "environment",
                     selectable: true,
                     unavailable_reason: None,
+                    compatible_agents: &OPENAI_COMPATIBLE_AGENT_IDS,
+                    requires_tool_calls: true,
                 },
                 ProviderCatalogEntry {
                     id: "ollama",
@@ -6433,13 +6490,17 @@ fn provider_catalog_with_models(
                     credential_source: "none",
                     selectable: false,
                     unavailable_reason: Some("verified local daemon evidence is unavailable"),
+                    compatible_agents: &[],
+                    requires_tool_calls: true,
                 },
                 ProviderCatalogEntry {
                     id: "gemini",
                     model: GEMINI_MODEL,
                     credential_source: "environment",
-                    selectable: true,
-                    unavailable_reason: None,
+                    selectable: false,
+                    unavailable_reason: Some("no provider-launch route is implemented"),
+                    compatible_agents: &[],
+                    requires_tool_calls: true,
                 },
             ],
         },
@@ -6642,6 +6703,7 @@ struct EffectiveCliAgent {
     agent: String,
     profile_sha256: String,
     api_mode: EffectiveApiMode,
+    tool_calls_supported: bool,
 }
 
 fn provider_plan(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
@@ -6801,6 +6863,7 @@ fn provider_plan_at_with_catalog(
             agent: agent_id(item.agent).to_owned(),
             profile_sha256: item.profile_sha256.clone(),
             api_mode: item.api_mode,
+            tool_calls_supported: item.tool_calls_supported,
         })
         .collect::<Vec<_>>();
     let canonical_selection = AllAgentsProviderSelection {
@@ -7018,6 +7081,7 @@ fn provider_plan_from_selection(
             agent: agent_id(item.agent).to_owned(),
             profile_sha256: item.profile_sha256.clone(),
             api_mode: item.api_mode,
+            tool_calls_supported: item.tool_calls_supported,
         })
         .collect::<Vec<_>>();
     let selection = AllAgentsProviderSelection {
@@ -7139,6 +7203,16 @@ fn provider_plan_for_selected_model_in_catalog(
     }
     let credential = credential_reference_sha256
         .ok_or_else(|| CliError::legacy_validation("credential reference identity is absent"))?;
+    if catalog
+        .free_models
+        .iter()
+        .any(|entry| entry.model_id == model && !entry.supports_tool_calls)
+    {
+        return Err(CliError::validation_code(
+            "provider_model_tools_unavailable",
+            "OpenRouter model does not explicitly advertise required tool calls",
+        ));
+    }
     let profile =
         OpenRouterProfile::new_from_free_catalog(credential, catalog, model).map_err(|error| {
             match error {
@@ -7758,6 +7832,7 @@ fn provider_plan_from_configuration(
             agent: agent_id(item.agent).to_owned(),
             profile_sha256: item.profile_sha256.clone(),
             api_mode: item.api_mode,
+            tool_calls_supported: item.tool_calls_supported,
         })
         .collect::<Vec<_>>();
     let canonical_selection = AllAgentsProviderSelection {
@@ -7947,6 +8022,7 @@ fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliErro
             .any(|(actual, expected)| {
                 actual.agent != agent_id(expected.agent)
                     || actual.api_mode != expected.api_mode
+                    || actual.tool_calls_supported != expected.tool_calls_supported
                     || actual.profile_sha256 != expected.profile_sha256
             })
         || provider_selection_digest(
@@ -14095,6 +14171,7 @@ pub(crate) mod tests {
                 model_id: "example/free".into(),
                 prompt_price: "0".into(),
                 completion_price: "0".into(),
+                supports_tool_calls: true,
             }],
         };
         let setup_args = vec![
@@ -15938,6 +16015,7 @@ pub(crate) mod tests {
                 model_id: "vendor/free-model".into(),
                 prompt_price: "0".into(),
                 completion_price: "0".into(),
+                supports_tool_calls: true,
             }],
         };
         let (_, plan, model) = provider_plan_for_selected_model_in_catalog(
@@ -15959,6 +16037,24 @@ pub(crate) mod tests {
         )
         .unwrap_err();
         assert_eq!(unavailable.code, "provider_model_unavailable");
+
+        let no_tools = asb_agents::openrouter::OpenRouterModelCatalog {
+            free_models: vec![asb_agents::openrouter::OpenRouterDiscoveredModel {
+                model_id: "vendor/no-tools".into(),
+                prompt_price: "0".into(),
+                completion_price: "0".into(),
+                supports_tool_calls: false,
+            }],
+        };
+        let unsupported = provider_plan_for_selected_model_in_catalog(
+            "openrouter",
+            vec![SelectedAgent::OpenCode],
+            Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            "vendor/no-tools",
+            &no_tools,
+        )
+        .unwrap_err();
+        assert_eq!(unsupported.code, "provider_model_tools_unavailable");
     }
 
     #[test]
@@ -16029,11 +16125,42 @@ pub(crate) mod tests {
                 .iter()
                 .all(|item| item["profile_sha256"] == plan["provider_profile_sha256"])
         );
+        assert!(
+            plan["effective"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|item| item["tool_calls_supported"] == true)
+        );
         assert_eq!(plan["selection_sha256"].as_str().unwrap().len(), 64);
         let encoded = serde_json::to_string(&plan).unwrap();
         assert!(!encoded.contains("api_key"));
         assert!(!encoded.contains("authorization"));
         assert_eq!(run_json(&args), (exit, plan));
+    }
+
+    #[test]
+    fn provider_catalog_scopes_agent_choices_to_verified_endpoint_and_tool_routes() {
+        let (exit, catalog) = run_json(&["provider-catalog".into()]);
+        assert_eq!(exit, 0);
+        let profiles = catalog["profiles"].as_array().unwrap();
+        for provider in ["openai", "openrouter"] {
+            let profile = profiles
+                .iter()
+                .find(|entry| entry["id"] == provider)
+                .unwrap();
+            assert_eq!(profile["requires_tool_calls"], true);
+            let agents = profile["compatible_agents"].as_array().unwrap();
+            assert_eq!(agents.len(), 8);
+            assert!(agents.iter().all(|agent| agent != "gemini"));
+            assert!(agents.iter().any(|agent| agent == "codex"));
+        }
+        let gemini = profiles
+            .iter()
+            .find(|entry| entry["id"] == "gemini")
+            .unwrap();
+        assert_eq!(gemini["selectable"], false);
+        assert_eq!(gemini["compatible_agents"], json!([]));
     }
 
     #[test]
@@ -20539,6 +20666,7 @@ fn cli2key_provider_plan(
         agent: "codex".to_owned(),
         profile_sha256: receipt.catalog_sha256.clone(),
         api_mode: EffectiveApiMode::Responses,
+        tool_calls_supported: true,
     }];
     let selection_sha256 = format!(
         "{:x}",
