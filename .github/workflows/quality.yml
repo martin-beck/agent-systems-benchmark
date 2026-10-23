@@ -118,6 +118,12 @@ jobs:
           cargo test --locked -p asb-cli --test diagnostic_journey
           cargo test --locked -p asb-cli every_public_command_has_a_human_safe_invalid_argument_journey
           cargo test --locked -p asb-cli --test human_cli ar1769_executable_diagnostic_matrix_covers_public_failure_boundaries
+      - name: Enforce status and progress completeness
+        run: |
+          python3 tools/quality/check_status_progress_completeness.py
+          python3 -m unittest discover -s tests/quality -p 'test_status_progress_completeness.py'
+          cargo test --locked -p asb-cli --lib step_progress::tests
+          cargo test --locked -p asb-cli --test cli_e2e json_and_quiet_suppress_execution_notices_on_both_streams
       - name: Validate platform manifests and failure fixtures
         run: |
           python3 tools/platforms/validate_manifests.py
