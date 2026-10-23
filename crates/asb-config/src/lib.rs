@@ -16,6 +16,13 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 pub mod development_credentials;
+pub mod explicit_setup;
+
+pub use explicit_setup::{
+    CONFIG_BOUND_PLAN_SCHEMA_VERSION, ConfigBoundPlanV1, EXPLICIT_SETUP_SCHEMA_VERSION,
+    ExecutionPolicy, ExplicitSetupConfigV1, ExplicitSetupError, RegistrySnapshots, RunBounds,
+    SetupAgent, SetupModel, SetupProvider, SetupWorkload,
+};
 
 pub use development_credentials::{
     DEVELOPMENT_ENROLLMENT_SCHEMA_VERSION, DEVELOPMENT_MOCK_MODEL, DEVELOPMENT_MOCK_PROVIDER,

@@ -1,4 +1,37 @@
-# Setup preflight and first-run selection
+# Setup preflight and explicit configuration
+
+The migration route is explicit-file only. A setup invocation that creates
+durable configuration must receive `--output CONFIG`; no XDG or home-directory
+file is an authority for this route:
+
+```sh
+asb setup --output CONFIG
+asb plan create --config CONFIG --output PLAN --workload WORKLOAD
+asb plan validate --config CONFIG PLAN
+asb run --config CONFIG PLAN
+asb sweep --config CONFIG PLAN
+```
+
+The versioned `explicit-setup-config-v1` document contains the selected agents,
+adapters/providers, digest-only credential references, models, workloads,
+monitors/measures, bounded run/sweep policy, relative execution root, live/
+network/cost acknowledgements, and immutable registry snapshot digests. It is
+portable and secret-free: API-key bytes, provider-selection documents, catalog
+hash command ceremony, private paths, and implicit defaults are not fields in
+this contract. Parent directories may be created only after the explicit path
+is supplied; writes are validated and atomic, and existing files are never
+silently overwritten.
+
+Each plan embeds `config_id` and the SHA-256 digest of canonical configuration
+bytes. `plan validate`, `run`, and `sweep` require the same explicit `--config`
+path and reject either a changed document or a different identity before any
+execution. The checked-in schemas are
+[`explicit-setup-config-v1`](../../crates/asb-config/schema/v1/explicit-setup-config.schema.json)
+and [`config-bound-plan-v1`](../../crates/asb-config/schema/v1/config-bound-plan.schema.json).
+
+The older provider-selection examples below describe the pre-migration
+development surface and are retained only as historical context for downstream
+ARs; they are not authority for the explicit route.
 
 `asb setup` is a credential-free setup wizard contract. Human-readable output
 is the default; add `--json` when a frontend needs the versioned response.
